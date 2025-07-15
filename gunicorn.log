@@ -1,0 +1,52 @@
+[2025-07-16 01:34:35 +0200] [17310] [INFO] Starting gunicorn 23.0.0
+[2025-07-16 01:34:35 +0200] [17310] [INFO] Listening at: http://0.0.0.0:5000 (17310)
+[2025-07-16 01:34:35 +0200] [17310] [INFO] Using worker: sync
+[2025-07-16 01:34:35 +0200] [17311] [INFO] Booting worker with pid: 17311
+[2025-07-16 01:39:28 +0200] [17310] [CRITICAL] WORKER TIMEOUT (pid:17311)
+[2025-07-16 01:39:28 +0200] [17311] [ERROR] Error handling request (no URI read)
+Traceback (most recent call last):
+  File "/home/darelldeejay/.local/lib/python3.9/site-packages/gunicorn/workers/sync.py", line 133, in handle
+    req = next(parser)
+  File "/home/darelldeejay/.local/lib/python3.9/site-packages/gunicorn/http/parser.py", line 41, in __next__
+    self.mesg = self.mesg_class(self.cfg, self.unreader, self.source_addr, self.req_count)
+  File "/home/darelldeejay/.local/lib/python3.9/site-packages/gunicorn/http/message.py", line 259, in __init__
+    super().__init__(cfg, unreader, peer_addr)
+  File "/home/darelldeejay/.local/lib/python3.9/site-packages/gunicorn/http/message.py", line 60, in __init__
+    unused = self.parse(self.unreader)
+  File "/home/darelldeejay/.local/lib/python3.9/site-packages/gunicorn/http/message.py", line 271, in parse
+    self.get_data(unreader, buf, stop=True)
+  File "/home/darelldeejay/.local/lib/python3.9/site-packages/gunicorn/http/message.py", line 262, in get_data
+    data = unreader.read()
+  File "/home/darelldeejay/.local/lib/python3.9/site-packages/gunicorn/http/unreader.py", line 36, in read
+    d = self.chunk()
+  File "/home/darelldeejay/.local/lib/python3.9/site-packages/gunicorn/http/unreader.py", line 63, in chunk
+    return self.sock.recv(self.mxchunk)
+  File "/home/darelldeejay/.local/lib/python3.9/site-packages/gunicorn/workers/base.py", line 204, in handle_abort
+    sys.exit(1)
+SystemExit: 1
+[2025-07-16 01:39:28 +0200] [17311] [INFO] Worker exiting (pid: 17311)
+[2025-07-16 01:39:28 +0200] [17358] [INFO] Booting worker with pid: 17358
+[2025-07-16 01:43:53 +0200] [17310] [CRITICAL] WORKER TIMEOUT (pid:17358)
+[2025-07-16 01:43:53 +0200] [17358] [ERROR] Error handling request (no URI read)
+Traceback (most recent call last):
+  File "/home/darelldeejay/.local/lib/python3.9/site-packages/gunicorn/workers/sync.py", line 133, in handle
+    req = next(parser)
+  File "/home/darelldeejay/.local/lib/python3.9/site-packages/gunicorn/http/parser.py", line 41, in __next__
+    self.mesg = self.mesg_class(self.cfg, self.unreader, self.source_addr, self.req_count)
+  File "/home/darelldeejay/.local/lib/python3.9/site-packages/gunicorn/http/message.py", line 259, in __init__
+    super().__init__(cfg, unreader, peer_addr)
+  File "/home/darelldeejay/.local/lib/python3.9/site-packages/gunicorn/http/message.py", line 60, in __init__
+    unused = self.parse(self.unreader)
+  File "/home/darelldeejay/.local/lib/python3.9/site-packages/gunicorn/http/message.py", line 271, in parse
+    self.get_data(unreader, buf, stop=True)
+  File "/home/darelldeejay/.local/lib/python3.9/site-packages/gunicorn/http/message.py", line 262, in get_data
+    data = unreader.read()
+  File "/home/darelldeejay/.local/lib/python3.9/site-packages/gunicorn/http/unreader.py", line 36, in read
+    d = self.chunk()
+  File "/home/darelldeejay/.local/lib/python3.9/site-packages/gunicorn/http/unreader.py", line 63, in chunk
+    return self.sock.recv(self.mxchunk)
+  File "/home/darelldeejay/.local/lib/python3.9/site-packages/gunicorn/workers/base.py", line 204, in handle_abort
+    sys.exit(1)
+SystemExit: 1
+[2025-07-16 01:43:53 +0200] [17358] [INFO] Worker exiting (pid: 17358)
+[2025-07-16 01:43:53 +0200] [17420] [INFO] Booting worker with pid: 17420

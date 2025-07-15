@@ -1,0 +1,14 @@
+#!/bin/bash
+
+# Matar proceso anterior en puerto 5000 si existe
+PID=$(lsof -t -i:5000)
+if [ ! -z "$PID" ]; then
+  echo "Cerrando proceso anterior en puerto 5000 (PID $PID)"
+  kill -9 $PID
+fi
+
+# Lanzar Gunicorn en segundo plano con log
+echo "Lanzando servidor Gunicorn en segundo plano..."
+nohup gunicorn -c gunicorn_config.py app:app > gunicorn.log 2>&1 &
+
+echo "Servidor lanzado correctamente en http://0.0.0.0:5000"
