@@ -1,35 +1,5 @@
-
-def eliminar_ips_vencidas():
-    now = datetime.now()
-    nuevas_lineas = []
-    eliminado = False
-    try:
-        with open('ioc-feed.txt', 'r') as f:
-            lineas = f.readlines()
-        for linea in lineas:
-            partes = linea.strip().split(',')
-            if len(partes) != 3:
-                continue
-            ip, fecha_str, ttl_str = partes
-            try:
-                fecha_alta = datetime.strptime(fecha_str, '%Y-%m-%d')
-                ttl_dias = int(ttl_str)
-                if now - fecha_alta < timedelta(days=ttl_dias):
-                    nuevas_lineas.append(linea)
-                else:
-                    with open('ioc-log.txt', 'a') as log:
-                        log.write(f"{now.strftime('%Y-%m-%d %H:%M:%S')} - Eliminada IP vencida automáticamente: {ip}\n")
-                    eliminado = True
-            except:
-                nuevas_lineas.append(linea)
-        if eliminado:
-            with open('ioc-feed.txt', 'w') as f:
-                f.writelines(nuevas_lineas)
-    except FileNotFoundError:
-        pass
-
 from flask import Flask, render_template, request, redirect, url_for, session, flash
-from datetime import datetime
+from datetime import datetime, timedelta
 import ipaddress
 import os
 
@@ -39,6 +9,37 @@ app.secret_key = 'clave-secreta'
 BASE_DIR = os.path.dirname(os.path.realpath(__file__))
 FEED_FILE = os.path.join(BASE_DIR, 'ioc-feed.txt')
 LOG_FILE = os.path.join(BASE_DIR, 'ioc-log.txt')
+
+def eliminar_ips_vencidas():
+    now = datetime.now()
+    nuevas_lineas = []
+    eliminado = False
+    try:
+        with open(FEED_FILE, 'r', encoding='utf-8') as f:
+            lineas = f.readlines()
+        for linea in lineas:
+            partes = linea.strip().split('|')
+            if len(partes) != 3:
+                continue
+            ip, fecha_str, ttl_str = partes
+            try:
+                fecha_alta = datetime.strptime(fecha_str, '%Y-%m-%d')
+                ttl_dias = int(ttl_str)
+                dias_pasados = (now - fecha_alta).days
+                if ttl_dias == 0 or dias_pasados < ttl_dias:
+                    nuevas_lineas.append(linea.strip())
+                else:
+                    with open(LOG_FILE, 'a', encoding='utf-8') as log:
+                        log.write(f"{now.strftime('%Y-%m-%d %H:%M:%S')} - Eliminada IP vencida automáticamente: {ip}\n")
+                    eliminado = True
+            except:
+                nuevas_lineas.append(linea.strip())
+        if eliminado:
+            with open(FEED_FILE, 'w', encoding='utf-8') as f:
+                for line in nuevas_lineas:
+                    f.write(line + '\n')
+    except FileNotFoundError:
+        pass
 
 @app.route("/login", methods=["GET", "POST"])
 def login():
@@ -61,6 +62,8 @@ def logout():
 def index():
     if "username" not in session:
         return redirect(url_for("login"))
+
+    eliminar_ips_vencidas()
 
     error = None
     lines = load_lines()
