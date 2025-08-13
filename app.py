@@ -67,6 +67,7 @@ def index():
 
     error = None
     lines = load_lines()
+    total_ips = len(lines)
 
     if request.method == "POST":
         if "delete-all" in request.form:
@@ -110,8 +111,9 @@ def index():
                 except ValueError:
                     rejected += 1
             save_lines(lines)
+            total_ips = len(lines)
             if valid_ips:
-                flash(f"{valid_ips} IPs añadidas correctamente", "success")
+                flash(f"{valid_ips} IPs añadidas correctamente. Total actual: {total_ips}", "success")
             if rejected:
                 flash(f"{rejected} IPs rechazadas por inválidas, privadas, duplicadas o peligrosas", "danger")
             return redirect(url_for("index"))
@@ -143,7 +145,7 @@ def index():
             except Exception as e:
                 error = f"Error inesperado al guardar la IP: {str(e)}"
 
-    return render_template("index.html", ips=lines, error=error)
+    return render_template("index.html", ips=lines, error=error, total_ips=total_ips, messages=list(session.get('_flashes', [])))
 
 def load_lines():
     if not os.path.exists(FEED_FILE):

@@ -8,7 +8,6 @@
 </head>
 <body class="bg-light">
 
-
 <div class="d-flex justify-content-between mb-3">
   <button class="btn btn-outline-secondary btn-sm" onclick="toggleTheme()">🌙 Modo Oscuro</button>
   <a href="/logout" class="btn btn-outline-danger btn-sm">Logout</a>
@@ -16,6 +15,11 @@
 
 <div class="container py-4">
   <h2 class="mb-4 text-center">Gestor de IPs Maliciosas</h2>
+
+  <!-- Contador de IPs -->
+  <div class="alert alert-info text-center">
+    📊 Total de IPs activas: <strong>{{ total_ips }}</strong>
+  </div>
 
   <form method="POST" enctype="multipart/form-data">
     <div class="row g-3 mb-3">
@@ -140,7 +144,6 @@
   </div>
 </div>
 
-
 <script>
   function toggleTheme() {
     const body = document.body;
@@ -180,5 +183,4 @@ document.addEventListener('DOMContentLoaded', function () {
 </script>
 
 </body>
-
 </html>
