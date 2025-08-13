@@ -16,7 +16,6 @@
 <div class="container py-4">
   <h2 class="mb-4 text-center">Gestor de IPs Maliciosas</h2>
 
-  <!-- Contador de IPs -->
   <div class="alert alert-info text-center">
     📊 Total de IPs activas: <strong>{{ total_ips }}</strong>
   </div>
@@ -56,6 +55,9 @@
       </div>
       <div class="col-md-2">
         <button type="submit" class="btn btn-primary w-100">Subir archivo</button>
+      </div>
+      <div class="col-md-2">
+        <a href="/static/plantilla.csv" class="btn btn-outline-secondary w-100" download>Descargar plantilla</a>
       </div>
     </div>
 
