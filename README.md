@@ -104,6 +104,35 @@ ioc-manager/
 
 ---
 
+## 🔄 Actualización segura en producción (sin perder IPs)
+
+Para actualizar la aplicación desde GitHub sin perder las IPs ya cargadas ni los logs, utiliza el script `actualizar_codigo_sin_venv.sh`.
+
+Este script:
+- Respaldará automáticamente `ioc-feed.txt` e `ioc-log.txt`
+- Ejecutará `git pull` para traer los últimos cambios
+- Restaurará los archivos de datos
+- Relanzará el servidor
+
+### 🛠️ Cómo usarlo
+
+1. Coloca el script en la carpeta principal del proyecto.
+2. Asigna permisos de ejecución:
+
+```bash
+chmod +x actualizar_codigo_sin_venv.sh
+```
+
+3. Ejecuta el script cada vez que desees actualizar:
+
+```bash
+./actualizar_codigo_sin_venv.sh
+```
+
+> El script no utiliza entorno virtual, ideal para instalaciones simplificadas.
+
+---
+
 ## ✨ Autor
 
 **Creado y mantenido por Darell Perez**  
