@@ -22,9 +22,13 @@
 - ✅ Subida de IPs por CSV
 - ✅ Feed accesible desde `/feed/ioc-feed.txt`
 - ✅ Registro completo en `ioc-log.txt`
-- ✅ Login de acceso básico (`admin/admin`)
+- ✅ Login básico (`admin/admin`)
 - ✅ Interfaz limpia con modo oscuro persistente
-- ✅ Preparado para integraciones futuras vía API (ej. Torq)
+- ✅ Contador de IPs añadidas manualmente y por CSV
+- ✅ Plantilla CSV descargable desde la web
+- ✅ Buscador interactivo de IPs en tiempo real
+- ✅ Scripts de actualización automática (con y sin venv)
+- ✅ Preparado para integraciones vía API (ej. Torq)
 
 ---
 
@@ -37,110 +41,107 @@ sudo apt update && sudo apt install python3 python3-pip -y
 pip3 install flask gunicorn
 chmod +x install
 ./install
-```
-
 Accede desde tu navegador:
 
-```
+cpp
+Copiar código
 http://<IP_RASPBERRY>:5000
-```
+🔍 Funciones destacadas en la interfaz
+Añadir IPs manualmente con selector TTL
 
----
+Subida masiva mediante archivo .csv o .txt
 
-## 🔗 Integración con FortiGate
+Plantilla CSV de ejemplo descargable
 
-1. Ir a **Security Fabric > External Connectors**
-2. Tipo: `Threat Feed (IP Address)`
-3. URL del feed:
-```
+Buscador de IPs para filtrar resultados rápidamente
+
+Resumen numérico de IPs activas, manuales y por CSV
+
+Modo oscuro persistente
+
+Eliminación individual o total de IPs
+
+🔗 Integración con FortiGate
+Ir a Security Fabric > External Connectors
+
+Tipo: Threat Feed (IP Address)
+
+URL del feed:
+
+arduino
+Copiar código
 http://<IP_RASPBERRY>:5000/feed/ioc-feed.txt
-```
-4. Validar y asociar a políticas
+Validar y asociar a políticas
 
----
-
-## 🧱 Arquitectura del sistema
-
-```
-[ Navegador ] ⇆ [ Flask + Gunicorn ] ⇨ /feed/ioc-feed.txt → FortiGate/SOAR
-              ⇩
-    Archivos locales: ioc-feed.txt, ioc-log.txt
-```
-
----
-
-## 📁 Estructura del proyecto
-
-```
+📁 Estructura del proyecto
+graphql
+Copiar código
 ioc-manager/
-├── app.py                  # Backend principal (Flask)
-├── install                 # Script de arranque
-├── gunicorn_config.py      # Configuración WSGI
+├── app.py                        # Lógica principal Flask
+├── install                       # Arranque del servidor
+├── actualizar_codigo.sh          # Actualizador con entorno virtual
+├── actualizar_codigo_sin_venv.sh# Actualizador sin entorno virtual
+├── gunicorn_config.py            # Configuración WSGI
 ├── templates/
-│   ├── index.html          # Panel de gestión IPs
-│   └── login.html          # Formulario login
+│   ├── index.html                # Interfaz principal (IPs, filtros, buscador)
+│   └── login.html                # Pantalla de acceso
 ├── static/
-│   └── style.css           # Estilos (con modo oscuro)
-├── .gitignore              # Exclusiones (logs, feed, etc.)
-├── README.md               # Este archivo
-├── ioc-feed.txt            # (auto-generado)
-├── ioc-log.txt             # (auto-generado)
-```
+│   └── plantilla.csv             # Plantilla descargable
+├── ioc-feed.txt                  # IPs activas (generado automáticamente)
+├── ioc-log.txt                   # Log de acciones
+├── contador_manual.txt           # Contador IPs manuales
+├── contador_csv.txt              # Contador IPs por CSV
+└── README.md
+📄 Ejemplo de plantilla CSV
+Descargable desde la web o manualmente:
 
----
+text
+Copiar código
+88.84.86.244
+2.136.15.111
+🔄 Actualización segura (recomendado)
+Para mantener la instalación actualizada sin perder datos:
 
-## ⚠️ Seguridad actual
-
-- Login visual (sin hash de contraseñas aún)
-- Validación de IPs para evitar errores o bloqueos
-- Modo oscuro guardado en `localStorage`
-- Feed en texto plano (ideal para FortiGate)
-
-> 🔒 **Próximas mejoras previstas:**
-> - Gestión de usuarios y roles (`admin`, `analyst`)
-> - API segura para integración externa
-> - Páginas personalizadas de error (403/404)
-> - Hash de contraseñas y protección CSRF
-
----
-
-## 🔄 Actualización segura en producción (sin perder IPs)
-
-Para actualizar la aplicación desde GitHub sin perder las IPs ya cargadas ni los logs, utiliza el script `actualizar_codigo_sin_venv.sh`.
-
-Este script:
-- Respaldará automáticamente `ioc-feed.txt` e `ioc-log.txt`
-- Ejecutará `git pull` para traer los últimos cambios
-- Restaurará los archivos de datos
-- Relanzará el servidor
-
-### 🛠️ Cómo usarlo
-
-1. Coloca el script en la carpeta principal del proyecto.
-2. Asigna permisos de ejecución:
-
-```bash
+bash
+Copiar código
 chmod +x actualizar_codigo_sin_venv.sh
-```
-
-3. Ejecuta el script cada vez que desees actualizar:
-
-```bash
 ./actualizar_codigo_sin_venv.sh
-```
+Este script:
 
-> El script no utiliza entorno virtual, ideal para instalaciones simplificadas.
+Respalda tus archivos de IPs y contadores
 
----
+Ejecuta git pull con validación
 
-## ✨ Autor
+Restaura los datos
 
-**Creado y mantenido por Darell Perez**  
-Desarrollado con foco en ciberseguridad práctica y eficiencia.
+Relanza Gunicorn automáticamente
 
----
+También existe actualizar_codigo.sh si usas entorno virtual (venv).
 
-## 📄 Licencia
+⚠️ Seguridad actual
+Login visual (admin/admin)
 
-Distribuido bajo licencia MIT.  
-Ver archivo [`LICENSE`](LICENSE).
+Validación estricta de IPs (no privadas, no 0.0.0.0)
+
+Feed accesible en texto plano compatible con Firewalls
+
+Modo oscuro persistente en localStorage
+
+Código probado y optimizado para Raspberry Pi
+
+🔒 Próximas mejoras:
+
+Gestión de usuarios con roles (admin, analyst)
+
+Hash de contraseñas (bcrypt)
+
+Protección CSRF y cookies seguras
+
+API externa para integraciones automáticas (Torq, SIEM)
+
+✨ Autor
+Creado y mejorado por Darell Perez
+Orientado a ciberseguridad práctica, automatización y eficiencia.
+
+📄 Licencia
+Distribuido bajo licencia MIT.
