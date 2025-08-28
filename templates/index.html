@@ -96,7 +96,13 @@
 
   <hr>
   <h4>IPs bloqueadas</h4>
-  <table class="table table-striped">
+
+  <!-- Buscador de IPs -->
+  <div class="mb-3">
+    <input type="text" id="buscadorIp" class="form-control" placeholder="Buscar IP...">
+  </div>
+
+  <table class="table table-striped" id="tablaIps">
     <thead>
       <tr>
         <th>IP</th>
@@ -162,6 +168,23 @@
   window.onload = () => {
     if (localStorage.getItem('theme') === 'dark') toggleTheme();
   };
+
+  // Script de búsqueda en la tabla
+  document.addEventListener('DOMContentLoaded', function () {
+    const input = document.getElementById('buscadorIp');
+    const table = document.getElementById('tablaIps');
+    input.addEventListener('keyup', function () {
+      const filtro = input.value.toLowerCase();
+      const filas = table.getElementsByTagName('tr');
+      for (let i = 1; i < filas.length; i++) {
+        const celdas = filas[i].getElementsByTagName('td');
+        if (celdas.length > 0) {
+          const ip = celdas[0].textContent.toLowerCase();
+          filas[i].style.display = ip.includes(filtro) ? '' : 'none';
+        }
+      }
+    });
+  });
 </script>
 
 </body>
