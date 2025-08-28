@@ -22,7 +22,7 @@ body {
 }
 
 /* IMPORTS CONVERTIDOS MANUALMENTE - CONSERVAMOS ESTILOS EN LÍNEA */
-@import url('https://s3-us-west-2.amazonaws.com/s.cdpn.io/1251/bootstrap.min.css');
 @import url('https://s3-us-west-2.amazonaws.com/s.cdpn.io/1251/r8-style.css');
 @import url('https://s3-us-west-2.amazonaws.com/s.cdpn.io/1251/r8-login.css');
 @import url('https://s3-us-west-2.amazonaws.com/s.cdpn.io/1251/r8-keyframes.css');
+
