@@ -17,7 +17,8 @@
   <h2 class="mb-4 text-center">Gestor de IPs Maliciosas</h2>
 
   <div class="alert alert-info text-center">
-    📊 Total de IPs activas: <strong>{{ total_ips }}</strong>
+    📊 Total de IPs activas: <strong>{{ total_ips }}</strong><br>
+    ℹ️ Añadidas: Manual (<strong>{{ contador_manual }}</strong>) · CSV (<strong>{{ contador_csv }}</strong>)
   </div>
 
   <form method="POST" enctype="multipart/form-data">
@@ -161,27 +162,6 @@
   window.onload = () => {
     if (localStorage.getItem('theme') === 'dark') toggleTheme();
   };
-</script>
-
-<script>
-document.addEventListener('DOMContentLoaded', function () {
-    const darkMode = localStorage.getItem('darkMode');
-    if (darkMode === 'enabled') {
-        document.body.classList.add('dark-mode');
-    }
-
-    const toggle = document.getElementById('toggle-darkmode');
-    if (toggle) {
-        toggle.addEventListener('click', function () {
-            document.body.classList.toggle('dark-mode');
-            if (document.body.classList.contains('dark-mode')) {
-                localStorage.setItem('darkMode', 'enabled');
-            } else {
-                localStorage.setItem('darkMode', 'disabled');
-            }
-        });
-    }
-});
 </script>
 
 </body>
