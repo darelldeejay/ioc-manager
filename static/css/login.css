@@ -1,41 +1,113 @@
-$(function () {
-  'use strict';
+/* Fondo */
+html, body { height: 100%; }
+body {
+  margin: 0;
+  background: url("https://s3-us-west-2.amazonaws.com/s.cdpn.io/1251/stardust.png") repeat;
+  font-family: "Helvetica Neue", Helvetica, Arial, sans-serif;
+}
+@media (-webkit-min-device-pixel-ratio: 2), (min-resolution: 192dpi) {
+  body { background: url("https://s3-us-west-2.amazonaws.com/s.cdpn.io/1251/stardust_@2X.png") repeat; }
+}
 
-  var _boxyLoginForm = document.forms['boxy-login-form'];
-  var _boxyFormInner = $(_boxyLoginForm).find('div.boxy-form-inner');
-  var _boxyWrap = $("#boxy-login-wrapper");
-  var _boxyMessage = _boxyWrap.find('em.small-forgot'); // aunque ya no lo usamos
+/* Logo decorativo opcional */
+#r8-logo-coin {
+  width: 110px; height: 110px; display: block;
+  position: absolute; bottom: 15px; right: 15px; margin: 15px;
+  background: url('https://s3-us-west-2.amazonaws.com/s.cdpn.io/1251/R8-launcher-icon-dark.svg') no-repeat center / contain;
+  user-select: none;
+}
 
-  // Usuario → validación y rotación
-  $(_boxyFormInner).on('click', '.side.front button', function (evt) {
-    evt.preventDefault();
-    var _boxyInput = _boxyLoginForm['username'];
-    if (!_boxyInput.value) {
-      _boxyWrap.addClass('shake');
-      _boxyInput.placeholder = 'Introduce tu usuario';
-    } else {
-      $(_boxyFormInner).addClass('rotated90');
-    }
-  });
+/* Centrado */
+#wrapper {
+  min-height: 100vh;
+  display: flex; align-items: center; justify-content: center;
+  position: relative;
+}
+#boxy-login-wrapper {
+  position: relative;
+  width: 31.5em; height: 4em;
+  perspective: 1000px; -webkit-perspective: 1000px;
+}
 
-  // Contraseña → enviar
-  $(_boxyFormInner).on('click', '.side.bottom button', function (evt) {
-    evt.preventDefault();
-    var _boxyPassword = _boxyLoginForm['password'];
-    if (!_boxyPassword.value) {
-      _boxyWrap.addClass('shake');
-      _boxyPassword.placeholder = 'Introduce tu contraseña';
-    } else {
-      _boxyLoginForm.submit();
-    }
-  });
+/* Sacudida por validación */
+@keyframes bad-input-animation {
+  10%, 90% { transform: translate3d(-1px, 0, 0); }
+  20%, 80% { transform: translate3d( 2px, 0, 0); }
+  30%, 50%, 70% { transform: translate3d(-4px, 0, 0); }
+  40%, 60% { transform: translate3d( 4px, 0, 0); }
+}
+#boxy-login-wrapper.shake { animation: bad-input-animation .5s linear; }
 
-  // Tab key → avanzar
-  $(_boxyFormInner).on('keydown', '#boxy-input , #boxy-password', function (evt) {
-    var keyCode = evt.keyCode || evt.which;
-    if (keyCode == 9) {
-      evt.preventDefault();
-      $(this).next('button').click();
-    }
-  });
-});
+/* Contenedor 3D */
+#boxy-login-form { margin: 0; padding: 0; height: 4em; }
+#boxy-login-form fieldset { margin: 0; padding: 0; border: 0; }
+
+.boxy-form-inner {
+  position: relative;
+  width: 30em; height: 4em; color: #333;
+  transform-style: preserve-3d; -webkit-transform-style: preserve-3d;
+  transform-origin: 50% 50%; -webkit-transform-origin: 50% 50%;
+  transition: all 0.85s cubic-bezier(.17,.67,.14,.93);
+}
+/* Estado inicial (tapa izda visible) */
+.boxy-form-inner.rotateFirst3d { transform: rotateY(-90deg); -webkit-transform: rotateY(-90deg); }
+/* Giro a la cara de contraseña */
+.boxy-form-inner.rotated90 { transform: rotateX(90deg); -webkit-transform: rotateX(90deg); }
+
+/* Caras */
+.boxy-form-inner .side {
+  position: absolute; display: inline-block; box-sizing: border-box;
+  height: 4em; width: 30em; border-radius: 2px;
+  background: #F7F7F7; border: 1px solid #eee;
+  text-transform: uppercase;
+}
+.boxy-form-inner .side.front  { transform: translateZ(2em); }
+.boxy-form-inner .side.bottom { transform: rotateX(-90deg) translateZ(2em); }
+
+/* Tapa izquierda/derecha (decorativas) */
+.boxy-form-inner .end-cap {
+  position: absolute; top: 0; height: 4em; width: 4em;
+  background: #F7F7F7; border-radius: 2px; z-index: 2;
+}
+.boxy-form-inner .end-cap.left  { transform: rotateY( 90deg) translateZ(28em); }
+.boxy-form-inner .end-cap.right { transform: rotateY(-90deg) translateZ(2em);  border: 2px solid #F9F9F9; }
+
+.boxy-form-inner .end-cap .glyphicon {
+  display: block; width: 100%; height: 100%; line-height: 4em; text-align: center; color: #999;
+  transition: color 250ms linear;
+}
+.boxy-form-inner .end-cap .glyphicon:hover { color: #2EBEA5; }
+
+/* Iconos de las caras */
+.boxy-form-inner .side .glyphicon.glyphicon-user,
+.boxy-form-inner .side .glyphicon.glyphicon-asterisk {
+  position: absolute; left: 0; top: 0;
+  width: 4em; height: 4em; line-height: 4em; text-align: center;
+  color: #999; transition: color 250ms linear;
+}
+.boxy-form-inner .side .glyphicon:hover { color: #2EBEA5; }
+
+/* Inputs y botones */
+.boxy-form-inner .side input {
+  background: transparent; border: none; outline: none;
+  height: 4em; width: 22em; padding-left: 4.5em; color: #333;
+  font-weight: 700; text-transform: none;
+}
+.boxy-form-inner .side button.boxy-button {
+  background: transparent; border: none; outline: none; cursor: pointer;
+  height: 4em; width: 4em; float: right; color: #333; opacity: .25;
+  transition: all 250ms linear; font-size: 0;
+}
+.boxy-form-inner .side button.boxy-button::before {
+  content: "\00BB"; font-size: 5em; line-height: .4em;
+}
+.boxy-form-inner .side button.boxy-button:hover { opacity: 1; color: #2EBEA5; }
+
+/* Tooltips Bootstrap 3 */
+#boxy-login-wrapper .tooltip { white-space: nowrap; text-transform: lowercase; }
+#boxy-login-wrapper .tooltip .tooltip-inner {
+  padding: 4px 5px; background: #222229; color: #fff; border-radius: 2px;
+}
+
+/* Utilidad */
+.rotate { will-change: transform; }
