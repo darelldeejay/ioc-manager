@@ -1,0 +1,197 @@
+<!DOCTYPE html>
+<html lang="es">
+<head>
+  <meta charset="utf-8">
+  <title>IOC Manager</title>
+  <link href="https://cdn.jsdelivr.net/npm/bootstrap@5.3.0/dist/css/bootstrap.min.css" rel="stylesheet">
+  <script src="https://cdn.jsdelivr.net/npm/bootstrap@5.3.0/dist/js/bootstrap.bundle.min.js"></script>
+
+  <!-- Estilos del logo fijo en el dashboard -->
+  <link rel="stylesheet" href="{{ url_for('static', filename='css/index.css') }}">
+</head>
+<body class="bg-light">
+
+<div class="d-flex justify-content-between mb-3">
+  <button class="btn btn-outline-secondary btn-sm" onclick="toggleTheme()">🌙 Modo Oscuro</button>
+  <a href="/logout" class="btn btn-outline-danger btn-sm">Logout</a>
+</div>
+
+<div class="container py-4">
+  <h2 class="mb-4 text-center">Gestor de IPs Maliciosas</h2>
+
+  <div class="alert alert-info text-center">
+    📊 Total de IPs activas: <strong>{{ total_ips }}</strong><br>
+    ℹ️ Añadidas: Manual (<strong>{{ contador_manual }}</strong>) · CSV (<strong>{{ contador_csv }}</strong>)
+  </div>
+
+  <form method="POST" enctype="multipart/form-data">
+    <div class="row g-3 mb-3">
+      <div class="col-md-5">
+        <input type="text" class="form-control" name="ip" placeholder="Introduce una IP">
+      </div>
+      <div class="col-md-3">
+        <select class="form-select" name="ttl">
+          <option value="permanente" selected>Permanente</option>
+          <option value="1">1 día</option>
+          <option value="3">3 días</option>
+          <option value="7">7 días</option>
+        </select>
+      </div>
+      <div class="col-md-2">
+        <button type="submit" class="btn btn-success w-100">Añadir IP</button>
+      </div>
+      <div class="col-md-2">
+        <button type="button" class="btn btn-danger w-100" data-bs-toggle="modal" data-bs-target="#confirmDeleteAll">Eliminar todas las IPs</button>
+      </div>
+    </div>
+
+    <div class="row g-3 mb-4">
+      <div class="col-md-5">
+        <input type="file" class="form-control" name="file" accept=".txt,.csv">
+      </div>
+      <div class="col-md-3">
+        <select class="form-select" name="ttl">
+          <option value="permanente" selected>Permanente</option>
+          <option value="1">1 día</option>
+          <option value="3">3 días</option>
+          <option value="7">7 días</option>
+        </select>
+      </div>
+      <div class="col-md-2">
+        <button type="submit" class="btn btn-primary w-100">Subir archivo</button>
+      </div>
+      <div class="col-md-2">
+        <a href="/static/plantilla.csv" class="btn btn-outline-secondary w-100" download>Descargar plantilla</a>
+      </div>
+    </div>
+
+    {% if error %}
+      <div class="alert alert-danger">{{ error }}</div>
+    {% endif %}
+
+    {% for category, message in messages %}
+      <div class="alert alert-{{ category }} mt-2">{{ message }}</div>
+    {% endfor %}
+  </form>
+
+  <!-- Modal Confirmación Eliminar Todas -->
+  <div class="modal fade" id="confirmDeleteAll" tabindex="-1">
+    <div class="modal-dialog modal-dialog-centered">
+      <div class="modal-content">
+        <form method="POST">
+          <div class="modal-header">
+            <h5 class="modal-title text-danger">¿Eliminar todas las IPs?</h5>
+            <button type="button" class="btn-close" data-bs-dismiss="modal"></button>
+          </div>
+          <div class="modal-body">
+            ¿Estás seguro de que deseas eliminar <strong>todas</strong> las IPs bloqueadas?<br>
+            Esta acción <strong>no se puede deshacer</strong>.
+          </div>
+          <div class="modal-footer">
+            <input type="hidden" name="delete-all" value="1">
+            <button type="submit" class="btn btn-danger">Eliminar todas</button>
+            <button type="button" class="btn btn-secondary" data-bs-dismiss="modal">Cancelar</button>
+          </div>
+        </form>
+      </div>
+    </div>
+  </div>
+
+  <hr>
+  <h4>IPs bloqueadas</h4>
+
+  <!-- Buscador de IPs -->
+  <div class="mb-3">
+    <input type="text" id="buscadorIp" class="form-control" placeholder="Buscar IP...">
+  </div>
+
+  <table class="table table-striped" id="tablaIps">
+    <thead>
+      <tr>
+        <th>IP</th>
+        <th>Fecha</th>
+        <th>TTL</th>
+        <th>Acción</th>
+      </tr>
+    </thead>
+    <tbody>
+      {% for ip in ips %}
+        {% set parts = ip.split('|') %}
+        <tr>
+          <td>{{ parts[0] }}</td>
+          <td>{{ parts[1] }}</td>
+          <td>{{ '∞' if parts[2] == '0' else parts[2] }}</td>
+          <td>
+            <button class="btn btn-sm btn-outline-danger" data-bs-toggle="modal" data-bs-target="#confirmDelete{{ loop.index }}">Eliminar</button>
+
+            <!-- Modal Confirmar eliminación individual -->
+            <div class="modal fade" id="confirmDelete{{ loop.index }}" tabindex="-1">
+              <div class="modal-dialog modal-dialog-centered">
+                <div class="modal-content">
+                  <form method="POST">
+                    <div class="modal-header">
+                      <h5 class="modal-title">Confirmar eliminación</h5>
+                      <button type="button" class="btn-close" data-bs-dismiss="modal"></button>
+                    </div>
+                    <div class="modal-body">
+                      ¿Estás seguro de que quieres eliminar <strong>{{ parts[0] }}</strong>?
+                    </div>
+                    <div class="modal-footer">
+                      <input type="hidden" name="delete_ip" value="{{ parts[0] }}">
+                      <button type="submit" class="btn btn-danger">Eliminar</button>
+                      <button type="button" class="btn btn-secondary" data-bs-dismiss="modal">Cancelar</button>
+                    </div>
+                  </form>
+                </div>
+              </div>
+            </div>
+          </td>
+        </tr>
+      {% endfor %}
+    </tbody>
+  </table>
+
+  <div class="text-center mt-4">
+    <p class="text-muted">Proyecto hecho por Darell Pérez · Todos los derechos reservados</p>
+  </div>
+</div>
+
+<!-- Logo DPB fijo en la esquina -->
+<img id="corner-logo" src="{{ url_for('static', filename='img/logo-dpb.svg') }}" alt="Logo DPB">
+
+<script>
+  function toggleTheme() {
+    const body = document.body;
+    const isDark = body.classList.toggle('bg-dark');
+    body.classList.toggle('text-white', isDark);
+    document.querySelectorAll('.card, .form-control, .form-select, .table').forEach(e => {
+      e.classList.toggle('bg-dark', isDark);
+      e.classList.toggle('text-white', isDark);
+    });
+    localStorage.setItem('theme', isDark ? 'dark' : 'light');
+  }
+
+  window.onload = () => {
+    if (localStorage.getItem('theme') === 'dark') toggleTheme();
+  };
+
+  // Script de búsqueda en la tabla
+  document.addEventListener('DOMContentLoaded', function () {
+    const input = document.getElementById('buscadorIp');
+    const table = document.getElementById('tablaIps');
+    input.addEventListener('keyup', function () {
+      const filtro = input.value.toLowerCase();
+      const filas = table.getElementsByTagName('tr');
+      for (let i = 1; i < filas.length; i++) {
+        const celdas = filas[i].getElementsByTagName('td');
+        if (celdas.length > 0) {
+          const ip = celdas[0].textContent.toLowerCase();
+          filas[i].style.display = ip.includes(filtro) ? '' : 'none';
+        }
+      }
+    });
+  });
+</script>
+
+</body>
+</html>
