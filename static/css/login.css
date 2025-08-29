@@ -111,3 +111,9 @@ body {
 
 /* Utilidad */
 .rotate { will-change: transform; }
+
+#boxy-login-wrapper #login-alert {
+  width: 30em;
+  margin: 0 auto 10px auto;
+  padding: 8px 12px;
+}
