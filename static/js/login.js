@@ -1,9 +1,10 @@
 $(function () {
   'use strict';
 
-  var $wrap = $('#boxy-login-wrapper');
-  var form = document.forms['boxy-login-form'];
+  var $wrap  = $('#boxy-login-wrapper');
+  var form   = document.forms['boxy-login-form'];
   var $inner = $(form).find('.boxy-form-inner');
+  var $alert = $('#login-alert');
 
   // Tooltips Bootstrap 3
   $wrap.tooltip({
@@ -13,7 +14,15 @@ $(function () {
     delay: { show: 250, hide: 150 }
   });
 
-  // Al hacer click en el icono de la tapa izquierda, empezamos (quita el giro inicial)
+  // Utilidad: mostrar/ocultar alerta
+  function showAlert(msg) {
+    if (!msg) { $alert.stop(true, true).fadeOut(150); return; }
+    $alert.text(msg).stop(true, true).fadeIn(150);
+    $wrap.addClass('shake');
+    setTimeout(function(){ $wrap.removeClass('shake'); }, 500);
+  }
+
+  // Tapa izquierda → empezar (quita giro inicial)
   $wrap.on('click', '.end-cap.left .glyphicon-user', function (e) {
     e.preventDefault();
     $inner.removeClass('rotateFirst3d');
@@ -21,41 +30,52 @@ $(function () {
   });
 
   // Paso 1: Usuario → validar y rotar a contraseña
-  $wrap.on('click', '.side.front .boxy-button', function (e) {
-    e.preventDefault();
+  function goToPassword() {
     var user = form['username'];
     if (!user.value.trim()) {
-      $wrap.addClass('shake');
       user.placeholder = 'Introduce tu usuario';
-      setTimeout(function(){ $wrap.removeClass('shake'); }, 500);
+      showAlert('Por favor, introduce tu usuario.');
     } else {
+      showAlert(null);
       $inner.addClass('rotated90');
       $('#boxy-password').focus();
     }
+  }
+  $wrap.on('click', '.side.front .boxy-button', function (e) {
+    e.preventDefault();
+    goToPassword();
   });
 
   // Paso 2: Contraseña → enviar formulario
-  // (el botón ya es type="submit", añadimos validación suave por si acaso)
-  $wrap.on('click', '.side.bottom .boxy-final-button', function (e) {
+  function submitForm() {
     var pass = form['password'];
     if (!pass.value.trim()) {
-      e.preventDefault();
-      $wrap.addClass('shake');
       pass.placeholder = 'Introduce tu contraseña';
-      setTimeout(function(){ $wrap.removeClass('shake'); }, 500);
+      showAlert('Por favor, introduce tu contraseña.');
+    } else {
+      showAlert(null);
+      form.submit();
     }
+  }
+  $wrap.on('click', '.side.bottom .boxy-final-button', function (e) {
+    e.preventDefault();
+    submitForm();
   });
 
-  // Tab → avanzar
+  // ⌨️ Tab o Enter → avanzar
   $inner.on('keydown', '#boxy-input, #boxy-password', function (e) {
     var key = e.keyCode || e.which;
-    if (key === 9) { // Tab
+    if (key === 9 || key === 13) { // Tab o Enter
       e.preventDefault();
-      $(this).next('button').trigger('click');
+      if (this.id === 'boxy-input') {
+        goToPassword();
+      } else if (this.id === 'boxy-password') {
+        submitForm();
+      }
     }
   });
 
-  // Click en el icono de cada cara → enfocar su input
+  // Icono de la cara → focus en su input
   $wrap.on('click', '.side .glyphicon', function (e) {
     e.preventDefault();
     var $inp = $(this).parent().find('input');
