@@ -1,4 +1,7 @@
-from flask import Flask, render_template, request, redirect, url_for, session, flash, make_response
+from flask import (
+    Flask, render_template, request, redirect, url_for,
+    session, flash, make_response
+)
 from datetime import datetime
 import ipaddress
 import os
@@ -13,12 +16,19 @@ LOG_FILE = os.path.join(BASE_DIR, 'ioc-log.txt')
 COUNTER_MANUAL = os.path.join(BASE_DIR, 'contador_manual.txt')
 COUNTER_CSV = os.path.join(BASE_DIR, 'contador_csv.txt')
 
-# ====== EXPANSIÓN DE ENTRADAS (IP, CIDR, RANGO, IP+MÁSCARA) ======
-MAX_EXPAND = 4096  # límite de IPs a generar por operación
+# =========================
+#  Config / Límites
+# =========================
+MAX_EXPAND = 4096  # Máximo de IPs a generar por operación (protección anti explosión)
 
+
+# =========================
+#  Helpers: expansión/parseo
+# =========================
 def dotted_netmask_to_prefix(mask: str) -> int:
     """Convierte máscara punteada a prefijo (/n)."""
     return ipaddress.IPv4Network(f"0.0.0.0/{mask}").prefixlen
+
 
 def expand_input_to_ips(text: str, max_expand: int = MAX_EXPAND) -> list[str]:
     """
@@ -67,18 +77,15 @@ def expand_input_to_ips(text: str, max_expand: int = MAX_EXPAND) -> list[str]:
         except ValueError:
             raise ValueError("CIDR inválido. Ejemplo: 203.0.113.0/24")
 
-        # Número aproximado de hosts a expandir
+        # Tamaño de expansión estimado
         if isinstance(net, ipaddress.IPv4Network):
-            if net.prefixlen >= 31:
-                size = net.num_addresses  # /31 o /32
-            else:
-                size = net.num_addresses - 2  # excluye red/broadcast
+            size = net.num_addresses if net.prefixlen >= 31 else net.num_addresses - 2
         else:
-            # IPv6: .hosts() devuelve todos los hosts del rango (muchísimo). Protegemos por tamaño.
-            size = min(net.num_addresses, max_expand + 1)
+            size = min(net.num_addresses, max_expand + 1)  # IPv6 protegido
 
         if size > max_expand:
             raise ValueError(f"La red expande a {size} IPs (> {max_expand}). Use un prefijo más específico.")
+
         return [str(h) for h in net.hosts()]
 
     # "IP mascara"
@@ -94,7 +101,85 @@ def expand_input_to_ips(text: str, max_expand: int = MAX_EXPAND) -> list[str]:
         raise ValueError("La IP 0.0.0.0 no está permitida.")
     return [raw]
 
-# ====== UTILIDADES DE ARCHIVO / CONTADORES ======
+
+def parse_delete_pattern(raw: str):
+    """
+    Acepta:
+      - CIDR: '88.84.66.240/29'
+      - Rango: 'A-B'
+      - IP + máscara: '203.0.113.0 255.255.255.0'
+      - IP suelta
+    Devuelve ('cidr', net) | ('range', (a,b)) | ('single', ip)
+    """
+    if not raw or not raw.strip():
+        raise ValueError("Patrón vacío.")
+    s = re.sub(r"\s+", " ", raw.strip())
+
+    if " " in s and "." in s and "/" not in s:
+        base, mask = s.split(" ", 1)
+        ipaddress.ip_address(base)
+        pfx = dotted_netmask_to_prefix(mask.strip())
+        net = ipaddress.ip_network(f"{base}/{pfx}", strict=False)
+        return ("cidr", net)
+
+    if "/" in s:
+        net = ipaddress.ip_network(s, strict=False)
+        return ("cidr", net)
+
+    if "-" in s:
+        a_txt, b_txt = [p.strip() for p in s.split("-", 1)]
+        a = ipaddress.ip_address(a_txt)
+        b = ipaddress.ip_address(b_txt)
+        if type(a) is not type(b):
+            raise ValueError("El rango mezcla IPv4 e IPv6.")
+        if int(a) > int(b):
+            a, b = b, a
+        return ("range", (a, b))
+
+    ip = ipaddress.ip_address(s)
+    return ("single", ip)
+
+
+def filter_lines_delete_pattern(lines: list[str], pattern: str) -> tuple[list[str], int]:
+    """
+    Dado el listado de líneas 'ip|fecha|ttl', elimina todas las que
+    coincidan con el patrón (CIDR, rango, IP+máscara o IP suelta).
+    Devuelve (nuevas_lineas, eliminadas).
+    """
+    kind, obj = parse_delete_pattern(pattern)
+    kept = []
+    removed = 0
+    for line in lines:
+        if not line.strip():
+            continue
+        ip_txt = line.split("|", 1)[0].strip()
+        try:
+            ip_obj = ipaddress.ip_address(ip_txt)
+        except ValueError:
+            kept.append(line)  # no borrar líneas corruptas por patrón
+            continue
+
+        match = False
+        if kind == "single":
+            match = (ip_obj == obj)
+        elif kind == "cidr":
+            match = (ip_obj.version == obj.version) and (ip_obj in obj)
+        elif kind == "range":
+            a, b = obj
+            if type(ip_obj) is type(a):
+                match = int(a) <= int(ip_obj) <= int(b)
+
+        if match:
+            removed += 1
+        else:
+            kept.append(line)
+
+    return kept, removed
+
+
+# =========================
+#  Helpers: almacenamiento y contadores
+# =========================
 def eliminar_ips_vencidas():
     now = datetime.now()
     nuevas_lineas = []
@@ -126,6 +211,7 @@ def eliminar_ips_vencidas():
     except FileNotFoundError:
         pass
 
+
 def incrementar_contador(ruta):
     valor = 0
     if os.path.exists(ruta):
@@ -138,6 +224,7 @@ def incrementar_contador(ruta):
     with open(ruta, 'w') as f:
         f.write(str(valor))
 
+
 def leer_contador(ruta):
     if os.path.exists(ruta):
         with open(ruta, 'r') as f:
@@ -147,11 +234,13 @@ def leer_contador(ruta):
                 return 0
     return 0
 
+
 def load_lines():
     if not os.path.exists(FEED_FILE):
         return []
     with open(FEED_FILE, "r", encoding="utf-8") as f:
         return [line.strip() for line in f if line.strip()]
+
 
 def save_lines(lines):
     os.makedirs(os.path.dirname(FEED_FILE), exist_ok=True)
@@ -159,11 +248,12 @@ def save_lines(lines):
         for line in lines:
             f.write(line + "\n")
 
+
 def log(accion, ip):
     with open(LOG_FILE, "a", encoding="utf-8") as f:
         f.write(f"{datetime.now()} - {accion}: {ip}\n")
 
-# ====== VALIDACIONES ======
+
 def is_public_allowed(ip_str: str) -> bool:
     """Descarta 0.0.0.0 y redes privadas/loopback/link-local/multicast."""
     try:
@@ -174,7 +264,10 @@ def is_public_allowed(ip_str: str) -> bool:
         return False
     return not (obj.is_private or obj.is_loopback or obj.is_link_local or obj.is_multicast)
 
-# ================== RUTAS ==================
+
+# =========================
+#  Rutas
+# =========================
 @app.route("/login", methods=["GET", "POST"])
 def login():
     if request.method == "POST":
@@ -187,10 +280,12 @@ def login():
             flash("Credenciales incorrectas", "danger")
     return render_template("login.html")
 
+
 @app.route("/logout")
 def logout():
     session.clear()
     return redirect(url_for("login"))
+
 
 @app.route("/", methods=["GET", "POST"])
 def index():
@@ -202,8 +297,6 @@ def index():
     error = None
     lines = load_lines()
     total_ips = len(lines)
-
-    # Conjunto de IPs ya existentes para evitar duplicados
     existentes = {l.split("|", 1)[0] for l in lines}
 
     if request.method == "POST":
@@ -214,7 +307,7 @@ def index():
             flash("Todas las IPs han sido eliminadas correctamente", "success")
             return redirect(url_for("index"))
 
-        # Eliminar una
+        # Eliminar individual
         if "delete_ip" in request.form:
             ip_to_delete = request.form.get("delete_ip")
             updated_lines = [l for l in lines if not l.startswith(ip_to_delete + "|")]
@@ -226,7 +319,26 @@ def index():
                 flash("IP no encontrada", "danger")
             return redirect(url_for("index"))
 
-        # Subida CSV / TXT
+        # Eliminar por patrón (CIDR, rango, IP+máscara, IP)
+        if "delete-net" in request.form:
+            patron = request.form.get("delete_net_input", "").strip()
+            if not patron:
+                flash("Debes introducir un patrón (CIDR / rango A-B / IP+máscara / IP)", "danger")
+                return redirect(url_for("index"))
+            try:
+                updated_lines, removed = filter_lines_delete_pattern(lines, patron)
+                if removed == 0:
+                    flash("No se encontraron IPs que coincidan con el patrón.", "warning")
+                else:
+                    save_lines(updated_lines)
+                    log("Eliminadas por patrón", f"{patron} ({removed} entradas)")
+                    flash(f"Se eliminaron {removed} IP(s) que coinciden con '{patron}'.", "success")
+                return redirect(url_for("index"))
+            except ValueError as e:
+                flash(str(e), "danger")
+                return redirect(url_for("index"))
+
+        # Subida CSV/TXT
         file = request.files.get("file")
         if file and file.filename:
             valid_ips = 0
@@ -237,7 +349,6 @@ def index():
                 if not raw:
                     continue
                 try:
-                    # Expansión flexible (IP, CIDR, rango, IP+máscara)
                     for ip_str in expand_input_to_ips(raw):
                         if not is_public_allowed(ip_str):
                             rejected += 1
@@ -246,7 +357,7 @@ def index():
                             rejected += 1
                             continue
                         fecha = datetime.now().strftime("%Y-%m-%d")
-                        lines.append(f"{ip_str}|{fecha}|0")   # CSV: TTL permanente por defecto
+                        lines.append(f"{ip_str}|{fecha}|0")  # CSV: TTL permanente por defecto
                         existentes.add(ip_str)
                         log("Añadida", ip_str)
                         valid_ips += 1
@@ -262,7 +373,7 @@ def index():
                 flash(f"{rejected} entradas rechazadas (inválidas/privadas/duplicadas/no permitidas)", "danger")
             return redirect(url_for("index"))
 
-        # Alta manual (campo 'ip' puede ser IP/CIDR/rango/IP+máscara)
+        # Alta manual: 'ip' puede ser IP/CIDR/Rango/IP+máscara
         raw_input = request.form.get("ip", "").strip()
         ttl_sel = request.form.get("ttl", "permanente")
         ttl_val = "0" if ttl_sel == "permanente" else ttl_sel
@@ -308,7 +419,10 @@ def index():
         messages=list(session.get('_flashes', []))
     )
 
-# ====== FEED: text/plain + no-cache + logging de acceso ======
+
+# =========================
+#  Feed text/plain + logging
+# =========================
 @app.route("/feed/ioc-feed.txt", methods=["GET"])
 def feed():
     """
@@ -349,14 +463,23 @@ def feed():
 
     return resp
 
+
+# =========================
+#  Errores
+# =========================
 @app.errorhandler(404)
 def not_found(e):
     return "Página no encontrada", 404
+
 
 @app.errorhandler(500)
 def server_error(e):
     return "Error interno del servidor", 500
 
+
+# =========================
+#  Main
+# =========================
 if __name__ == "__main__":
-    # En producción arrancas con gunicorn; este puerto es para debug local.
+    # En producción arranca con gunicorn; este puerto es para debug local.
     app.run(debug=True, host="0.0.0.0", port=5050)
