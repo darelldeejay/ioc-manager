@@ -5,10 +5,10 @@
   <title>Login - IOC Manager</title>
   <meta name="viewport" content="width=device-width, initial-scale=1">
 
-  <!-- Bootstrap 3.4.1 (incluye Glyphicons y tooltips con jQuery) -->
+  <!-- Bootstrap 3.4.1 (Glyphicons y tooltips con jQuery) -->
   <link rel="stylesheet" href="https://cdn.jsdelivr.net/npm/bootstrap@3.4.1/dist/css/bootstrap.min.css">
 
-  <!-- Estilo del login 3D -->
+  <!-- Estilos del login 3D (ligeros, sin remember/forgot) -->
   <link rel="stylesheet" href="{{ url_for('static', filename='css/login.css') }}">
 </head>
 <body>
@@ -16,7 +16,7 @@
 <div id="wrapper">
   <div id="boxy-login-wrapper">
 
-    <!-- Mensajes flash de Flask -->
+    <!-- Mensajes flash Flask -->
     {% with messages = get_flashed_messages(with_categories=true) %}
       {% if messages %}
         {% for category, message in messages %}
@@ -29,61 +29,43 @@
       <fieldset>
         <div class="boxy-form-inner rotateFirst3d">
 
+          <!-- Tapa izquierda: icono para iniciar -->
           <span class="end-cap left">
-            <span class="glyphicon glyphicon-user" data-toggle="tooltip" title="click to login"></span>
+            <span class="glyphicon glyphicon-user" data-toggle="tooltip" title="login"></span>
           </span>
 
+          <!-- Cara: Usuario -->
           <span class="side front">
-            <span class="glyphicon glyphicon-user" data-toggle="tooltip" title="enter your username"></span>
-            <input id="boxy-input" type="text" name="username" class="rotate" placeholder="username" required />
+            <span class="glyphicon glyphicon-user" data-toggle="tooltip" title="usuario"></span>
+            <input id="boxy-input" type="text" name="username" class="rotate" placeholder="Usuario" required>
             <button class="boxy-button next-field" data-step="0"></button>
           </span>
 
+          <!-- Cara: Contraseña (el botón envía el formulario) -->
           <span class="side bottom">
-            <span class="glyphicon glyphicon-asterisk" data-toggle="tooltip" title="enter your password"></span>
-            <input id="boxy-password" step="2" type="password" name="password" class="rotate" placeholder="password" required />
-            <button class="boxy-button next-field sub" data-step="1"></button>
+            <span class="glyphicon glyphicon-asterisk" data-toggle="tooltip" title="contraseña"></span>
+            <input id="boxy-password" type="password" name="password" class="rotate" placeholder="Contraseña" required>
+            <button type="submit" class="boxy-button boxy-final-button" data-step="1"></button>
           </span>
 
-          <span class="side back">
-            <span class="boxy-checked glyphicon glyphicon-check"></span>
-            <span class="boxy-unchecked glyphicon glyphicon-unchecked"></span>
-            <label for="remember-me">
-              <input id="remember-me" type="checkbox" name="remember-me" checked />remember me next time?
-            </label>
-            <button type="submit" class="boxy-button boxy-final-button" data-step="2">OK</button>
-          </span>
-
-          <span class="side top">
-            <span class="glyphicon glyphicon-question-sign" data-toggle="tooltip" title="we'll email login details."></span>
-            <input id="boxy-email" step="9" type="email" name="email" class="rotate" placeholder="email" />
-            <button class="boxy-button next-field forgot-btn" data-step="9"></button>
-          </span>
-
+          <!-- Tapa derecha decorativa (sin lógica remember/forgot) -->
           <span class="end-cap right">
-            <span class="glyphicon glyphicon-remove-circle icon-failure" data-toggle="tooltip" title="login failed, try again"></span>
-            <span class="glyphicon glyphicon-user icon-success" data-toggle="tooltip" title=""></span>
+            <span class="glyphicon glyphicon-user"></span>
           </span>
 
         </div>
       </fieldset>
     </form>
 
-    <span class="boxy-refresh glyphicon glyphicon-refresh"></span>
-
-    <em class="small-forgot">
-      <a href="#" class="boxy-forgot">forgot?</a>
-    </em>
   </div>
 </div>
 
 <div id="r8-logo-coin"></div>
 
-<!-- jQuery + Bootstrap 3 JS (con tooltips) -->
+<!-- jQuery + Bootstrap 3 -->
 <script src="https://code.jquery.com/jquery-3.7.1.min.js"></script>
 <script src="https://cdn.jsdelivr.net/npm/bootstrap@3.4.1/dist/js/bootstrap.min.js"></script>
-
-<!-- Lógica del login 3D -->
+<!-- Lógica 3D simplificada -->
 <script src="{{ url_for('static', filename='js/login.js') }}"></script>
 
 </body>
