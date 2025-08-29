@@ -117,3 +117,13 @@ body {
   margin: 0 auto 10px auto;
   padding: 8px 12px;
 }
+/* Logo del login: más pequeño en móviles */
+@media (max-width: 576px) {
+  #r8-logo-coin {
+    width: 60px;
+    height: 60px;
+    bottom: 10px;
+    right: 10px;
+    margin: 0;
+  }
+}
