@@ -16,3 +16,8 @@
 @media (max-width: 576px) {
   #corner-logo { width: 72px; height: 72px; }
 }
+/* Ajuste de color para los placeholders en modo oscuro */
+body.bg-dark ::placeholder {
+  color: #bbb !important;   /* gris claro más visible */
+  opacity: 1;               /* asegura visibilidad */
+}
