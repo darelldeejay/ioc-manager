@@ -10,33 +10,23 @@
   <link rel="stylesheet" href="{{ url_for('static', filename='css/index.css') }}">
 
   <style>
-    /* Evitar solapes: los toasts quedan bajo offcanvas/modales */
-    #toastStack { 
+    /* ---- TOASTS: centrados arriba y sin “asomar” por laterales ---- */
+    #toastStack {
       z-index: 1030;              /* offcanvas ~1045, modal ~1055 */
-      padding-right: 8px;         /* pequeña separación del borde */
+      width: min(420px, 92vw);    /* control de ancho */
     }
     /* Si hay offcanvas o modal abierto, ocultar toasts siempre */
     body.offcanvas-open #toastStack,
     body.modal-open #toastStack {
       display: none !important;
     }
-    /* En móvil, centrar toasts arriba para que no “asomen” por el lateral */
-    @media (max-width: 576px) {
-      #toastStack {
-        left: 50%;
-        right: auto;              /* anula .end-0 */
-        transform: translateX(-50%);
-        padding-right: env(safe-area-inset-right, 0);
-        padding-left:  env(safe-area-inset-left, 0);
-      }
-    }
   </style>
 </head>
 <body class="bg-light">
 
-<!-- CONTENEDOR DE TOASTS (no ocupa espacio en el layout) -->
-<div class="position-fixed top-0 end-0 p-3">
-  <div id="toastStack" class="toast-container"></div>
+<!-- CONTENEDOR DE TOASTS (centrado arriba SIEMPRE) -->
+<div class="position-fixed top-0 start-50 translate-middle-x p-3">
+  <div id="toastStack" class="toast-container w-100"></div>
 </div>
 
 <!-- Barra superior -->
@@ -104,13 +94,13 @@
       </div>
     </div>
 
-    <!-- 👇 Error inline visible (manual) y además duplicado como flash para notificaciones -->
+    <!-- Error inline visible (manual) y además duplicado como flash para notificaciones -->
     {% if error %}
       <div class="alert alert-danger mt-2" role="alert">{{ error }}</div>
       <div class="d-none flash-item" data-category="danger">{{ error }}</div>
     {% endif %}
 
-    <!-- 👇 Mostrar inline también los mensajes de “rechazadas” (de CSV) -->
+    <!-- Mostrar inline también los mensajes de “rechazadas” (de CSV) -->
     {% for category, message in messages %}
       {% if category == 'danger' and (
             'rechazad' in message|lower or
@@ -129,7 +119,7 @@
   </form>
   <!-- /FORM PRINCIPAL -->
 
-  <!-- Bloque eliminar por red/rango/CIDR/IP+máscara (form independiente con modal) -->
+  <!-- Bloque eliminar por red/rango/CIDR/IP+máscara -->
   <div class="row g-3 mb-1">
     <div class="col-md-7">
       <div class="d-flex gap-2">
@@ -137,7 +127,6 @@
                placeholder="CIDR, rango A–B, IP+máscara o IP">
         <button type="button" class="btn btn-outline-danger" data-bs-toggle="modal" data-bs-target="#confirmDeleteNet">Eliminar por red/rango</button>
       </div>
-      <!-- Ayuda envolvente con ejemplos (siempre visible y multilínea) -->
       <div class="form-text">
         Ejemplos: <code>88.84.66.240/29</code> · <code>203.0.113.10-203.0.113.50</code> ·
         <code>203.0.113.0 255.255.255.0</code> · <code>203.0.113.5</code>
@@ -168,7 +157,6 @@
       </div>
     </div>
   </div>
-  <!-- /Modal Confirmación -->
 
   <!-- Modal Confirmación Eliminar Todas -->
   <div class="modal fade" id="confirmDeleteAll" tabindex="-1">
@@ -342,7 +330,6 @@
     const toastStack = document.getElementById('toastStack');
     const flashes = document.querySelectorAll('.flash-item');
 
-    // Clasificación ampliada de mensajes
     function classify(text, category) {
       const t = text.toLowerCase();
       if (t.includes("ip duplicada")) return "error_duplicada";
@@ -358,12 +345,10 @@
       return category || "info";
     }
 
-    // Historial de la sesión
     const STORAGE_KEY = "iocNotifications";
     let history = [];
     try { history = JSON.parse(sessionStorage.getItem(STORAGE_KEY) || "[]"); } catch {}
 
-    // Añadir flashes de esta carga
     const nowISO = () => new Date().toISOString();
     flashes.forEach(el => {
       const msg = el.textContent.trim();
@@ -373,17 +358,11 @@
 
     sessionStorage.setItem(STORAGE_KEY, JSON.stringify(history));
 
-    // Mostrar SOLO los últimos 5 como toasts fijos (sin autohide)
     const lastFive = history.slice(-5);
     const catToClass = {
-      success: 'text-bg-success',
-      danger:  'text-bg-danger',
-      warning: 'text-bg-warning',
-      info:    'text-bg-info',
-      primary: 'text-bg-primary',
-      secondary: 'text-bg-secondary',
-      light:   'text-bg-light',
-      dark:    'text-bg-dark'
+      success: 'text-bg-success', danger: 'text-bg-danger', warning: 'text-bg-warning',
+      info: 'text-bg-info', primary: 'text-bg-primary', secondary: 'text-bg-secondary',
+      light: 'text-bg-light', dark: 'text-bg-dark'
     };
     lastFive.forEach(obj => {
       const cls = catToClass[obj.category] || 'text-bg-info';
@@ -396,13 +375,12 @@
         <div class="d-flex">
           <div class="toast-body">${obj.text}</div>
           <button type="button" class="btn-close btn-close-white me-2 m-auto" data-bs-dismiss="toast" aria-label="Cerrar"></button>
-        </div>
-      `;
+        </div>`;
       toastStack.appendChild(toast);
       new bootstrap.Toast(toast, { autohide: false }).show();
     });
 
-    // Ocultar toasts cuando hay offcanvas o modal abiertos (capa extra de seguridad visual)
+    /* Ocultar toasts si hay offcanvas/modal (extra) */
     const notifCenterEl = document.getElementById('notifCenter');
     if (notifCenterEl) {
       notifCenterEl.addEventListener('show.bs.offcanvas', () => toastStack.classList.add('d-none'));
@@ -411,14 +389,14 @@
     document.addEventListener('show.bs.modal', () => toastStack.classList.add('d-none'));
     document.addEventListener('hidden.bs.modal', () => toastStack.classList.remove('d-none'));
 
-    // Badge con nº total en la sesión
+    /* Badge total */
     const notifBadge = document.getElementById('notifBadge');
     if (notifBadge) {
       notifBadge.textContent = history.length;
       notifBadge.classList.toggle('d-none', history.length === 0);
     }
 
-    // Pintar lista en el Centro de notificaciones
+    /* Centro de notificaciones */
     const notifList = document.getElementById('notifList');
     const notifFilter = document.getElementById('notifFilter');
     const sumAltaManual = document.getElementById('sumAltaManual');
@@ -435,11 +413,8 @@
       notifList.innerHTML = "";
       const ft = filterText.toLowerCase().trim();
       const items = history.filter(h =>
-        !ft ||
-        h.text.toLowerCase().includes(ft) ||
-        h.type.toLowerCase().includes(ft) ||
-        h.category.toLowerCase().includes(ft)
-      ).slice().reverse(); // más recientes primero
+        !ft || h.text.toLowerCase().includes(ft) || h.type.toLowerCase().includes(ft) || h.category.toLowerCase().includes(ft)
+      ).slice().reverse();
 
       items.forEach(h => {
         const li = document.createElement('li');
@@ -449,15 +424,13 @@
             <div class="fw-semibold">${h.text}</div>
             <small class="text-muted">${h.ts} · <code>${h.type}</code> · <span class="badge bg-secondary">${h.category}</span></small>
           </div>
-          <button class="btn btn-sm btn-outline-secondary" title="Copiar" aria-label="Copiar">📋</button>
-        `;
+          <button class="btn btn-sm btn-outline-secondary" title="Copiar" aria-label="Copiar">📋</button>`;
         li.querySelector('button').addEventListener('click', () => {
           navigator.clipboard.writeText(h.text + " (" + h.ts + ")");
         });
         notifList.appendChild(li);
       });
 
-      // Resumen por tipo
       const count = (t) => history.filter(h => h.type === t).length;
       if (sumAltaManual) sumAltaManual.textContent = `Altas manuales: ${count('alta_manual')}`;
       if (sumAltaCSV)    sumAltaCSV.textContent    = `Altas CSV: ${count('alta_csv')}`;
@@ -472,7 +445,6 @@
     renderList();
     if (notifFilter) notifFilter.addEventListener('input', () => renderList(notifFilter.value));
 
-    // Limpiar historial de la sesión
     const notifClear = document.getElementById('notifClear');
     if (notifClear) notifClear.addEventListener('click', () => {
       sessionStorage.removeItem(STORAGE_KEY);
