@@ -1,4 +1,4 @@
-from flask import Flask, render_template, request, redirect, url_for, session, flash
+from flask import Flask, render_template, request, redirect, url_for, session, flash, Response
 from datetime import datetime, timedelta
 import ipaddress
 import os
@@ -94,7 +94,7 @@ def index():
 
     if request.method == "POST":
         if "delete-all" in request.form:
-            save_lines([])
+            save_lines([])  # Vacía el feed
             log("Eliminadas", "todas las IPs")
             flash("Todas las IPs han sido eliminadas correctamente", "success")
             return redirect(url_for("index"))
@@ -173,9 +173,15 @@ def index():
     contador_manual = leer_contador(COUNTER_MANUAL)
     contador_csv = leer_contador(COUNTER_CSV)
 
-    return render_template("index.html", ips=lines, error=error, total_ips=total_ips,
-                           contador_manual=contador_manual, contador_csv=contador_csv,
-                           messages=list(session.get('_flashes', [])))
+    return render_template(
+        "index.html",
+        ips=lines,
+        error=error,
+        total_ips=total_ips,
+        contador_manual=contador_manual,
+        contador_csv=contador_csv,
+        messages=list(session.get('_flashes', []))
+    )
 
 def load_lines():
     if not os.path.exists(FEED_FILE):
@@ -193,13 +199,34 @@ def log(accion, ip):
     with open(LOG_FILE, "a", encoding="utf-8") as f:
         f.write(f"{datetime.now()} - {accion}: {ip}\n")
 
-@app.route("/feed/ioc-feed.txt")
+@app.route("/feed/ioc-feed.txt", methods=["GET"])
 def feed():
+    """
+    Devuelve el feed en texto plano para el firewall:
+      - 1 IP/CIDR por línea (tomamos solo la primera columna antes del '|')
+      - Content-Type: text/plain; charset=utf-8
+      - Sin caché para evitar lecturas vacías por proxies/intermedios
+    """
     if not os.path.exists(FEED_FILE):
-        return "", 200
-    with open(FEED_FILE, "r", encoding="utf-8") as f:
-        ips = [line.strip().split("|")[0] for line in f if line.strip()]
-    return "\n".join(ips), 200
+        body = ""  # vacío pero en text/plain
+    else:
+        with open(FEED_FILE, "r", encoding="utf-8") as f:
+            ips = []
+            for line in f:
+                line = line.strip()
+                if not line:
+                    continue
+                ip = line.split("|", 1)[0].strip()
+                if not ip or ip == "0.0.0.0":
+                    continue
+                ips.append(ip)
+        body = "\n".join(ips) + ("\n" if ips else "")
+
+    resp = Response(body, mimetype="text/plain; charset=utf-8", status=200)
+    resp.headers["Cache-Control"] = "no-store, no-cache, must-revalidate, max-age=0"
+    resp.headers["Pragma"] = "no-cache"
+    resp.headers["Content-Disposition"] = 'inline; filename="ioc-feed.txt"'
+    return resp
 
 @app.errorhandler(404)
 def not_found(e):
@@ -210,4 +237,5 @@ def server_error(e):
     return "Error interno del servidor", 500
 
 if __name__ == "__main__":
+    # Nota: en producción usas gunicorn; aquí es útil el debug local.
     app.run(debug=True, host="0.0.0.0", port=5050)
