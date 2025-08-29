@@ -1,176 +1,41 @@
-/* --- Fondo y base --- */
-html, body {
-  height: 100%;
-}
-body {
-  margin: 0;
-  background: url("https://s3-us-west-2.amazonaws.com/s.cdpn.io/1251/stardust.png") repeat;
-  font-family: "Helvetica Neue", Helvetica, Arial, sans-serif;
-}
-@media (-webkit-min-device-pixel-ratio: 2), (min-resolution: 192dpi) {
-  body { background: url("https://s3-us-west-2.amazonaws.com/s.cdpn.io/1251/stardust_@2X.png") repeat; }
-}
+$(function () {
+  'use strict';
 
-/* Logo decorativo opcional */
-#r8-logo-coin {
-  width: 110px; height: 110px; display: block;
-  position: absolute; bottom: 15px; right: 15px; margin: 15px;
-  background: url('https://s3-us-west-2.amazonaws.com/s.cdpn.io/1251/R8-launcher-icon-dark.svg') no-repeat center / contain;
-  user-select: none;
-}
+  var _boxyLoginForm = document.forms['boxy-login-form'];
+  var _boxyFormInner = $(_boxyLoginForm).find('div.boxy-form-inner');
+  var _boxyWrap = $("#boxy-login-wrapper");
+  var _boxyMessage = _boxyWrap.find('em.small-forgot'); // aunque ya no lo usamos
 
-/* --- Layout del wrapper y centrado --- */
-#wrapper {
-  min-height: 100vh;
-  display: flex; align-items: center; justify-content: center;
-  position: relative;
-}
-#boxy-login-wrapper {
-  position: relative;
-  width: 31.5em; height: 4em;
-  perspective: 1000px;
-  -webkit-perspective: 1000px;
-  transition: width 550ms linear;
-}
+  // Usuario → validación y rotación
+  $(_boxyFormInner).on('click', '.side.front button', function (evt) {
+    evt.preventDefault();
+    var _boxyInput = _boxyLoginForm['username'];
+    if (!_boxyInput.value) {
+      _boxyWrap.addClass('shake');
+      _boxyInput.placeholder = 'Introduce tu usuario';
+    } else {
+      $(_boxyFormInner).addClass('rotated90');
+    }
+  });
 
-/* Botón de refresco (círculo) */
-#boxy-login-wrapper .boxy-refresh {
-  width: 1.3em; height: 1.3em;
-  position: absolute; top: -0.25em; right: -1.5em;
-  color: #d9d9da; opacity: 0.5; display: none; cursor: pointer;
-  border-radius: 50%;
-  transition: all 250ms linear;
-}
-#boxy-login-wrapper .boxy-refresh:hover {
-  opacity: 1;
-  transform: rotate(180deg);
-}
+  // Contraseña → enviar
+  $(_boxyFormInner).on('click', '.side.bottom button', function (evt) {
+    evt.preventDefault();
+    var _boxyPassword = _boxyLoginForm['password'];
+    if (!_boxyPassword.value) {
+      _boxyWrap.addClass('shake');
+      _boxyPassword.placeholder = 'Introduce tu contraseña';
+    } else {
+      _boxyLoginForm.submit();
+    }
+  });
 
-/* Mensaje "forgot" */
-#boxy-login-wrapper em.small-forgot {
-  font-size: 12px; font-style: italic; font-weight: 400; color: #666;
-  position: absolute; right: 0; top: 4.5em; display: none;
-  transition: all 250ms linear;
-}
-#boxy-login-wrapper em.small-forgot a {
-  color: #777; text-decoration: none;
-}
-#boxy-login-wrapper em.small-forgot a:hover {
-  color: #2EBEA5;
-}
-
-/* --- Contenedor 3D --- */
-#boxy-login-form { margin: 0; padding: 0; height: 4em; }
-#boxy-login-form fieldset { margin: 0; padding: 0; border: 0; }
-
-.boxy-form-inner {
-  color: #ccc; cursor: pointer;
-  width: 30em; height: 4em; position: relative;
-  transform-style: preserve-3d;
-  -webkit-transform-style: preserve-3d;
-  transform-origin: 50% 50%;
-  -webkit-transform-origin: 50% 50%;
-  transition: all 0.85s cubic-bezier(.17,.67,.14,.93);
-}
-.boxy-form-inner.rotateFirst3d { transform: rotateY(-90deg); -webkit-transform: rotateY(-90deg); }
-.boxy-form-inner.rotated90      { transform: rotateX(90deg);  -webkit-transform: rotateX(90deg); }
-.boxy-form-inner.rotated180     { transform: rotateX(180deg); -webkit-transform: rotateX(180deg); }
-.boxy-form-inner.rotatedBack90  { transform: rotateX(-90deg); -webkit-transform: rotateX(-90deg); }
-.boxy-form-inner.rotatedBack180 { transform: rotateX(-180deg);-webkit-transform: rotateX(-180deg); }
-.boxy-form-inner.rotate3d       { transform: rotateY(90deg);  -webkit-transform: rotateY(90deg); }
-
-/* Temblor (input vacío) */
-@keyframes bad-input-animation {
-  10%, 90% { transform: translate3d(-1px, 0, 0); }
-  20%, 80% { transform: translate3d( 2px, 0, 0); }
-  30%, 50%, 70% { transform: translate3d(-4px, 0, 0); }
-  40%, 60% { transform: translate3d( 4px, 0, 0); }
-}
-#boxy-login-wrapper.shake { animation: bad-input-animation .5s linear; }
-
-/* Caras y tapas */
-.boxy-form-inner .end-cap {
-  height: 4em; width: 4em; position: absolute; top: 0; background: #F7F7F7; border-radius: 2px;
-  display: inline-block; z-index: 2;
-}
-.boxy-form-inner .end-cap.left  { transform: rotateY( 90deg) translateZ(28em); }
-.boxy-form-inner .end-cap.right { transform: rotateY(-90deg) translateZ(2em);  border: 2px solid #F9F9F9; }
-
-.boxy-form-inner .end-cap .glyphicon {
-  display: block; width: 100%; height: 100%; text-align: center; line-height: 4em; color: #999;
-  transition: color 250ms linear;
-}
-.boxy-form-inner .end-cap .glyphicon:hover { color: #2EBEA5; }
-.boxy-form-inner .end-cap.right .icon-success,
-.boxy-form-inner .end-cap.right .icon-failure { display: none; }
-
-/* Resultado login (visual) */
-.boxy-form-inner .end-cap.right.boxy-success .icon-success { display: block; color: #2EBEA5; }
-.boxy-form-inner .end-cap.right.boxy-failure .icon-failure { display: block; color: #EA1F54; }
-
-/* Caras del “cubo” */
-.boxy-form-inner .side {
-  background: #F7F7F7; border: 1px solid #eee;
-  position: absolute; height: 4em; width: 30em;
-  display: inline-block; box-sizing: border-box; border-radius: 2px;
-  text-transform: uppercase; text-align: center;
-}
-.boxy-form-inner .side.front  { transform: translateZ(2em);             }
-.boxy-form-inner .side.bottom { transform: rotateX(-90deg) translateZ(2em); }
-.boxy-form-inner .side.top    { transform: rotateX( 90deg) translateZ(2em); }
-.boxy-form-inner .side.back   { transform: rotateX(-180deg) translateZ(2em); }
-
-.boxy-form-inner .side .glyphicon.glyphicon-user,
-.boxy-form-inner .side .glyphicon.glyphicon-asterisk,
-.boxy-form-inner .side .glyphicon.glyphicon-question-sign {
-  position: absolute; left: 0; top: 0;
-  width: 4em; height: 4em; line-height: 4em; text-align: center;
-  color: #999; transition: color 250ms linear;
-}
-.boxy-form-inner .side .glyphicon:hover { color: #2EBEA5; }
-
-/* Inputs y botones */
-.boxy-form-inner .side input {
-  background: transparent; border: none; outline: none;
-  height: 4em; width: 22em; padding-left: 4.5em; color: #333;
-  font-weight: 700; text-transform: none;
-}
-.boxy-form-inner .side button.boxy-button {
-  background: transparent; border: none; outline: none; cursor: pointer;
-  height: 4em; width: 4em; float: right; color: #333; opacity: .25;
-  transition: all 250ms linear; font-size: 0;
-}
-.boxy-form-inner .side button.boxy-button::before {
-  content: "\00BB"; font-size: 5em; line-height: .4em;
-}
-.boxy-form-inner .side button.boxy-button:hover { opacity: 1; color: #2EBEA5; }
-
-/* Cara BACK (remember + OK) */
-.boxy-form-inner .side.back .glyphicon {
-  position: absolute; width: 4em; height: 4em; line-height: 4em; left: 0; top: 0; color: #2EBEA5;
-}
-.boxy-form-inner .side.back .boxy-unchecked { display: none; }
-.boxy-form-inner .side.back label {
-  display: inline-block; width: calc(100% - 8em); height: 4em;
-  text-align: left; padding-left: 3em; margin: 0 4em 0 4em; line-height: 4em; cursor: pointer; color: #333;
-  user-select: none;
-}
-.boxy-form-inner .side.back input[type=checkbox] { margin-right: 8px; vertical-align: middle; }
-.boxy-form-inner .side.back .boxy-final-button {
-  float: right; width: 4em; height: 4em; color: #1B1B1B;
-}
-.boxy-form-inner .side.back .boxy-final-button:hover {
-  background: #2EBEA5; color: #F7F7F7; font-weight: 700;
-}
-
-/* Tooltips de Bootstrap 3 en este layout */
-#boxy-login-wrapper .tooltip {
-  white-space: nowrap; text-transform: lowercase;
-  border-top: 1px solid #F9F9F9;
-}
-#boxy-login-wrapper .tooltip .tooltip-inner {
-  padding: 4px 5px; background: #222229; color: #fff; border-radius: 2px;
-}
-
-/* Utilidades */
-.rotate { will-change: transform; }
+  // Tab key → avanzar
+  $(_boxyFormInner).on('keydown', '#boxy-input , #boxy-password', function (evt) {
+    var keyCode = evt.keyCode || evt.which;
+    if (keyCode == 9) {
+      evt.preventDefault();
+      $(this).next('button').click();
+    }
+  });
+});
