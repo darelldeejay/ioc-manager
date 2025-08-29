@@ -24,10 +24,12 @@
     ℹ️ Añadidas: Manual (<strong>{{ contador_manual }}</strong>) · CSV (<strong>{{ contador_csv }}</strong>)
   </div>
 
+  <!-- FORM PRINCIPAL: alta manual y subida de archivo -->
   <form method="POST" enctype="multipart/form-data">
     <div class="row g-3 mb-3">
       <div class="col-md-5">
-        <input type="text" class="form-control" name="ip" placeholder="Introduce una IP">
+        <input type="text" class="form-control" name="ip"
+               placeholder="IP, CIDR o rango. Ej: 203.0.113.5 · 203.0.113.0/24 · 203.0.113.10-203.0.113.50 · 203.0.113.0 255.255.255.0">
       </div>
       <div class="col-md-3">
         <select class="form-select" name="ttl">
@@ -73,6 +75,20 @@
       <div class="alert alert-{{ category }} mt-2">{{ message }}</div>
     {% endfor %}
   </form>
+  <!-- /FORM PRINCIPAL -->
+
+  <!-- Bloque eliminar por red/rango/CIDR/IP+máscara (form independiente) -->
+  <div class="row g-3 mb-4">
+    <div class="col-md-7">
+      <form method="POST" class="d-flex gap-2">
+        <input type="hidden" name="delete-net" value="1">
+        <input type="text" class="form-control" name="delete_net_input"
+               placeholder="Eliminar por patrón: CIDR, rango A-B, IP+máscara o IP. Ej: 88.84.66.240/29 · 203.0.113.10-203.0.113.50 · 203.0.113.0 255.255.255.0">
+        <button type="submit" class="btn btn-outline-danger">Eliminar por red/rango</button>
+      </form>
+    </div>
+  </div>
+  <!-- /Bloque eliminar por patrón -->
 
   <!-- Modal Confirmación Eliminar Todas -->
   <div class="modal fade" id="confirmDeleteAll" tabindex="-1">
