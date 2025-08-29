@@ -11,9 +11,24 @@
 </head>
 <body class="bg-light">
 
-<div class="d-flex justify-content-between mb-3">
-  <button class="btn btn-outline-secondary btn-sm" onclick="toggleTheme()">🌙 Modo Oscuro</button>
-  <a href="/logout" class="btn btn-outline-danger btn-sm">Logout</a>
+<!-- CONTENEDOR DE TOASTS (no ocupa espacio en el layout) -->
+<div class="position-fixed top-0 end-0 p-3" style="z-index: 1080">
+  <div id="toastStack" class="toast-container"></div>
+</div>
+
+<!-- Barra superior -->
+<div class="d-flex justify-content-between align-items-center mb-3 px-2">
+  <div class="d-flex gap-2">
+    <button class="btn btn-outline-secondary btn-sm" onclick="toggleTheme()">🌙 Modo Oscuro</button>
+  </div>
+  <div class="d-flex gap-2">
+    <!-- Botón que abre el Centro de notificaciones -->
+    <button class="btn btn-outline-primary btn-sm position-relative" data-bs-toggle="offcanvas" data-bs-target="#notifCenter">
+      🔔 Notificaciones
+      <span id="notifBadge" class="position-absolute top-0 start-100 translate-middle badge rounded-pill bg-danger d-none">0</span>
+    </button>
+    <a href="/logout" class="btn btn-outline-danger btn-sm">Logout</a>
+  </div>
 </div>
 
 <div class="container py-4">
@@ -67,12 +82,12 @@
       </div>
     </div>
 
+    <!-- Flashes ocultos: los convertimos en notificaciones -->
     {% if error %}
-      <div class="alert alert-danger">{{ error }}</div>
+      <div class="d-none flash-item" data-category="danger">{{ error }}</div>
     {% endif %}
-
     {% for category, message in messages %}
-      <div class="alert alert-{{ category }} mt-2">{{ message }}</div>
+      <div class="d-none flash-item" data-category="{{ category }}">{{ message }}</div>
     {% endfor %}
   </form>
   <!-- /FORM PRINCIPAL -->
@@ -195,6 +210,36 @@
   </div>
 </div>
 
+<!-- Offcanvas: Centro de Notificaciones -->
+<div class="offcanvas offcanvas-end" tabindex="-1" id="notifCenter">
+  <div class="offcanvas-header">
+    <h5 class="offcanvas-title">Centro de notificaciones (sesión)</h5>
+    <button class="btn-close" data-bs-dismiss="offcanvas"></button>
+  </div>
+  <div class="offcanvas-body d-flex flex-column gap-3">
+    <div class="row g-2">
+      <div class="col-12 col-md-8">
+        <input type="text" class="form-control" id="notifFilter" placeholder="Filtrar por texto o tipo (alta_manual, alta_csv, elim_patron, elim_individual, elim_todas, danger, success, info...)">
+      </div>
+      <div class="col-12 col-md-4 d-grid d-md-block">
+        <button id="notifClear" class="btn btn-outline-secondary w-100">Limpiar notificaciones</button>
+      </div>
+    </div>
+
+    <div id="notifSummary" class="row text-center">
+      <div class="col"><span class="badge text-bg-success" id="sumAltaManual">Altas manuales: 0</span></div>
+      <div class="col"><span class="badge text-bg-primary" id="sumAltaCSV">Altas CSV: 0</span></div>
+      <div class="col"><span class="badge text-bg-warning" id="sumElimPatron">Elim. patrón: 0</span></div>
+      <div class="col"><span class="badge text-bg-danger" id="sumElimInd">Elim. individual: 0</span></div>
+      <div class="col"><span class="badge text-bg-dark" id="sumElimAll">Elim. todas: 0</span></div>
+    </div>
+
+    <div class="border rounded p-2 overflow-auto" style="max-height: 60vh;">
+      <ul id="notifList" class="list-group list-group-flush small"></ul>
+    </div>
+  </div>
+</div>
+
 <!-- Logo DPB fijo en la esquina -->
 <img id="corner-logo" src="{{ url_for('static', filename='img/logo-dpb.svg') }}" alt="Logo DPB">
 
@@ -214,7 +259,7 @@
     if (localStorage.getItem('theme') === 'dark') toggleTheme();
   };
 
-  // Script de búsqueda en la tabla
+  // Búsqueda en la tabla
   document.addEventListener('DOMContentLoaded', function () {
     const input = document.getElementById('buscadorIp');
     const table = document.getElementById('tablaIps');
@@ -230,7 +275,7 @@
       }
     });
 
-    // Script: pasar patrón al modal de confirmación
+    // Pasar patrón al modal de confirmación (eliminar por red/rango)
     const deleteNetInput = document.getElementById('deleteNetInput');
     const hiddenDeleteNetInput = document.getElementById('hiddenDeleteNetInput');
     const patternPreview = document.getElementById('patternPreview');
@@ -241,6 +286,137 @@
       patternPreview.textContent = val || "[No introducido]";
       hiddenDeleteNetInput.value = val;
     });
+
+    // ====== Notificaciones (toasts + centro de notificaciones) ======
+    const toastStack = document.getElementById('toastStack');
+    const flashes = document.querySelectorAll('.flash-item');
+
+    // Utilidad: clasificar notificación por texto
+    function classify(text, category) {
+      const t = text.toLowerCase();
+      if (t.includes("todas las ips han sido eliminadas")) return "elim_todas";
+      if (t.includes("se eliminaron") && t.includes("coinciden")) return "elim_patron";
+      if (t.includes("eliminada correctamente")) return "elim_individual";
+      if (t.includes("ips añadidas correctamente. total actual")) return "alta_csv";
+      if (t.match(/ip\(s\) añadida\(s\) correctamente/)) return "alta_manual";
+      // fallback a categoría visual
+      return category || "info";
+    }
+
+    // Cargar historial de la sesión
+    const STORAGE_KEY = "iocNotifications";
+    let history = [];
+    try { history = JSON.parse(sessionStorage.getItem(STORAGE_KEY) || "[]"); } catch {}
+
+    // Añadir flashes de esta carga
+    const now = () => new Date().toISOString();
+    flashes.forEach(el => {
+      const msg = el.textContent.trim();
+      const cat = (el.dataset.category || 'info').toLowerCase();
+      history.push({
+        ts: now(),
+        category: cat,
+        type: classify(msg, cat),
+        text: msg
+      });
+    });
+
+    // Guardar
+    sessionStorage.setItem(STORAGE_KEY, JSON.stringify(history));
+
+    // Mostrar SOLO los últimos 5 como toasts fijos (sin autohide)
+    const lastFive = history.slice(-5);
+    const catToClass = {
+      success: 'text-bg-success',
+      danger:  'text-bg-danger',
+      warning: 'text-bg-warning',
+      info:    'text-bg-info',
+      primary: 'text-bg-primary',
+      secondary: 'text-bg-secondary',
+      light:   'text-bg-light',
+      dark:    'text-bg-dark'
+    };
+    lastFive.forEach(obj => {
+      const cls = catToClass[obj.category] || 'text-bg-info';
+      const toast = document.createElement('div');
+      toast.className = `toast align-items-center border-0 ${cls} show`; // show = visible
+      toast.setAttribute('role', 'alert');
+      toast.setAttribute('aria-live', 'assertive');
+      toast.setAttribute('aria-atomic', 'true');
+      toast.innerHTML = `
+        <div class="d-flex">
+          <div class="toast-body">${obj.text}</div>
+          <button type="button" class="btn-close btn-close-white me-2 m-auto" data-bs-dismiss="toast" aria-label="Cerrar"></button>
+        </div>
+      `;
+      toastStack.appendChild(toast);
+      // No autohide -> no Bootstrap.Toast(...) con autohide.
+      new bootstrap.Toast(toast, { autohide: false }).show();
+    });
+
+    // Badge con nº total en la sesión
+    const notifBadge = document.getElementById('notifBadge');
+    notifBadge.textContent = history.length;
+    notifBadge.classList.toggle('d-none', history.length === 0);
+
+    // Pintar lista en el Centro de notificaciones
+    const notifList = document.getElementById('notifList');
+    const notifFilter = document.getElementById('notifFilter');
+    const sumAltaManual = document.getElementById('sumAltaManual');
+    const sumAltaCSV = document.getElementById('sumAltaCSV');
+    const sumElimPatron = document.getElementById('sumElimPatron');
+    const sumElimInd = document.getElementById('sumElimInd');
+    const sumElimAll = document.getElementById('sumElimAll');
+
+    function renderList(filterText = "") {
+      notifList.innerHTML = "";
+      const ft = filterText.toLowerCase().trim();
+      const items = history.filter(h =>
+        !ft ||
+        h.text.toLowerCase().includes(ft) ||
+        h.type.toLowerCase().includes(ft) ||
+        h.category.toLowerCase().includes(ft)
+      ).slice().reverse(); // más recientes primero
+
+      items.forEach(h => {
+        const li = document.createElement('li');
+        li.className = "list-group-item d-flex justify-content-between align-items-start";
+        li.innerHTML = `
+          <div class="me-2">
+            <div class="fw-semibold">${h.text}</div>
+            <small class="text-muted">${h.ts} · <code>${h.type}</code> · <span class="badge bg-secondary">${h.category}</span></small>
+          </div>
+          <button class="btn btn-sm btn-outline-secondary" title="Copiar" aria-label="Copiar">📋</button>
+        `;
+        li.querySelector('button').addEventListener('click', () => {
+          navigator.clipboard.writeText(h.text + " (" + h.ts + ")");
+        });
+        notifList.appendChild(li);
+      });
+
+      // Resumen por tipo
+      const count = (t) => history.filter(h => h.type === t).length;
+      sumAltaManual.textContent = `Altas manuales: ${count('alta_manual')}`;
+      sumAltaCSV.textContent    = `Altas CSV: ${count('alta_csv')}`;
+      sumElimPatron.textContent = `Elim. patrón: ${count('elim_patron')}`;
+      sumElimInd.textContent    = `Elim. individual: ${count('elim_individual')}`;
+      sumElimAll.textContent    = `Elim. todas: ${count('elim_todas')}`;
+    }
+
+    renderList();
+
+    notifFilter.addEventListener('input', () => renderList(notifFilter.value));
+
+    // Limpiar historial de la sesión
+    document.getElementById('notifClear').addEventListener('click', () => {
+      sessionStorage.removeItem(STORAGE_KEY);
+      history = [];
+      renderList();
+      notifBadge.textContent = "0";
+      notifBadge.classList.add('d-none');
+      toastStack.innerHTML = "";
+    });
+
   });
 </script>
 
