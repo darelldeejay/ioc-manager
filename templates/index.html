@@ -77,18 +77,41 @@
   </form>
   <!-- /FORM PRINCIPAL -->
 
-  <!-- Bloque eliminar por red/rango/CIDR/IP+máscara (form independiente) -->
+  <!-- Bloque eliminar por red/rango/CIDR/IP+máscara (form independiente con modal) -->
   <div class="row g-3 mb-4">
     <div class="col-md-7">
-      <form method="POST" class="d-flex gap-2">
-        <input type="hidden" name="delete-net" value="1">
-        <input type="text" class="form-control" name="delete_net_input"
+      <div class="d-flex gap-2">
+        <input type="text" class="form-control" id="deleteNetInput" name="delete_net_input"
                placeholder="Eliminar por patrón: CIDR, rango A-B, IP+máscara o IP. Ej: 88.84.66.240/29 · 203.0.113.10-203.0.113.50 · 203.0.113.0 255.255.255.0">
-        <button type="submit" class="btn btn-outline-danger">Eliminar por red/rango</button>
-      </form>
+        <button type="button" class="btn btn-outline-danger" data-bs-toggle="modal" data-bs-target="#confirmDeleteNet">Eliminar por red/rango</button>
+      </div>
     </div>
   </div>
-  <!-- /Bloque eliminar por patrón -->
+
+  <!-- Modal Confirmación Eliminar por red/rango -->
+  <div class="modal fade" id="confirmDeleteNet" tabindex="-1">
+    <div class="modal-dialog modal-dialog-centered">
+      <div class="modal-content">
+        <form method="POST">
+          <div class="modal-header">
+            <h5 class="modal-title text-danger">¿Eliminar IPs por patrón?</h5>
+            <button type="button" class="btn-close" data-bs-dismiss="modal"></button>
+          </div>
+          <div class="modal-body">
+            <p>Se eliminarán todas las IPs que coincidan con el patrón:</p>
+            <p><strong id="patternPreview">[Patrón introducido]</strong></p>
+            <input type="hidden" name="delete-net" value="1">
+            <input type="hidden" name="delete_net_input" id="hiddenDeleteNetInput">
+          </div>
+          <div class="modal-footer">
+            <button type="submit" class="btn btn-danger">Eliminar</button>
+            <button type="button" class="btn btn-secondary" data-bs-dismiss="modal">Cancelar</button>
+          </div>
+        </form>
+      </div>
+    </div>
+  </div>
+  <!-- /Modal Confirmación -->
 
   <!-- Modal Confirmación Eliminar Todas -->
   <div class="modal fade" id="confirmDeleteAll" tabindex="-1">
@@ -205,6 +228,18 @@
           filas[i].style.display = ip.includes(filtro) ? '' : 'none';
         }
       }
+    });
+
+    // Script: pasar patrón al modal de confirmación
+    const deleteNetInput = document.getElementById('deleteNetInput');
+    const hiddenDeleteNetInput = document.getElementById('hiddenDeleteNetInput');
+    const patternPreview = document.getElementById('patternPreview');
+    const confirmDeleteNet = document.getElementById('confirmDeleteNet');
+
+    confirmDeleteNet.addEventListener('show.bs.modal', () => {
+      const val = deleteNetInput.value.trim();
+      patternPreview.textContent = val || "[No introducido]";
+      hiddenDeleteNetInput.value = val;
     });
   });
 </script>
