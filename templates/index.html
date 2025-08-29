@@ -3,6 +3,7 @@
 <head>
   <meta charset="utf-8">
   <title>IOC Manager</title>
+  <meta name="viewport" content="width=device-width, initial-scale=1">
   <link href="https://cdn.jsdelivr.net/npm/bootstrap@5.3.0/dist/css/bootstrap.min.css" rel="stylesheet">
   <script src="https://cdn.jsdelivr.net/npm/bootstrap@5.3.0/dist/js/bootstrap.bundle.min.js"></script>
 
@@ -10,22 +11,36 @@
   <link rel="stylesheet" href="{{ url_for('static', filename='css/index.css') }}">
 
   <style>
-    /* ---- TOASTS: centrados arriba y sin “asomar” por laterales ---- */
-    #toastStack {
-      z-index: 1030;              /* offcanvas ~1045, modal ~1055 */
-      width: min(420px, 92vw);    /* control de ancho */
+    /* ---- TOASTS: centrados ABAJO, sin “asomar” por los laterales ---- */
+    #toastStackWrap {
+      z-index: 1030; /* offcanvas ~1045, modal ~1055 */
+      width: min(480px, 96vw);
     }
     /* Si hay offcanvas o modal abierto, ocultar toasts siempre */
-    body.offcanvas-open #toastStack,
-    body.modal-open #toastStack {
+    body.offcanvas-open #toastStackWrap,
+    body.modal-open #toastStackWrap {
       display: none !important;
+    }
+    /* Límite de alto y scroll interno si hay muchos toasts */
+    #toastStack {
+      max-height: 60vh;
+      overflow: auto;
+    }
+
+    /* Modo oscuro: mejorar contraste de ayudas y <code> */
+    body.bg-dark .form-text { color: rgba(255,255,255,0.8) !important; }
+    body.bg-dark code {
+      background: rgba(255,255,255,0.12);
+      color: #fff;
+      border-radius: .25rem;
+      padding: .05rem .35rem;
     }
   </style>
 </head>
 <body class="bg-light">
 
-<!-- CONTENEDOR DE TOASTS (centrado arriba SIEMPRE) -->
-<div class="position-fixed top-0 start-50 translate-middle-x p-3">
+<!-- CONTENEDOR DE TOASTS (centrado ABAJO SIEMPRE) -->
+<div class="position-fixed bottom-0 start-50 translate-middle-x p-3" id="toastStackWrap">
   <div id="toastStack" class="toast-container w-100"></div>
 </div>
 
@@ -94,7 +109,7 @@
       </div>
     </div>
 
-    <!-- Error inline visible (manual) y además duplicado como flash para notificaciones -->
+    <!-- Error inline visible (manual) y duplicado como flash para notificaciones -->
     {% if error %}
       <div class="alert alert-danger mt-2" role="alert">{{ error }}</div>
       <div class="d-none flash-item" data-category="danger">{{ error }}</div>
@@ -327,6 +342,7 @@
     }
 
     /* ====== Notificaciones (toasts + centro de notificaciones) ====== */
+    const toastStackWrap = document.getElementById('toastStackWrap');
     const toastStack = document.getElementById('toastStack');
     const flashes = document.querySelectorAll('.flash-item');
 
@@ -367,7 +383,7 @@
     lastFive.forEach(obj => {
       const cls = catToClass[obj.category] || 'text-bg-info';
       const toast = document.createElement('div');
-      toast.className = `toast align-items-center border-0 ${cls} show`;
+      toast.className = `toast align-items-center border-0 ${cls} show shadow`;
       toast.setAttribute('role', 'alert');
       toast.setAttribute('aria-live', 'assertive');
       toast.setAttribute('aria-atomic', 'true');
@@ -380,14 +396,14 @@
       new bootstrap.Toast(toast, { autohide: false }).show();
     });
 
-    /* Ocultar toasts si hay offcanvas/modal (extra) */
+    /* Ocultar toasts si hay offcanvas/modal (capa extra) */
     const notifCenterEl = document.getElementById('notifCenter');
     if (notifCenterEl) {
-      notifCenterEl.addEventListener('show.bs.offcanvas', () => toastStack.classList.add('d-none'));
-      notifCenterEl.addEventListener('hidden.bs.offcanvas', () => toastStack.classList.remove('d-none'));
+      notifCenterEl.addEventListener('show.bs.offcanvas', () => toastStackWrap.classList.add('d-none'));
+      notifCenterEl.addEventListener('hidden.bs.offcanvas', () => toastStackWrap.classList.remove('d-none'));
     }
-    document.addEventListener('show.bs.modal', () => toastStack.classList.add('d-none'));
-    document.addEventListener('hidden.bs.modal', () => toastStack.classList.remove('d-none'));
+    document.addEventListener('show.bs.modal', () => toastStackWrap.classList.add('d-none'));
+    document.addEventListener('hidden.bs.modal', () => toastStackWrap.classList.remove('d-none'));
 
     /* Badge total */
     const notifBadge = document.getElementById('notifBadge');
