@@ -8,11 +8,25 @@
 
   <!-- Estilos del logo fijo en el dashboard -->
   <link rel="stylesheet" href="{{ url_for('static', filename='css/index.css') }}">
+
+  <style>
+    /* Evitar solapes: los toasts quedan por debajo del offcanvas/modales */
+    #toastStack { z-index: 1030; } /* offcanvas ~1045, modal ~1055 */
+
+    /* En móvil, centrar toasts arriba para que no “asomen” por el lateral */
+    @media (max-width: 576px) {
+      #toastStack {
+        left: 50%;
+        right: auto;          /* anula .end-0 */
+        transform: translateX(-50%);
+      }
+    }
+  </style>
 </head>
 <body class="bg-light">
 
 <!-- CONTENEDOR DE TOASTS (no ocupa espacio en el layout) -->
-<div class="position-fixed top-0 end-0 p-3" style="z-index: 1080">
+<div class="position-fixed top-0 end-0 p-3">
   <div id="toastStack" class="toast-container"></div>
 </div>
 
@@ -82,13 +96,25 @@
       </div>
     </div>
 
-    <!-- 👇 Error inline visible y además duplicado como flash para notificaciones -->
+    <!-- 👇 Error inline visible (manual) y además duplicado como flash para notificaciones -->
     {% if error %}
       <div class="alert alert-danger mt-2" role="alert">{{ error }}</div>
       <div class="d-none flash-item" data-category="danger">{{ error }}</div>
     {% endif %}
 
-    <!-- Flashes restantes como notificaciones (toasts) -->
+    <!-- 👇 Mostrar inline también los mensajes de “rechazadas” (de CSV) -->
+    {% for category, message in messages %}
+      {% if category == 'danger' and (
+            'rechazad' in message|lower or
+            'inválid' in message|lower or 'inval' in message|lower or
+            'privad' in message|lower or
+            'duplicad' in message|lower or
+            'no permit' in message|lower ) %}
+        <div class="alert alert-danger mt-2" role="alert">{{ message }}</div>
+      {% endif %}
+    {% endfor %}
+
+    <!-- Flashes para toasts (todas las categorías) -->
     {% for category, message in messages %}
       <div class="d-none flash-item" data-category="{{ category }}">{{ message }}</div>
     {% endfor %}
@@ -222,7 +248,7 @@
   <div class="offcanvas-body d-flex flex-column gap-3">
     <div class="row g-2">
       <div class="col-12 col-md-8">
-        <input type="text" class="form-control" id="notifFilter" placeholder="Filtrar por texto o tipo (alta_manual, alta_csv, elim_patron, elim_individual, elim_todas, error_invalida, error_privada, error_duplicada, danger...)">
+        <input type="text" class="form-control" id="notifFilter" placeholder="Filtrar por texto o tipo (alta_manual, alta_csv, elim_patron, elim_individual, elim_todas, error_invalida, error_privada, error_duplicada...)">
       </div>
       <div class="col-12 col-md-4 d-grid d-md-block">
         <button id="notifClear" class="btn btn-outline-secondary w-100">Limpiar notificaciones</button>
@@ -235,7 +261,8 @@
       <div class="col"><span class="badge text-bg-warning" id="sumElimPatron">Elim. patrón: 0</span></div>
       <div class="col"><span class="badge text-bg-danger" id="sumElimInd">Elim. individual: 0</span></div>
       <div class="col"><span class="badge text-bg-dark" id="sumElimAll">Elim. todas: 0</span></div>
-      <div class="col-12"><span class="badge text-bg-danger" id="sumErrDup">Err. duplicadas: 0</span>
+      <div class="col-12">
+        <span class="badge text-bg-danger" id="sumErrDup">Err. duplicadas: 0</span>
         <span class="badge text-bg-warning" id="sumErrPriv">Err. privadas: 0</span>
         <span class="badge text-bg-secondary" id="sumErrInv">Err. inválidas: 0</span>
       </div>
@@ -266,35 +293,39 @@
     if (localStorage.getItem('theme') === 'dark') toggleTheme();
   };
 
-  // Búsqueda en la tabla
   document.addEventListener('DOMContentLoaded', function () {
+    /* Buscar IP en tabla */
     const input = document.getElementById('buscadorIp');
     const table = document.getElementById('tablaIps');
-    input.addEventListener('keyup', function () {
-      const filtro = input.value.toLowerCase();
-      const filas = table.getElementsByTagName('tr');
-      for (let i = 1; i < filas.length; i++) {
-        const celdas = filas[i].getElementsByTagName('td');
-        if (celdas.length > 0) {
-          const ip = celdas[0].textContent.toLowerCase();
-          filas[i].style.display = ip.includes(filtro) ? '' : 'none';
+    if (input && table) {
+      input.addEventListener('keyup', function () {
+        const filtro = input.value.toLowerCase();
+        const filas = table.getElementsByTagName('tr');
+        for (let i = 1; i < filas.length; i++) {
+          const celdas = filas[i].getElementsByTagName('td');
+          if (celdas.length > 0) {
+            const ip = celdas[0].textContent.toLowerCase();
+            filas[i].style.display = ip.includes(filtro) ? '' : 'none';
+          }
         }
-      }
-    });
+      });
+    }
 
-    // Pasar patrón al modal de confirmación (eliminar por red/rango)
+    /* Pasar patrón al modal de confirmación (eliminar por red/rango) */
     const deleteNetInput = document.getElementById('deleteNetInput');
     const hiddenDeleteNetInput = document.getElementById('hiddenDeleteNetInput');
     const patternPreview = document.getElementById('patternPreview');
     const confirmDeleteNet = document.getElementById('confirmDeleteNet');
 
-    confirmDeleteNet.addEventListener('show.bs.modal', () => {
-      const val = deleteNetInput.value.trim();
-      patternPreview.textContent = val || "[No introducido]";
-      hiddenDeleteNetInput.value = val;
-    });
+    if (confirmDeleteNet) {
+      confirmDeleteNet.addEventListener('show.bs.modal', () => {
+        const val = (deleteNetInput?.value || '').trim();
+        patternPreview.textContent = val || "[No introducido]";
+        if (hiddenDeleteNetInput) hiddenDeleteNetInput.value = val;
+      });
+    }
 
-    // ====== Notificaciones (toasts + centro de notificaciones) ======
+    /* ====== Notificaciones (toasts + centro de notificaciones) ====== */
     const toastStack = document.getElementById('toastStack');
     const flashes = document.querySelectorAll('.flash-item');
 
@@ -305,6 +336,7 @@
       if (t.includes("ip privada")) return "error_privada";
       if (t.includes("ip inválida") || t.includes("ip invalida")) return "error_invalida";
       if (t.includes("0.0.0.0")) return "error_peligrosa";
+      if (t.includes("rechazad")) return "rechazos";
       if (t.includes("todas las ips han sido eliminadas")) return "elim_todas";
       if (t.includes("se eliminaron") && t.includes("coinciden")) return "elim_patron";
       if (t.includes("eliminada correctamente")) return "elim_individual";
@@ -313,20 +345,19 @@
       return category || "info";
     }
 
-    // Cargar historial de la sesión
+    // Historial de la sesión
     const STORAGE_KEY = "iocNotifications";
     let history = [];
     try { history = JSON.parse(sessionStorage.getItem(STORAGE_KEY) || "[]"); } catch {}
 
     // Añadir flashes de esta carga
-    const now = () => new Date().toISOString();
+    const nowISO = () => new Date().toISOString();
     flashes.forEach(el => {
       const msg = el.textContent.trim();
       const cat = (el.dataset.category || 'info').toLowerCase();
-      history.push({ ts: now(), category: cat, type: classify(msg, cat), text: msg });
+      history.push({ ts: nowISO(), category: cat, type: classify(msg, cat), text: msg });
     });
 
-    // Guardar
     sessionStorage.setItem(STORAGE_KEY, JSON.stringify(history));
 
     // Mostrar SOLO los últimos 5 como toasts fijos (sin autohide)
@@ -358,10 +389,21 @@
       new bootstrap.Toast(toast, { autohide: false }).show();
     });
 
+    // 🔒 Ocultar toasts cuando hay offcanvas o modal abiertos (evitar “bordes” visibles)
+    const notifCenterEl = document.getElementById('notifCenter');
+    if (notifCenterEl) {
+      notifCenterEl.addEventListener('show.bs.offcanvas', () => toastStack.classList.add('d-none'));
+      notifCenterEl.addEventListener('hidden.bs.offcanvas', () => toastStack.classList.remove('d-none'));
+    }
+    document.addEventListener('show.bs.modal', () => toastStack.classList.add('d-none'));
+    document.addEventListener('hidden.bs.modal', () => toastStack.classList.remove('d-none'));
+
     // Badge con nº total en la sesión
     const notifBadge = document.getElementById('notifBadge');
-    notifBadge.textContent = history.length;
-    notifBadge.classList.toggle('d-none', history.length === 0);
+    if (notifBadge) {
+      notifBadge.textContent = history.length;
+      notifBadge.classList.toggle('d-none', history.length === 0);
+    }
 
     // Pintar lista en el Centro de notificaciones
     const notifList = document.getElementById('notifList');
@@ -376,6 +418,7 @@
     const sumErrInv = document.getElementById('sumErrInv');
 
     function renderList(filterText = "") {
+      if (!notifList) return;
       notifList.innerHTML = "";
       const ft = filterText.toLowerCase().trim();
       const items = history.filter(h =>
@@ -403,27 +446,27 @@
 
       // Resumen por tipo
       const count = (t) => history.filter(h => h.type === t).length;
-      sumAltaManual.textContent = `Altas manuales: ${count('alta_manual')}`;
-      sumAltaCSV.textContent    = `Altas CSV: ${count('alta_csv')}`;
-      sumElimPatron.textContent = `Elim. patrón: ${count('elim_patron')}`;
-      sumElimInd.textContent    = `Elim. individual: ${count('elim_individual')}`;
-      sumElimAll.textContent    = `Elim. todas: ${count('elim_todas')}`;
-      sumErrDup.textContent     = `Err. duplicadas: ${count('error_duplicada')}`;
-      sumErrPriv.textContent    = `Err. privadas: ${count('error_privada')}`;
-      sumErrInv.textContent     = `Err. inválidas: ${count('error_invalida')}`;
+      if (sumAltaManual) sumAltaManual.textContent = `Altas manuales: ${count('alta_manual')}`;
+      if (sumAltaCSV)    sumAltaCSV.textContent    = `Altas CSV: ${count('alta_csv')}`;
+      if (sumElimPatron) sumElimPatron.textContent = `Elim. patrón: ${count('elim_patron')}`;
+      if (sumElimInd)    sumElimInd.textContent    = `Elim. individual: ${count('elim_individual')}`;
+      if (sumElimAll)    sumElimAll.textContent    = `Elim. todas: ${count('elim_todas')}`;
+      if (sumErrDup)     sumErrDup.textContent     = `Err. duplicadas: ${count('error_duplicada')}`;
+      if (sumErrPriv)    sumErrPriv.textContent    = `Err. privadas: ${count('error_privada')}`;
+      if (sumErrInv)     sumErrInv.textContent     = `Err. inválidas: ${count('error_invalida')}`;
     }
 
     renderList();
-    notifFilter.addEventListener('input', () => renderList(notifFilter.value));
+    if (notifFilter) notifFilter.addEventListener('input', () => renderList(notifFilter.value));
 
     // Limpiar historial de la sesión
-    document.getElementById('notifClear').addEventListener('click', () => {
+    const notifClear = document.getElementById('notifClear');
+    if (notifClear) notifClear.addEventListener('click', () => {
       sessionStorage.removeItem(STORAGE_KEY);
       history = [];
       renderList();
-      notifBadge.textContent = "0";
-      notifBadge.classList.add('d-none');
-      toastStack.innerHTML = "";
+      if (notifBadge) { notifBadge.textContent = "0"; notifBadge.classList.add('d-none'); }
+      if (toastStack) toastStack.innerHTML = "";
     });
   });
 </script>
