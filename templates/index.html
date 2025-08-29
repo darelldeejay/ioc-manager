@@ -10,15 +10,24 @@
   <link rel="stylesheet" href="{{ url_for('static', filename='css/index.css') }}">
 
   <style>
-    /* Evitar solapes: los toasts quedan por debajo del offcanvas/modales */
-    #toastStack { z-index: 1030; } /* offcanvas ~1045, modal ~1055 */
-
+    /* Evitar solapes: los toasts quedan bajo offcanvas/modales */
+    #toastStack { 
+      z-index: 1030;              /* offcanvas ~1045, modal ~1055 */
+      padding-right: 8px;         /* pequeña separación del borde */
+    }
+    /* Si hay offcanvas o modal abierto, ocultar toasts siempre */
+    body.offcanvas-open #toastStack,
+    body.modal-open #toastStack {
+      display: none !important;
+    }
     /* En móvil, centrar toasts arriba para que no “asomen” por el lateral */
     @media (max-width: 576px) {
       #toastStack {
         left: 50%;
-        right: auto;          /* anula .end-0 */
+        right: auto;              /* anula .end-0 */
         transform: translateX(-50%);
+        padding-right: env(safe-area-inset-right, 0);
+        padding-left:  env(safe-area-inset-left, 0);
       }
     }
   </style>
@@ -36,7 +45,6 @@
     <button class="btn btn-outline-secondary btn-sm" onclick="toggleTheme()">🌙 Modo Oscuro</button>
   </div>
   <div class="d-flex gap-2">
-    <!-- Botón que abre el Centro de notificaciones -->
     <button class="btn btn-outline-primary btn-sm position-relative" data-bs-toggle="offcanvas" data-bs-target="#notifCenter">
       🔔 Notificaciones
       <span id="notifBadge" class="position-absolute top-0 start-100 translate-middle badge rounded-pill bg-danger d-none">0</span>
@@ -58,7 +66,7 @@
     <div class="row g-3 mb-3">
       <div class="col-md-5">
         <input type="text" class="form-control" name="ip"
-               placeholder="IP, CIDR o rango. Ej: 203.0.113.5 · 203.0.113.0/24 · 203.0.113.10-203.0.113.50 · 203.0.113.0 255.255.255.0">
+               placeholder="IP, CIDR, rango o IP+máscara (ver ejemplos abajo)">
       </div>
       <div class="col-md-3">
         <select class="form-select" name="ttl">
@@ -122,12 +130,17 @@
   <!-- /FORM PRINCIPAL -->
 
   <!-- Bloque eliminar por red/rango/CIDR/IP+máscara (form independiente con modal) -->
-  <div class="row g-3 mb-4">
+  <div class="row g-3 mb-1">
     <div class="col-md-7">
       <div class="d-flex gap-2">
         <input type="text" class="form-control" id="deleteNetInput" name="delete_net_input"
-               placeholder="Eliminar por patrón: CIDR, rango A-B, IP+máscara o IP. Ej: 88.84.66.240/29 · 203.0.113.10-203.0.113.50 · 203.0.113.0 255.255.255.0">
+               placeholder="CIDR, rango A–B, IP+máscara o IP">
         <button type="button" class="btn btn-outline-danger" data-bs-toggle="modal" data-bs-target="#confirmDeleteNet">Eliminar por red/rango</button>
+      </div>
+      <!-- Ayuda envolvente con ejemplos (siempre visible y multilínea) -->
+      <div class="form-text">
+        Ejemplos: <code>88.84.66.240/29</code> · <code>203.0.113.10-203.0.113.50</code> ·
+        <code>203.0.113.0 255.255.255.0</code> · <code>203.0.113.5</code>
       </div>
     </div>
   </div>
@@ -389,7 +402,7 @@
       new bootstrap.Toast(toast, { autohide: false }).show();
     });
 
-    // 🔒 Ocultar toasts cuando hay offcanvas o modal abiertos (evitar “bordes” visibles)
+    // Ocultar toasts cuando hay offcanvas o modal abiertos (capa extra de seguridad visual)
     const notifCenterEl = document.getElementById('notifCenter');
     if (notifCenterEl) {
       notifCenterEl.addEventListener('show.bs.offcanvas', () => toastStack.classList.add('d-none'));
