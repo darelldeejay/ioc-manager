@@ -82,10 +82,13 @@
       </div>
     </div>
 
-    <!-- Flashes ocultos: los convertimos en notificaciones -->
+    <!-- 👇 Error inline visible y además duplicado como flash para notificaciones -->
     {% if error %}
+      <div class="alert alert-danger mt-2" role="alert">{{ error }}</div>
       <div class="d-none flash-item" data-category="danger">{{ error }}</div>
     {% endif %}
+
+    <!-- Flashes restantes como notificaciones (toasts) -->
     {% for category, message in messages %}
       <div class="d-none flash-item" data-category="{{ category }}">{{ message }}</div>
     {% endfor %}
@@ -219,19 +222,23 @@
   <div class="offcanvas-body d-flex flex-column gap-3">
     <div class="row g-2">
       <div class="col-12 col-md-8">
-        <input type="text" class="form-control" id="notifFilter" placeholder="Filtrar por texto o tipo (alta_manual, alta_csv, elim_patron, elim_individual, elim_todas, danger, success, info...)">
+        <input type="text" class="form-control" id="notifFilter" placeholder="Filtrar por texto o tipo (alta_manual, alta_csv, elim_patron, elim_individual, elim_todas, error_invalida, error_privada, error_duplicada, danger...)">
       </div>
       <div class="col-12 col-md-4 d-grid d-md-block">
         <button id="notifClear" class="btn btn-outline-secondary w-100">Limpiar notificaciones</button>
       </div>
     </div>
 
-    <div id="notifSummary" class="row text-center">
+    <div id="notifSummary" class="row text-center gy-2">
       <div class="col"><span class="badge text-bg-success" id="sumAltaManual">Altas manuales: 0</span></div>
       <div class="col"><span class="badge text-bg-primary" id="sumAltaCSV">Altas CSV: 0</span></div>
       <div class="col"><span class="badge text-bg-warning" id="sumElimPatron">Elim. patrón: 0</span></div>
       <div class="col"><span class="badge text-bg-danger" id="sumElimInd">Elim. individual: 0</span></div>
       <div class="col"><span class="badge text-bg-dark" id="sumElimAll">Elim. todas: 0</span></div>
+      <div class="col-12"><span class="badge text-bg-danger" id="sumErrDup">Err. duplicadas: 0</span>
+        <span class="badge text-bg-warning" id="sumErrPriv">Err. privadas: 0</span>
+        <span class="badge text-bg-secondary" id="sumErrInv">Err. inválidas: 0</span>
+      </div>
     </div>
 
     <div class="border rounded p-2 overflow-auto" style="max-height: 60vh;">
@@ -291,15 +298,18 @@
     const toastStack = document.getElementById('toastStack');
     const flashes = document.querySelectorAll('.flash-item');
 
-    // Utilidad: clasificar notificación por texto
+    // Clasificación ampliada de mensajes
     function classify(text, category) {
       const t = text.toLowerCase();
+      if (t.includes("ip duplicada")) return "error_duplicada";
+      if (t.includes("ip privada")) return "error_privada";
+      if (t.includes("ip inválida") || t.includes("ip invalida")) return "error_invalida";
+      if (t.includes("0.0.0.0")) return "error_peligrosa";
       if (t.includes("todas las ips han sido eliminadas")) return "elim_todas";
       if (t.includes("se eliminaron") && t.includes("coinciden")) return "elim_patron";
       if (t.includes("eliminada correctamente")) return "elim_individual";
       if (t.includes("ips añadidas correctamente. total actual")) return "alta_csv";
       if (t.match(/ip\(s\) añadida\(s\) correctamente/)) return "alta_manual";
-      // fallback a categoría visual
       return category || "info";
     }
 
@@ -313,12 +323,7 @@
     flashes.forEach(el => {
       const msg = el.textContent.trim();
       const cat = (el.dataset.category || 'info').toLowerCase();
-      history.push({
-        ts: now(),
-        category: cat,
-        type: classify(msg, cat),
-        text: msg
-      });
+      history.push({ ts: now(), category: cat, type: classify(msg, cat), text: msg });
     });
 
     // Guardar
@@ -339,7 +344,7 @@
     lastFive.forEach(obj => {
       const cls = catToClass[obj.category] || 'text-bg-info';
       const toast = document.createElement('div');
-      toast.className = `toast align-items-center border-0 ${cls} show`; // show = visible
+      toast.className = `toast align-items-center border-0 ${cls} show`;
       toast.setAttribute('role', 'alert');
       toast.setAttribute('aria-live', 'assertive');
       toast.setAttribute('aria-atomic', 'true');
@@ -350,7 +355,6 @@
         </div>
       `;
       toastStack.appendChild(toast);
-      // No autohide -> no Bootstrap.Toast(...) con autohide.
       new bootstrap.Toast(toast, { autohide: false }).show();
     });
 
@@ -367,6 +371,9 @@
     const sumElimPatron = document.getElementById('sumElimPatron');
     const sumElimInd = document.getElementById('sumElimInd');
     const sumElimAll = document.getElementById('sumElimAll');
+    const sumErrDup = document.getElementById('sumErrDup');
+    const sumErrPriv = document.getElementById('sumErrPriv');
+    const sumErrInv = document.getElementById('sumErrInv');
 
     function renderList(filterText = "") {
       notifList.innerHTML = "";
@@ -401,10 +408,12 @@
       sumElimPatron.textContent = `Elim. patrón: ${count('elim_patron')}`;
       sumElimInd.textContent    = `Elim. individual: ${count('elim_individual')}`;
       sumElimAll.textContent    = `Elim. todas: ${count('elim_todas')}`;
+      sumErrDup.textContent     = `Err. duplicadas: ${count('error_duplicada')}`;
+      sumErrPriv.textContent    = `Err. privadas: ${count('error_privada')}`;
+      sumErrInv.textContent     = `Err. inválidas: ${count('error_invalida')}`;
     }
 
     renderList();
-
     notifFilter.addEventListener('input', () => renderList(notifFilter.value));
 
     // Limpiar historial de la sesión
@@ -416,7 +425,6 @@
       notifBadge.classList.add('d-none');
       toastStack.innerHTML = "";
     });
-
   });
 </script>
 
