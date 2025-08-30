@@ -1,6 +1,6 @@
 from flask import (
     Flask, render_template, request, redirect, url_for,
-    session, flash, make_response
+    session, flash, make_response, jsonify
 )
 from datetime import datetime
 import ipaddress
@@ -292,6 +292,22 @@ def feed():
     resp = make_response("\n".join(ips) + "\n", 200)
     resp.headers["Content-Type"] = "text/plain"
     return resp
+
+
+# =========================
+#  Nueva ruta: preview-delete
+# =========================
+@app.route("/preview-delete")
+def preview_delete():
+    pattern = request.args.get("pattern", "").strip()
+    if not pattern:
+        return jsonify({"error": "Patrón vacío"}), 400
+    try:
+        lines = load_lines()
+        _, removed = filter_lines_delete_pattern(lines, pattern)
+        return jsonify({"count": removed})
+    except Exception as e:
+        return jsonify({"error": str(e)}), 400
 
 
 # =========================
