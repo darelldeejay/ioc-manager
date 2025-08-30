@@ -108,9 +108,11 @@
   <div class="text-center mt-4"><p class="text-muted">Proyecto hecho por Darell Pérez · Todos los derechos reservados</p></div>
 </div>
 
-<!-- Toasts -->
+<!-- Toasts: SOLO la última acción -->
 <div id="toastContainer">
-  {% for category, message in messages %}
+  {% if messages %}
+    {% set ultima = messages[-1] %}
+    {% set category, message = ultima %}
     <div
       class="toast align-items-center border-0
              {% if category == 'success' %}text-bg-success{% elif category == 'warning' %}text-bg-warning{% elif category in ['danger','accion_no_permitida'] %}text-bg-danger{% else %}text-bg-secondary{% endif %}
@@ -123,7 +125,7 @@
         <button type="button" class="btn-close {% if category in ['success','warning','danger','accion_no_permitida'] %}btn-close-white{% endif %} me-2 m-auto" data-bs-dismiss="toast"></button>
       </div>
     </div>
-  {% endfor %}
+  {% endif %}
 </div>
 
 <!-- Offcanvas histórico -->
@@ -150,13 +152,6 @@
           </li>
         {% endfor %}
       </ul>
-      <nav class="mt-3">
-        <ul class="pagination justify-content-center">
-          <li class="page-item"><button class="page-link" id="prevPage">Anterior</button></li>
-          <li class="page-item disabled"><span class="page-link" id="pageIndicator">Página 1 de 1</span></li>
-          <li class="page-item"><button class="page-link" id="nextPage">Siguiente</button></li>
-        </ul>
-      </nav>
     {% else %}
       <p class="text-muted">No hay notificaciones.</p>
     {% endif %}
@@ -169,20 +164,7 @@
   function nuevaNotif(){notifNoLeidas++;actualizarBadge();}
   function marcarLeidas(){notifNoLeidas=0;actualizarBadge();}
   function toggleTheme(){const b=document.body;const d=b.classList.toggle('bg-dark');b.classList.toggle('text-white',d);document.querySelectorAll('.card,.form-control,.form-select,.table').forEach(e=>{e.classList.toggle('bg-dark',d);e.classList.toggle('text-white',d)});localStorage.setItem('theme',d?'dark':'light');}
-  function filtrarNotif(tipo){document.querySelectorAll('#notifList li').forEach(li=>{li.style.display=(tipo==='all'||li.classList.contains(tipo))?'':'none';});showPage(1);}
-
-  // Paginación
-  const pageSize = 10;
-  let currentPage = 1;
-  function showPage(page){
-    const items = Array.from(document.querySelectorAll('#notifList li')).filter(li=>li.style.display!=="none");
-    const totalPages = Math.ceil(items.length/pageSize)||1;
-    currentPage = Math.min(Math.max(1,page), totalPages);
-    items.forEach((li,i)=>{li.style.display=(i>= (currentPage-1)*pageSize && i< currentPage*pageSize)?'':'none';});
-    document.getElementById('pageIndicator').textContent=`Página ${currentPage} de ${totalPages}`;
-  }
-  document.getElementById('prevPage')?.addEventListener('click',()=>showPage(currentPage-1));
-  document.getElementById('nextPage')?.addEventListener('click',()=>showPage(currentPage+1));
+  function filtrarNotif(tipo){document.querySelectorAll('#notifList li').forEach(li=>{li.style.display=(tipo==='all'||li.classList.contains(tipo))?'':'none';});}
 
   // Filtro por fecha
   document.getElementById('filtroFecha')?.addEventListener('change', e=>{
@@ -190,14 +172,12 @@
     document.querySelectorAll('#notifList li').forEach(li=>{
       li.style.display=(!sel||li.getAttribute('data-fecha')===sel)?'':'none';
     });
-    showPage(1);
   });
 
   window.onload=()=>{
     if(localStorage.getItem('theme')==='dark')toggleTheme();
-    document.querySelectorAll('.toast').forEach(toastEl=>{new bootstrap.Toast(toastEl).show();nuevaNotif();});
+    document.querySelectorAll('.toast').forEach(toastEl=>{new bootstrap.Toast(toastEl).show();});
     actualizarBadge();
-    showPage(1);
   };
 
   document.addEventListener('DOMContentLoaded',()=>{
