@@ -9,12 +9,14 @@
   <style>
     #toastContainer { position: fixed; top: 1rem; right: 1rem; z-index: 2000; }
     .offcanvas-end { width: 420px !important; }
-    .toast.accion_no_permitida { background-color: #8b0000; color: #fff; }
-    body.bg-dark ::placeholder { color: #ccc !important; opacity: 1; }
-    .list-group-item.accion_no_permitida {
-      background-color: #8b0000; color: #fff; font-weight: bold;
-    }
+
+    /* Críticas más oscuras */
+    .toast.accion_no_permitida { background-color: #8b0000 !important; color: #fff !important; }
+    .list-group-item.accion_no_permitida { background-color: #8b0000; color: #fff; font-weight: bold; }
     .list-group-item.accion_no_permitida::before { content: "⚠️ "; }
+
+    /* Placeholders en modo oscuro */
+    body.bg-dark ::placeholder { color: #ccc !important; opacity: 1; }
   </style>
 </head>
 <body class="bg-light">
@@ -22,14 +24,12 @@
 <div class="d-flex justify-content-between mb-3">
   <button class="btn btn-outline-secondary btn-sm" onclick="toggleTheme()">🌙 Modo Oscuro</button>
   <div>
-    <!-- Botón de notificaciones con burbuja -->
+    <!-- Botón de notificaciones con burbuja en la parte de ABAJO -->
     <button class="btn btn-outline-info btn-sm position-relative"
             data-bs-toggle="offcanvas" data-bs-target="#offcanvasNotif"
             onclick="marcarLeidas()">
       🔔 Notificaciones
-      <span class="position-absolute top-0 start-100 translate-middle badge rounded-pill bg-danger" id="notifBadge">
-        0
-      </span>
+      <span class="position-absolute bottom-0 start-100 translate-middle badge rounded-pill bg-danger" id="notifBadge"></span>
     </button>
     <a href="/logout" class="btn btn-outline-danger btn-sm">Logout</a>
   </div>
@@ -166,17 +166,20 @@
   </div>
 </div>
 
-<!-- Toasts -->
+<!-- Toasts (colores por categoría y autohide 5s) -->
 <div id="toastContainer">
   {% for category, message in messages %}
-    <div class="toast align-items-center border-0 {{ category }}"
-         role="alert" aria-live="assertive" aria-atomic="true"
-         data-bs-delay="5000" data-bs-autohide="true">
+    <div
+      class="toast align-items-center border-0
+             {% if category == 'success' %}text-bg-success{% elif category == 'warning' %}text-bg-warning{% elif category in ['danger','accion_no_permitida'] %}text-bg-danger{% else %}text-bg-secondary{% endif %}
+             {% if category == 'accion_no_permitida' %}accion_no_permitida{% endif %}"
+      role="alert" aria-live="assertive" aria-atomic="true"
+      data-bs-delay="5000" data-bs-autohide="true">
       <div class="d-flex">
         <div class="toast-body">
           {% if category == 'accion_no_permitida' %}⚠️ {% endif %}{{ message }}
         </div>
-        <button type="button" class="btn-close btn-close-white me-2 m-auto" data-bs-dismiss="toast"></button>
+        <button type="button" class="btn-close {% if category in ['success','warning','danger','accion_no_permitida'] %}btn-close-white{% endif %} me-2 m-auto" data-bs-dismiss="toast"></button>
       </div>
     </div>
   {% endfor %}
@@ -212,6 +215,7 @@
 </div>
 
 <script>
+  // Valor inicial del badge = nº mensajes (persistentes). Vacío si 0.
   let notifNoLeidas = {{ messages|length if messages else 0 }};
   function actualizarBadge() {
     const badge = document.getElementById('notifBadge');
@@ -251,6 +255,7 @@
     if (localStorage.getItem('theme') === 'dark') toggleTheme();
     document.querySelectorAll('.toast').forEach(toastEl => {
       new bootstrap.Toast(toastEl).show();
+      // Cada toast mostrado cuenta como no leído hasta abrir el panel:
       nuevaNotif();
     });
     actualizarBadge();
