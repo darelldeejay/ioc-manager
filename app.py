@@ -16,11 +16,11 @@ LOG_FILE = os.path.join(BASE_DIR, 'ioc-log.txt')
 COUNTER_MANUAL = os.path.join(BASE_DIR, 'contador_manual.txt')
 COUNTER_CSV = os.path.join(BASE_DIR, 'contador_csv.txt')
 
-MAX_EXPAND = 4096  # límite de IPs por expansión
+MAX_EXPAND = 4096
 
 
 # =========================
-#  Helpers
+# Helpers
 # =========================
 def dotted_netmask_to_prefix(mask: str) -> int:
     return ipaddress.IPv4Network(f"0.0.0.0/{mask}").prefixlen
@@ -31,17 +31,14 @@ def expand_input_to_ips(text: str, max_expand: int = MAX_EXPAND) -> list[str]:
         raise ValueError("Entrada vacía")
     raw = re.sub(r"\s+", " ", text.strip())
 
-    # --- Comprobación crítica: bloqueos globales ---
-    if raw in ("0.0.0.0", "0.0.0.0/0"):
+    # Crítico: bloqueo global
+    if raw in ("0.0.0.0", "0.0.0.0/0") or raw.startswith("0.0.0.0 "):
         raise PermissionError("Acción no permitida: intento de bloqueo global (0.0.0.0/0)")
-    if raw.startswith("0.0.0.0 "):  # ej: "0.0.0.0 255.0.0.0"
-        raise PermissionError("Acción no permitida: intento de bloqueo global (0.0.0.0 + máscara)")
 
     # Rango
     if "-" in raw and "/" not in raw:
-        left, right = [p.strip() for p in raw.split("-", 1)]
-        a = ipaddress.ip_address(left)
-        b = ipaddress.ip_address(right)
+        a_txt, b_txt = [p.strip() for p in raw.split("-", 1)]
+        a, b = ipaddress.ip_address(a_txt), ipaddress.ip_address(b_txt)
         if int(a) > int(b):
             raise ValueError("Rango inválido")
         total = int(b) - int(a) + 1
@@ -67,6 +64,21 @@ def expand_input_to_ips(text: str, max_expand: int = MAX_EXPAND) -> list[str]:
     # IP suelta
     ipaddress.ip_address(raw)
     return [raw]
+
+
+def parse_delete_pattern(raw: str):
+    s = re.sub(r"\s+", " ", raw.strip())
+    if " " in s and "." in s and "/" not in s:
+        base, mask = s.split(" ", 1)
+        pfx = dotted_netmask_to_prefix(mask.strip())
+        return ("cidr", ipaddress.ip_network(f"{base}/{pfx}", strict=False))
+    if "/" in s:
+        return ("cidr", ipaddress.ip_network(s, strict=False))
+    if "-" in s:
+        a_txt, b_txt = [p.strip() for p in s.split("-", 1)]
+        a, b = ipaddress.ip_address(a_txt), ipaddress.ip_address(b_txt)
+        return ("range", (a, b))
+    return ("single", ipaddress.ip_address(s))
 
 
 def filter_lines_delete_pattern(lines: list[str], pattern: str) -> tuple[list[str], int]:
@@ -96,21 +108,6 @@ def filter_lines_delete_pattern(lines: list[str], pattern: str) -> tuple[list[st
     return kept, removed
 
 
-def parse_delete_pattern(raw: str):
-    s = re.sub(r"\s+", " ", raw.strip())
-    if " " in s and "." in s and "/" not in s:
-        base, mask = s.split(" ", 1)
-        pfx = dotted_netmask_to_prefix(mask.strip())
-        return ("cidr", ipaddress.ip_network(f"{base}/{pfx}", strict=False))
-    if "/" in s:
-        return ("cidr", ipaddress.ip_network(s, strict=False))
-    if "-" in s:
-        a_txt, b_txt = [p.strip() for p in s.split("-", 1)]
-        a, b = ipaddress.ip_address(a_txt), ipaddress.ip_address(b_txt)
-        return ("range", (a, b))
-    return ("single", ipaddress.ip_address(s))
-
-
 def eliminar_ips_vencidas():
     now = datetime.now()
     nuevas = []
@@ -127,8 +124,7 @@ def eliminar_ips_vencidas():
                     if ttl == 0 or (now - fecha).days < ttl:
                         nuevas.append(linea.strip())
                     else:
-                        with open(LOG_FILE, 'a', encoding='utf-8') as logf:
-                            logf.write(f"{now} - Eliminada IP vencida: {ip}\n")
+                        log("Eliminada vencida", ip)
                 except:
                     nuevas.append(linea.strip())
         with open(FEED_FILE, 'w', encoding='utf-8') as f:
@@ -188,7 +184,7 @@ def is_public_allowed(ip_str: str) -> bool:
 
 
 # =========================
-#  Rutas
+# Rutas
 # =========================
 @app.route("/login", methods=["GET", "POST"])
 def login():
@@ -212,8 +208,6 @@ def index():
         return redirect(url_for("login"))
 
     eliminar_ips_vencidas()
-
-    error = None
     lines = load_lines()
     existentes = {l.split("|", 1)[0] for l in lines}
 
@@ -240,7 +234,7 @@ def index():
                 flash(str(e), "danger")
             return redirect(url_for("index"))
 
-        # Alta manual / archivo
+        # Añadir manual
         ip_text = request.form.get("ip", "").strip()
         ttl = request.form.get("ttl", "permanente")
         ttl_val = "0" if ttl == "permanente" else ttl
@@ -269,12 +263,11 @@ def index():
             except Exception as e:
                 flash(str(e), "danger")
         else:
-            error = "Debes introducir una IP o red"
+            flash("Debes introducir una IP o red", "danger")
 
     return render_template(
         "index.html",
         ips=lines,
-        error=error,
         total_ips=len(lines),
         contador_manual=leer_contador(COUNTER_MANUAL),
         contador_csv=leer_contador(COUNTER_CSV),
@@ -298,8 +291,7 @@ def feed():
     resp.headers["Pragma"] = "no-cache"
     resp.headers["Content-Disposition"] = 'inline; filename="ioc-feed.txt"'
     client_ip = request.remote_addr or "-"
-    with open(LOG_FILE, "a", encoding="utf-8") as f:
-        f.write(f"{datetime.now()} - FEED requested by {client_ip} - {len(lines)} entries\n")
+    log("FEED request", f"{client_ip} - {len(lines)} entradas")
     return resp
 
 
