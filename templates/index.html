@@ -3,59 +3,34 @@
 <head>
   <meta charset="utf-8">
   <title>IOC Manager</title>
-  <meta name="viewport" content="width=device-width, initial-scale=1">
   <link href="https://cdn.jsdelivr.net/npm/bootstrap@5.3.0/dist/css/bootstrap.min.css" rel="stylesheet">
   <script src="https://cdn.jsdelivr.net/npm/bootstrap@5.3.0/dist/js/bootstrap.bundle.min.js"></script>
 
   <!-- Estilos del logo fijo en el dashboard -->
   <link rel="stylesheet" href="{{ url_for('static', filename='css/index.css') }}">
-
   <style>
-    /* ---- TOASTS: centrados ABAJO, sin “asomar” por los laterales ---- */
-    #toastStackWrap {
-      z-index: 1030; /* offcanvas ~1045, modal ~1055 */
-      width: min(480px, 96vw);
-    }
-    /* Si hay offcanvas o modal abierto, ocultar toasts siempre */
-    body.offcanvas-open #toastStackWrap,
-    body.modal-open #toastStackWrap {
-      display: none !important;
-    }
-    /* Límite de alto y scroll interno si hay muchos toasts */
+    /* Toasts autodestructivos, abajo centrados */
     #toastStack {
-      max-height: 60vh;
-      overflow: auto;
+      bottom: 1rem;
+      left: 50%;
+      transform: translateX(-50%);
+      position: fixed;
+      z-index: 1030;
     }
-
-    /* Modo oscuro: mejorar contraste de ayudas y <code> */
-    body.bg-dark .form-text { color: rgba(255,255,255,0.8) !important; }
-    body.bg-dark code {
-      background: rgba(255,255,255,0.12);
-      color: #fff;
-      border-radius: .25rem;
-      padding: .05rem .35rem;
+    @media (max-width: 576px) {
+      #toastStack { width: 90%; }
     }
   </style>
 </head>
 <body class="bg-light">
 
-<!-- CONTENEDOR DE TOASTS (centrado ABAJO SIEMPRE) -->
-<div class="position-fixed bottom-0 start-50 translate-middle-x p-3" id="toastStackWrap">
-  <div id="toastStack" class="toast-container w-100"></div>
-</div>
+<!-- CONTENEDOR DE TOASTS -->
+<div id="toastStack" class="toast-container"></div>
 
 <!-- Barra superior -->
-<div class="d-flex justify-content-between align-items-center mb-3 px-2">
-  <div class="d-flex gap-2">
-    <button class="btn btn-outline-secondary btn-sm" onclick="toggleTheme()">🌙 Modo Oscuro</button>
-  </div>
-  <div class="d-flex gap-2">
-    <button class="btn btn-outline-primary btn-sm position-relative" data-bs-toggle="offcanvas" data-bs-target="#notifCenter">
-      🔔 Notificaciones
-      <span id="notifBadge" class="position-absolute top-0 start-100 translate-middle badge rounded-pill bg-danger d-none">0</span>
-    </button>
-    <a href="/logout" class="btn btn-outline-danger btn-sm">Logout</a>
-  </div>
+<div class="d-flex justify-content-between mb-3">
+  <button class="btn btn-outline-secondary btn-sm" onclick="toggleTheme()">🌙 Modo Oscuro</button>
+  <a href="/logout" class="btn btn-outline-danger btn-sm">Logout</a>
 </div>
 
 <div class="container py-4">
@@ -66,12 +41,12 @@
     ℹ️ Añadidas: Manual (<strong>{{ contador_manual }}</strong>) · CSV (<strong>{{ contador_csv }}</strong>)
   </div>
 
-  <!-- FORM PRINCIPAL: alta manual y subida de archivo -->
+  <!-- FORM PRINCIPAL -->
   <form method="POST" enctype="multipart/form-data">
     <div class="row g-3 mb-3">
       <div class="col-md-5">
         <input type="text" class="form-control" name="ip"
-               placeholder="IP, CIDR, rango o IP+máscara (ver ejemplos abajo)">
+               placeholder="Ej: 203.0.113.5 · 203.0.113.0/24 · 203.0.113.10-203.0.113.50 · 203.0.113.0 255.255.255.0">
       </div>
       <div class="col-md-3">
         <select class="form-select" name="ttl">
@@ -109,69 +84,20 @@
       </div>
     </div>
 
-    <!-- Error inline visible (manual) y duplicado como flash para notificaciones -->
+    <!-- Errores inline -->
     {% if error %}
       <div class="alert alert-danger mt-2" role="alert">{{ error }}</div>
       <div class="d-none flash-item" data-category="danger">{{ error }}</div>
     {% endif %}
 
-    <!-- Mostrar inline también los mensajes de “rechazadas” (de CSV) -->
     {% for category, message in messages %}
-      {% if category == 'danger' and (
-            'rechazad' in message|lower or
-            'inválid' in message|lower or 'inval' in message|lower or
-            'privad' in message|lower or
-            'duplicad' in message|lower or
-            'no permit' in message|lower ) %}
-        <div class="alert alert-danger mt-2" role="alert">{{ message }}</div>
+      {% if category == "accion_no_permitida" %}
+        <div class="alert alert-danger mt-2 fw-bold" role="alert">⚠️ {{ message }}</div>
+      {% else %}
+        <div class="d-none flash-item" data-category="{{ category }}">{{ message }}</div>
       {% endif %}
     {% endfor %}
-
-    <!-- Flashes para toasts (todas las categorías) -->
-    {% for category, message in messages %}
-      <div class="d-none flash-item" data-category="{{ category }}">{{ message }}</div>
-    {% endfor %}
   </form>
-  <!-- /FORM PRINCIPAL -->
-
-  <!-- Bloque eliminar por red/rango/CIDR/IP+máscara -->
-  <div class="row g-3 mb-1">
-    <div class="col-md-7">
-      <div class="d-flex gap-2">
-        <input type="text" class="form-control" id="deleteNetInput" name="delete_net_input"
-               placeholder="CIDR, rango A–B, IP+máscara o IP">
-        <button type="button" class="btn btn-outline-danger" data-bs-toggle="modal" data-bs-target="#confirmDeleteNet">Eliminar por red/rango</button>
-      </div>
-      <div class="form-text">
-        Ejemplos: <code>88.84.66.240/29</code> · <code>203.0.113.10-203.0.113.50</code> ·
-        <code>203.0.113.0 255.255.255.0</code> · <code>203.0.113.5</code>
-      </div>
-    </div>
-  </div>
-
-  <!-- Modal Confirmación Eliminar por red/rango -->
-  <div class="modal fade" id="confirmDeleteNet" tabindex="-1">
-    <div class="modal-dialog modal-dialog-centered">
-      <div class="modal-content">
-        <form method="POST">
-          <div class="modal-header">
-            <h5 class="modal-title text-danger">¿Eliminar IPs por patrón?</h5>
-            <button type="button" class="btn-close" data-bs-dismiss="modal"></button>
-          </div>
-          <div class="modal-body">
-            <p>Se eliminarán todas las IPs que coincidan con el patrón:</p>
-            <p><strong id="patternPreview">[Patrón introducido]</strong></p>
-            <input type="hidden" name="delete-net" value="1">
-            <input type="hidden" name="delete_net_input" id="hiddenDeleteNetInput">
-          </div>
-          <div class="modal-footer">
-            <button type="submit" class="btn btn-danger">Eliminar</button>
-            <button type="button" class="btn btn-secondary" data-bs-dismiss="modal">Cancelar</button>
-          </div>
-        </form>
-      </div>
-    </div>
-  </div>
 
   <!-- Modal Confirmación Eliminar Todas -->
   <div class="modal fade" id="confirmDeleteAll" tabindex="-1">
@@ -199,7 +125,7 @@
   <hr>
   <h4>IPs bloqueadas</h4>
 
-  <!-- Buscador de IPs -->
+  <!-- Buscador -->
   <div class="mb-3">
     <input type="text" id="buscadorIp" class="form-control" placeholder="Buscar IP...">
   </div>
@@ -222,8 +148,6 @@
           <td>{{ '∞' if parts[2] == '0' else parts[2] }}</td>
           <td>
             <button class="btn btn-sm btn-outline-danger" data-bs-toggle="modal" data-bs-target="#confirmDelete{{ loop.index }}">Eliminar</button>
-
-            <!-- Modal Confirmar eliminación individual -->
             <div class="modal fade" id="confirmDelete{{ loop.index }}" tabindex="-1">
               <div class="modal-dialog modal-dialog-centered">
                 <div class="modal-content">
@@ -233,7 +157,7 @@
                       <button type="button" class="btn-close" data-bs-dismiss="modal"></button>
                     </div>
                     <div class="modal-body">
-                      ¿Estás seguro de que quieres eliminar <strong>{{ parts[0] }}</strong>?
+                      ¿Eliminar <strong>{{ parts[0] }}</strong>?
                     </div>
                     <div class="modal-footer">
                       <input type="hidden" name="delete_ip" value="{{ parts[0] }}">
@@ -255,42 +179,7 @@
   </div>
 </div>
 
-<!-- Offcanvas: Centro de Notificaciones -->
-<div class="offcanvas offcanvas-end" tabindex="-1" id="notifCenter">
-  <div class="offcanvas-header">
-    <h5 class="offcanvas-title">Centro de notificaciones (sesión)</h5>
-    <button class="btn-close" data-bs-dismiss="offcanvas"></button>
-  </div>
-  <div class="offcanvas-body d-flex flex-column gap-3">
-    <div class="row g-2">
-      <div class="col-12 col-md-8">
-        <input type="text" class="form-control" id="notifFilter" placeholder="Filtrar por texto o tipo (alta_manual, alta_csv, elim_patron, elim_individual, elim_todas, error_invalida, error_privada, error_duplicada...)">
-      </div>
-      <div class="col-12 col-md-4 d-grid d-md-block">
-        <button id="notifClear" class="btn btn-outline-secondary w-100">Limpiar notificaciones</button>
-      </div>
-    </div>
-
-    <div id="notifSummary" class="row text-center gy-2">
-      <div class="col"><span class="badge text-bg-success" id="sumAltaManual">Altas manuales: 0</span></div>
-      <div class="col"><span class="badge text-bg-primary" id="sumAltaCSV">Altas CSV: 0</span></div>
-      <div class="col"><span class="badge text-bg-warning" id="sumElimPatron">Elim. patrón: 0</span></div>
-      <div class="col"><span class="badge text-bg-danger" id="sumElimInd">Elim. individual: 0</span></div>
-      <div class="col"><span class="badge text-bg-dark" id="sumElimAll">Elim. todas: 0</span></div>
-      <div class="col-12">
-        <span class="badge text-bg-danger" id="sumErrDup">Err. duplicadas: 0</span>
-        <span class="badge text-bg-warning" id="sumErrPriv">Err. privadas: 0</span>
-        <span class="badge text-bg-secondary" id="sumErrInv">Err. inválidas: 0</span>
-      </div>
-    </div>
-
-    <div class="border rounded p-2 overflow-auto" style="max-height: 60vh;">
-      <ul id="notifList" class="list-group list-group-flush small"></ul>
-    </div>
-  </div>
-</div>
-
-<!-- Logo DPB fijo en la esquina -->
+<!-- Logo DPB fijo -->
 <img id="corner-logo" src="{{ url_for('static', filename='img/logo-dpb.svg') }}" alt="Logo DPB">
 
 <script>
@@ -309,165 +198,49 @@
     if (localStorage.getItem('theme') === 'dark') toggleTheme();
   };
 
+  // Buscar IP
   document.addEventListener('DOMContentLoaded', function () {
-    /* Buscar IP en tabla */
     const input = document.getElementById('buscadorIp');
     const table = document.getElementById('tablaIps');
-    if (input && table) {
-      input.addEventListener('keyup', function () {
-        const filtro = input.value.toLowerCase();
-        const filas = table.getElementsByTagName('tr');
-        for (let i = 1; i < filas.length; i++) {
-          const celdas = filas[i].getElementsByTagName('td');
-          if (celdas.length > 0) {
-            const ip = celdas[0].textContent.toLowerCase();
-            filas[i].style.display = ip.includes(filtro) ? '' : 'none';
-          }
-        }
-      });
-    }
-
-    /* Pasar patrón al modal de confirmación (eliminar por red/rango) */
-    const deleteNetInput = document.getElementById('deleteNetInput');
-    const hiddenDeleteNetInput = document.getElementById('hiddenDeleteNetInput');
-    const patternPreview = document.getElementById('patternPreview');
-    const confirmDeleteNet = document.getElementById('confirmDeleteNet');
-
-    if (confirmDeleteNet) {
-      confirmDeleteNet.addEventListener('show.bs.modal', () => {
-        const val = (deleteNetInput?.value || '').trim();
-        patternPreview.textContent = val || "[No introducido]";
-        if (hiddenDeleteNetInput) hiddenDeleteNetInput.value = val;
-      });
-    }
-
-    /* ====== Notificaciones (toasts + centro de notificaciones) ====== */
-    const toastStackWrap = document.getElementById('toastStackWrap');
-    const toastStack = document.getElementById('toastStack');
-    const flashes = document.querySelectorAll('.flash-item');
-
-    function classify(text, category) {
-      const t = text.toLowerCase();
-      if (t.includes("ip duplicada")) return "error_duplicada";
-      if (t.includes("ip privada")) return "error_privada";
-      if (t.includes("ip inválida") || t.includes("ip invalida")) return "error_invalida";
-      if (t.includes("0.0.0.0")) return "error_peligrosa";
-      if (t.includes("rechazad")) return "rechazos";
-      if (t.includes("todas las ips han sido eliminadas")) return "elim_todas";
-      if (t.includes("se eliminaron") && t.includes("coinciden")) return "elim_patron";
-      if (t.includes("eliminada correctamente")) return "elim_individual";
-      if (t.includes("ips añadidas correctamente. total actual")) return "alta_csv";
-      if (t.match(/ip\(s\) añadida\(s\) correctamente/)) return "alta_manual";
-      return category || "info";
-    }
-
-    const STORAGE_KEY = "iocNotifications";
-    let history = [];
-    try { history = JSON.parse(sessionStorage.getItem(STORAGE_KEY) || "[]"); } catch {}
-
-    const nowISO = () => new Date().toISOString();
-    flashes.forEach(el => {
-      const msg = el.textContent.trim();
-      const cat = (el.dataset.category || 'info').toLowerCase();
-      history.push({ ts: nowISO(), category: cat, type: classify(msg, cat), text: msg });
+    input.addEventListener('keyup', function () {
+      const filtro = input.value.toLowerCase();
+      const filas = table.getElementsByTagName('tr');
+      for (let i = 1; i < filas.length; i++) {
+        const ip = filas[i].getElementsByTagName('td')[0]?.textContent.toLowerCase() || "";
+        filas[i].style.display = ip.includes(filtro) ? '' : 'none';
+      }
     });
 
-    sessionStorage.setItem(STORAGE_KEY, JSON.stringify(history));
-
-    const lastFive = history.slice(-5);
+    // TOASTS autodestructivos
+    const toastStack = document.getElementById('toastStack');
+    const flashes = document.querySelectorAll('.flash-item');
     const catToClass = {
-      success: 'text-bg-success', danger: 'text-bg-danger', warning: 'text-bg-warning',
-      info: 'text-bg-info', primary: 'text-bg-primary', secondary: 'text-bg-secondary',
-      light: 'text-bg-light', dark: 'text-bg-dark'
+      success: 'text-bg-success',
+      danger:  'text-bg-danger',
+      warning: 'text-bg-warning',
+      info:    'text-bg-info',
+      accion_no_permitida: 'text-bg-danger fw-bold'
     };
-    lastFive.forEach(obj => {
-      const cls = catToClass[obj.category] || 'text-bg-info';
+
+    flashes.forEach((el, idx) => {
+      const msg = el.textContent.trim();
+      const cat = (el.dataset.category || 'info').toLowerCase();
+      const cls = catToClass[cat] || 'text-bg-info';
+
       const toast = document.createElement('div');
-      toast.className = `toast align-items-center border-0 ${cls} show shadow`;
+      toast.className = `toast align-items-center border-0 ${cls}`;
       toast.setAttribute('role', 'alert');
       toast.setAttribute('aria-live', 'assertive');
       toast.setAttribute('aria-atomic', 'true');
       toast.innerHTML = `
         <div class="d-flex">
-          <div class="toast-body">${obj.text}</div>
-          <button type="button" class="btn-close btn-close-white me-2 m-auto" data-bs-dismiss="toast" aria-label="Cerrar"></button>
+          <div class="toast-body">${msg}</div>
+          <button type="button" class="btn-close btn-close-white me-2 m-auto" data-bs-dismiss="toast"></button>
         </div>`;
       toastStack.appendChild(toast);
-      new bootstrap.Toast(toast, { autohide: false }).show();
-    });
 
-    /* Ocultar toasts si hay offcanvas/modal (capa extra) */
-    const notifCenterEl = document.getElementById('notifCenter');
-    if (notifCenterEl) {
-      notifCenterEl.addEventListener('show.bs.offcanvas', () => toastStackWrap.classList.add('d-none'));
-      notifCenterEl.addEventListener('hidden.bs.offcanvas', () => toastStackWrap.classList.remove('d-none'));
-    }
-    document.addEventListener('show.bs.modal', () => toastStackWrap.classList.add('d-none'));
-    document.addEventListener('hidden.bs.modal', () => toastStackWrap.classList.remove('d-none'));
-
-    /* Badge total */
-    const notifBadge = document.getElementById('notifBadge');
-    if (notifBadge) {
-      notifBadge.textContent = history.length;
-      notifBadge.classList.toggle('d-none', history.length === 0);
-    }
-
-    /* Centro de notificaciones */
-    const notifList = document.getElementById('notifList');
-    const notifFilter = document.getElementById('notifFilter');
-    const sumAltaManual = document.getElementById('sumAltaManual');
-    const sumAltaCSV = document.getElementById('sumAltaCSV');
-    const sumElimPatron = document.getElementById('sumElimPatron');
-    const sumElimInd = document.getElementById('sumElimInd');
-    const sumElimAll = document.getElementById('sumElimAll');
-    const sumErrDup = document.getElementById('sumErrDup');
-    const sumErrPriv = document.getElementById('sumErrPriv');
-    const sumErrInv = document.getElementById('sumErrInv');
-
-    function renderList(filterText = "") {
-      if (!notifList) return;
-      notifList.innerHTML = "";
-      const ft = filterText.toLowerCase().trim();
-      const items = history.filter(h =>
-        !ft || h.text.toLowerCase().includes(ft) || h.type.toLowerCase().includes(ft) || h.category.toLowerCase().includes(ft)
-      ).slice().reverse();
-
-      items.forEach(h => {
-        const li = document.createElement('li');
-        li.className = "list-group-item d-flex justify-content-between align-items-start";
-        li.innerHTML = `
-          <div class="me-2">
-            <div class="fw-semibold">${h.text}</div>
-            <small class="text-muted">${h.ts} · <code>${h.type}</code> · <span class="badge bg-secondary">${h.category}</span></small>
-          </div>
-          <button class="btn btn-sm btn-outline-secondary" title="Copiar" aria-label="Copiar">📋</button>`;
-        li.querySelector('button').addEventListener('click', () => {
-          navigator.clipboard.writeText(h.text + " (" + h.ts + ")");
-        });
-        notifList.appendChild(li);
-      });
-
-      const count = (t) => history.filter(h => h.type === t).length;
-      if (sumAltaManual) sumAltaManual.textContent = `Altas manuales: ${count('alta_manual')}`;
-      if (sumAltaCSV)    sumAltaCSV.textContent    = `Altas CSV: ${count('alta_csv')}`;
-      if (sumElimPatron) sumElimPatron.textContent = `Elim. patrón: ${count('elim_patron')}`;
-      if (sumElimInd)    sumElimInd.textContent    = `Elim. individual: ${count('elim_individual')}`;
-      if (sumElimAll)    sumElimAll.textContent    = `Elim. todas: ${count('elim_todas')}`;
-      if (sumErrDup)     sumErrDup.textContent     = `Err. duplicadas: ${count('error_duplicada')}`;
-      if (sumErrPriv)    sumErrPriv.textContent    = `Err. privadas: ${count('error_privada')}`;
-      if (sumErrInv)     sumErrInv.textContent     = `Err. inválidas: ${count('error_invalida')}`;
-    }
-
-    renderList();
-    if (notifFilter) notifFilter.addEventListener('input', () => renderList(notifFilter.value));
-
-    const notifClear = document.getElementById('notifClear');
-    if (notifClear) notifClear.addEventListener('click', () => {
-      sessionStorage.removeItem(STORAGE_KEY);
-      history = [];
-      renderList();
-      if (notifBadge) { notifBadge.textContent = "0"; notifBadge.classList.add('d-none'); }
-      if (toastStack) toastStack.innerHTML = "";
+      const bsToast = new bootstrap.Toast(toast, { autohide: true, delay: 5000 });
+      setTimeout(() => bsToast.show(), idx * 200);
     });
   });
 </script>
