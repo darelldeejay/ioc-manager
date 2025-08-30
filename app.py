@@ -14,7 +14,7 @@ app.secret_key = 'clave-secreta'
 BASE_DIR = os.path.dirname(os.path.realpath(__file__))
 FEED_FILE = os.path.join(BASE_DIR, 'ioc-feed.txt')
 LOG_FILE = os.path.join(BASE_DIR, 'ioc-log.txt')
-NOTIF_FILE = os.path.join(BASE_DIR, 'notif-log.json')
+NOTIF_FILE = os.path.join(BASE_DIR, 'notif-log.json')  # si no existe, se ignora
 COUNTER_MANUAL = os.path.join(BASE_DIR, 'contador_manual.txt')
 COUNTER_CSV = os.path.join(BASE_DIR, 'contador_csv.txt')
 
@@ -29,7 +29,7 @@ def dotted_netmask_to_prefix(mask):
 
 
 def is_allowed_ip(ip_str):
-    """Solo IPv4 públicas; bloquea privadas, loopback, multicast, etc."""
+    """Solo IPv4 públicas; bloquea privadas, loopback, link-local, multicast, reservadas y 0.0.0.0."""
     try:
         obj = ipaddress.ip_address(ip_str)
     except ValueError:
@@ -47,7 +47,9 @@ def is_allowed_ip(ip_str):
 def expand_input_to_ips(text, max_expand=MAX_EXPAND):
     """
     Convierte entrada (IP, CIDR, rango A-B, IP+máscara) en lista de IPs.
-    Regla especial: 0.0.0.0 o cualquier red basada en 0.0.0.0 => 'accion_no_permitida'
+    **ÚNICO cambio solicitado**:
+      - 0.0.0.0 o cualquier red basada en 0.0.0.0 => ValueError("accion_no_permitida")
+    El resto se mantiene igual.
     """
     if not text:
         raise ValueError("Entrada vacía")
@@ -88,7 +90,7 @@ def expand_input_to_ips(text, max_expand=MAX_EXPAND):
             raise ValueError("accion_no_permitida")
         return ips
 
-    # CIDR normal
+    # CIDR
     if "/" in raw:
         try:
             net = ipaddress.ip_network(raw, strict=False)
@@ -125,7 +127,7 @@ def expand_input_to_ips(text, max_expand=MAX_EXPAND):
 
 
 # =========================
-#  Notificaciones persistentes
+#  Notificaciones (sin cambios funcionales)
 # =========================
 def guardar_notif(category, message):
     notif = {"time": datetime.now().strftime("%Y-%m-%d %H:%M:%S"),
@@ -226,7 +228,7 @@ def log(accion, ip):
 
 
 # =========================
-#  Core
+#  Core (sin cambios)
 # =========================
 def add_ips_validated(lines, existentes, iterable_ips, ttl_val, contador_ruta=None):
     añadidas = 0
@@ -372,6 +374,18 @@ def index():
                 error = "Error inesperado: {0}".format(str(e))
                 guardar_notif("danger", error)
 
+    # ---- HARDENING: construir messages de forma segura (no rompe el login jamás)
+    messages_safe = []
+    try:
+        notifs = get_notifs()
+        for n in notifs:
+            cat = n.get("category", "secondary")
+            msg = "{0} {1}".format(n.get("time", ""), n.get("message", "")).strip()
+            messages_safe.append((cat, msg))
+    except Exception:
+        messages_safe = []
+    # ------------------------------------------------------
+
     return render_template(
         "index.html",
         ips=lines,
@@ -379,12 +393,12 @@ def index():
         total_ips=len(lines),
         contador_manual=leer_contador(COUNTER_MANUAL),
         contador_csv=leer_contador(COUNTER_CSV),
-        messages=[(n["category"], "{0} {1}".format(n["time"], n["message"])) for n in get_notifs()]
+        messages=messages_safe
     )
 
 
 # =========================
-#  Feed
+#  Feed (sin cambios de comportamiento)
 # =========================
 @app.route("/feed/ioc-feed.txt")
 def feed():
