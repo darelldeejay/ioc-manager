@@ -5,32 +5,48 @@
   <title>IOC Manager</title>
   <link href="https://cdn.jsdelivr.net/npm/bootstrap@5.3.0/dist/css/bootstrap.min.css" rel="stylesheet">
   <script src="https://cdn.jsdelivr.net/npm/bootstrap@5.3.0/dist/js/bootstrap.bundle.min.js"></script>
-
-  <!-- Estilos del logo fijo en el dashboard -->
   <link rel="stylesheet" href="{{ url_for('static', filename='css/index.css') }}">
   <style>
-    /* Toasts autodestructivos, abajo centrados */
-    #toastStack {
-      bottom: 1rem;
-      left: 50%;
-      transform: translateX(-50%);
+    /* Toast container */
+    #toastContainer {
       position: fixed;
-      z-index: 1030;
+      top: 1rem;
+      right: 1rem;
+      z-index: 2000;
     }
-    @media (max-width: 576px) {
-      #toastStack { width: 90%; }
+    /* Offcanvas ancho */
+    .offcanvas-end {
+      width: 400px !important;
+    }
+    /* Toast crítico */
+    .toast.accion_no_permitida {
+      background-color: #8b0000;
+      color: #fff;
+    }
+    /* Placeholder en modo oscuro */
+    body.bg-dark ::placeholder {
+      color: #ccc !important;
+      opacity: 1;
+    }
+    /* Estilo especial para lista crítica */
+    .list-group-item.accion_no_permitida {
+      background-color: #8b0000;
+      color: #fff;
+      font-weight: bold;
+    }
+    .list-group-item.accion_no_permitida::before {
+      content: "⚠️ ";
     }
   </style>
 </head>
 <body class="bg-light">
 
-<!-- CONTENEDOR DE TOASTS -->
-<div id="toastStack" class="toast-container"></div>
-
-<!-- Barra superior -->
 <div class="d-flex justify-content-between mb-3">
   <button class="btn btn-outline-secondary btn-sm" onclick="toggleTheme()">🌙 Modo Oscuro</button>
-  <a href="/logout" class="btn btn-outline-danger btn-sm">Logout</a>
+  <div>
+    <button class="btn btn-outline-info btn-sm" data-bs-toggle="offcanvas" data-bs-target="#offcanvasNotif">🔔 Notificaciones</button>
+    <a href="/logout" class="btn btn-outline-danger btn-sm">Logout</a>
+  </div>
 </div>
 
 <div class="container py-4">
@@ -41,12 +57,11 @@
     ℹ️ Añadidas: Manual (<strong>{{ contador_manual }}</strong>) · CSV (<strong>{{ contador_csv }}</strong>)
   </div>
 
-  <!-- FORM PRINCIPAL -->
   <form method="POST" enctype="multipart/form-data">
     <div class="row g-3 mb-3">
       <div class="col-md-5">
         <input type="text" class="form-control" name="ip"
-               placeholder="Ej: 203.0.113.5 · 203.0.113.0/24 · 203.0.113.10-203.0.113.50 · 203.0.113.0 255.255.255.0">
+          placeholder="Ej: 203.0.113.5 | 203.0.113.0/24 | 203.0.113.10-203.0.113.50 | 203.0.113.0 255.255.255.0">
       </div>
       <div class="col-md-3">
         <select class="form-select" name="ttl">
@@ -84,19 +99,9 @@
       </div>
     </div>
 
-    <!-- Errores inline -->
     {% if error %}
-      <div class="alert alert-danger mt-2" role="alert">{{ error }}</div>
-      <div class="d-none flash-item" data-category="danger">{{ error }}</div>
+      <div class="alert alert-danger">{{ error }}</div>
     {% endif %}
-
-    {% for category, message in messages %}
-      {% if category == "accion_no_permitida" %}
-        <div class="alert alert-danger mt-2 fw-bold" role="alert">⚠️ {{ message }}</div>
-      {% else %}
-        <div class="d-none flash-item" data-category="{{ category }}">{{ message }}</div>
-      {% endif %}
-    {% endfor %}
   </form>
 
   <!-- Modal Confirmación Eliminar Todas -->
@@ -125,7 +130,6 @@
   <hr>
   <h4>IPs bloqueadas</h4>
 
-  <!-- Buscador -->
   <div class="mb-3">
     <input type="text" id="buscadorIp" class="form-control" placeholder="Buscar IP...">
   </div>
@@ -148,6 +152,7 @@
           <td>{{ '∞' if parts[2] == '0' else parts[2] }}</td>
           <td>
             <button class="btn btn-sm btn-outline-danger" data-bs-toggle="modal" data-bs-target="#confirmDelete{{ loop.index }}">Eliminar</button>
+
             <div class="modal fade" id="confirmDelete{{ loop.index }}" tabindex="-1">
               <div class="modal-dialog modal-dialog-centered">
                 <div class="modal-content">
@@ -179,8 +184,40 @@
   </div>
 </div>
 
-<!-- Logo DPB fijo -->
-<img id="corner-logo" src="{{ url_for('static', filename='img/logo-dpb.svg') }}" alt="Logo DPB">
+<!-- Toasts -->
+<div id="toastContainer">
+  {% for category, message in messages %}
+    <div class="toast align-items-center border-0 {{ category }}"
+         role="alert" aria-live="assertive" aria-atomic="true"
+         data-bs-delay="5000" data-bs-autohide="true">
+      <div class="d-flex">
+        <div class="toast-body">{{ message }}</div>
+        <button type="button" class="btn-close btn-close-white me-2 m-auto" data-bs-dismiss="toast"></button>
+      </div>
+    </div>
+  {% endfor %}
+</div>
+
+<!-- Offcanvas histórico -->
+<div class="offcanvas offcanvas-end" tabindex="-1" id="offcanvasNotif">
+  <div class="offcanvas-header">
+    <h5 class="offcanvas-title">Histórico de notificaciones</h5>
+    <button type="button" class="btn-close" data-bs-dismiss="offcanvas"></button>
+  </div>
+  <div class="offcanvas-body">
+    {% if messages %}
+      <ul class="list-group">
+        {% for category, message in messages %}
+          <li class="list-group-item {{ category }} {% if category == 'accion_no_permitida' %}accion_no_permitida{% else %}list-group-item-{{ category }}{% endif %}">
+            {{ message }}
+          </li>
+        {% endfor %}
+      </ul>
+    {% else %}
+      <p class="text-muted">No hay notificaciones.</p>
+    {% endif %}
+  </div>
+</div>
 
 <script>
   function toggleTheme() {
@@ -196,51 +233,23 @@
 
   window.onload = () => {
     if (localStorage.getItem('theme') === 'dark') toggleTheme();
+    document.querySelectorAll('.toast').forEach(toastEl => {
+      new bootstrap.Toast(toastEl).show();
+    });
   };
 
-  // Buscar IP
   document.addEventListener('DOMContentLoaded', function () {
     const input = document.getElementById('buscadorIp');
     const table = document.getElementById('tablaIps');
     input.addEventListener('keyup', function () {
       const filtro = input.value.toLowerCase();
-      const filas = table.getElementsByTagName('tr');
-      for (let i = 1; i < filas.length; i++) {
-        const ip = filas[i].getElementsByTagName('td')[0]?.textContent.toLowerCase() || "";
-        filas[i].style.display = ip.includes(filtro) ? '' : 'none';
+      for (let fila of table.getElementsByTagName('tr')) {
+        const celdas = fila.getElementsByTagName('td');
+        if (celdas.length > 0) {
+          const ip = celdas[0].textContent.toLowerCase();
+          fila.style.display = ip.includes(filtro) ? '' : 'none';
+        }
       }
-    });
-
-    // TOASTS autodestructivos
-    const toastStack = document.getElementById('toastStack');
-    const flashes = document.querySelectorAll('.flash-item');
-    const catToClass = {
-      success: 'text-bg-success',
-      danger:  'text-bg-danger',
-      warning: 'text-bg-warning',
-      info:    'text-bg-info',
-      accion_no_permitida: 'text-bg-danger fw-bold'
-    };
-
-    flashes.forEach((el, idx) => {
-      const msg = el.textContent.trim();
-      const cat = (el.dataset.category || 'info').toLowerCase();
-      const cls = catToClass[cat] || 'text-bg-info';
-
-      const toast = document.createElement('div');
-      toast.className = `toast align-items-center border-0 ${cls}`;
-      toast.setAttribute('role', 'alert');
-      toast.setAttribute('aria-live', 'assertive');
-      toast.setAttribute('aria-atomic', 'true');
-      toast.innerHTML = `
-        <div class="d-flex">
-          <div class="toast-body">${msg}</div>
-          <button type="button" class="btn-close btn-close-white me-2 m-auto" data-bs-dismiss="toast"></button>
-        </div>`;
-      toastStack.appendChild(toast);
-
-      const bsToast = new bootstrap.Toast(toast, { autohide: true, delay: 5000 });
-      setTimeout(() => bsToast.show(), idx * 200);
     });
   });
 </script>
