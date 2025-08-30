@@ -4,14 +4,18 @@
   <meta charset="utf-8">
   <title>IOC Manager</title>
   <meta name="viewport" content="width=device-width, initial-scale=1" />
+
+  <!-- Bootstrap -->
   <link href="https://cdn.jsdelivr.net/npm/bootstrap@5.3.0/dist/css/bootstrap.min.css" rel="stylesheet">
   <script src="https://cdn.jsdelivr.net/npm/bootstrap@5.3.0/dist/js/bootstrap.bundle.min.js"></script>
 
-  <!-- Estilos del logo fijo en el dashboard -->
+  <!-- Estilos propios -->
   <link rel="stylesheet" href="{{ url_for('static', filename='css/index.css') }}">
 
   <style>
-    /* Ayuda/ejemplos también legibles en modo oscuro */
+    /* ---------- UI refinements ---------- */
+
+    /* Hints legibles también en modo oscuro */
     .hint-box {
       font-size: .9rem;
       border: 1px dashed #ced4da;
@@ -25,12 +29,67 @@
       background: #1f1f1f;
       color: #e9ecef;
     }
-    /* Input placeholders visibles en modo oscuro */
+
+    /* Placeholders visibles en oscuro */
     .bg-dark ::placeholder { color: #adb5bd !important; opacity: 1; }
     .bg-dark .form-control, .bg-dark .form-select {
       background-color: #1f1f1f; color: #e9ecef; border-color: #495057;
     }
     .bg-dark .table { color: #e9ecef; }
+
+    /* Toasts: sin bordes “raros”, abajo centrados */
+    #toast-portal {
+      position: fixed;
+      bottom: 16px;
+      left: 50%;
+      transform: translateX(-50%);
+      z-index: 1060;
+      display: flex;
+      flex-direction: column;
+      gap: 8px;
+      max-width: min(90vw, 560px);
+      width: max-content;
+      pointer-events: none; /* no bloquea clicks en la página */
+    }
+    .toast {
+      pointer-events: auto;
+      border: none !important;
+      box-shadow: 0 6px 18px rgba(0,0,0,.25);
+    }
+
+    /* Botón Notificaciones flotante (abajo derecha) con burbuja */
+    #notif-fab {
+      position: fixed;
+      right: 16px;
+      bottom: 16px;
+      z-index: 1065;
+      border-radius: 9999px;
+      width: 56px;
+      height: 56px;
+      display: flex;
+      align-items: center;
+      justify-content: center;
+      box-shadow: 0 8px 22px rgba(0,0,0,.25);
+    }
+    #notif-badge {
+      position: absolute;
+      top: -6px;
+      right: -4px;
+    }
+
+    /* Logo esquina (responsivo) */
+    #corner-logo {
+      position: fixed;
+      bottom: 16px;
+      left: 16px;
+      width: 96px;
+      height: auto;
+      opacity: .85;
+      z-index: 1040;
+    }
+    @media (max-width: 576px) {
+      #corner-logo { width: 68px; }
+    }
   </style>
 </head>
 <body class="bg-light">
@@ -48,7 +107,7 @@
     ℹ️ Añadidas: Manual (<strong>{{ contador_manual }}</strong>) · CSV (<strong>{{ contador_csv }}</strong>)
   </div>
 
-  <!-- Mensajes flash del servidor -->
+  <!-- Mensajes flash server-side (errores de validación visibles en página) -->
   {% for category, message in messages %}
     <div class="alert alert-{{ category }} mt-2">{{ message }}</div>
   {% endfor %}
@@ -57,7 +116,8 @@
     <!-- Alta manual -->
     <div class="row g-3 mb-3">
       <div class="col-lg-5">
-        <input type="text" class="form-control" name="ip" placeholder="Introduce una IP, red CIDR (1.2.3.0/24), rango (1.2.3.4-1.2.3.20) o IP + máscara (1.2.3.0 255.255.255.0)">
+        <input type="text" class="form-control" name="ip"
+               placeholder="IP, red CIDR (1.2.3.0/24), rango (1.2.3.4-1.2.3.20) o IP + máscara (1.2.3.0 255.255.255.0)">
       </div>
       <div class="col-lg-3">
         <select class="form-select" name="ttl">
@@ -105,7 +165,7 @@
       </div>
       <div class="col-lg-6">
         <div class="hint-box">
-          <strong>Ejemplos válidos para eliminar por patrón:</strong>
+          <strong>Ejemplos válidos:</strong>
           <ul class="mb-0">
             <li><code>203.0.113.0/24</code> (CIDR)</li>
             <li><code>203.0.113.10-203.0.113.50</code> (rango)</li>
@@ -144,7 +204,7 @@
     </div>
   </div>
 
-  <!-- Modal Eliminar por Patrón -->
+  <!-- Modal Eliminar por Patrón (con previsualización) -->
   <div class="modal fade" id="modalDeleteNet" tabindex="-1" aria-hidden="true">
     <div class="modal-dialog">
       <form method="POST" class="modal-content" onsubmit="return confirmDeletePattern();">
@@ -157,6 +217,11 @@
           <input type="text" class="form-control" id="delete_net_input" name="delete_net_input"
                  placeholder="Ej: 203.0.113.0/24 · 203.0.113.10-203.0.113.50 · 203.0.113.0 255.255.255.0 · 203.0.113.5"
                  required>
+
+          <!-- Resultado de previsualización -->
+          <div id="previewResult" class="mt-2 small text-muted">
+            Escribe un patrón para ver cuántas IPs coinciden.
+          </div>
 
           <div class="hint-box mt-3">
             <strong>Se eliminarán todas las IPs que coincidan.</strong>
@@ -225,6 +290,7 @@
                 </div>
               </div>
             </div>
+
           </td>
         </tr>
       {% endfor %}
@@ -236,10 +302,52 @@
   </div>
 </div>
 
-<!-- Logo DPB fijo en la esquina -->
+<!-- Logo DPB fijo -->
 <img id="corner-logo" src="{{ url_for('static', filename='img/logo-dpb.svg') }}" alt="Logo DPB">
 
+<!-- Botón flotante de Notificaciones (abajo dcha) -->
+<button id="notif-fab" class="btn btn-primary" type="button" data-bs-toggle="offcanvas" data-bs-target="#offcanvasNotifs" aria-controls="offcanvasNotifs">
+  🔔
+  <span id="notif-badge" class="badge text-bg-danger rounded-pill d-none">0</span>
+</button>
+
+<!-- Offcanvas de Notificaciones -->
+<div class="offcanvas offcanvas-end" tabindex="-1" id="offcanvasNotifs" aria-labelledby="offcanvasNotifsLabel">
+  <div class="offcanvas-header">
+    <h5 id="offcanvasNotifsLabel">Notificaciones</h5>
+    <button type="button" class="btn-close" data-bs-dismiss="offcanvas" aria-label="Cerrar"></button>
+  </div>
+  <div class="offcanvas-body d-flex flex-column" style="gap:.75rem;">
+    <!-- Filtros -->
+    <div class="d-flex flex-wrap align-items-center gap-2 mb-2">
+      <select id="filterType" class="form-select form-select-sm" style="max-width:180px">
+        <option value="">Todos los tipos</option>
+        <option value="success">Altas correctas</option>
+        <option value="warning">Eliminaciones</option>
+        <option value="danger">Rechazadas/Errores</option>
+        <option value="accion_no_permitida">Bloqueo global</option>
+      </select>
+      <input id="filterDate" type="date" class="form-control form-control-sm" style="max-width:180px">
+      <button id="applyFilters" class="btn btn-outline-primary btn-sm">Aplicar</button>
+      <button id="clearFilters" class="btn btn-outline-secondary btn-sm">Limpiar</button>
+      <span class="ms-auto small text-muted" id="notifCountInfo"></span>
+    </div>
+
+    <!-- Lista -->
+    <div id="notifList" class="d-flex flex-column" style="gap:.5rem;"></div>
+
+    <!-- Paginación (10 por página) -->
+    <nav class="mt-2">
+      <ul id="notifPagination" class="pagination pagination-sm mb-0"></ul>
+    </nav>
+  </div>
+</div>
+
+<!-- Portal de toasts -->
+<div id="toast-portal" aria-live="polite" aria-atomic="true"></div>
+
 <script>
+  /* ----------------- Tema oscuro ----------------- */
   function toggleTheme() {
     const body = document.body;
     const isDark = body.classList.toggle('bg-dark');
@@ -250,33 +358,262 @@
     });
     localStorage.setItem('theme', isDark ? 'dark' : 'light');
   }
-
   window.onload = () => {
     if (localStorage.getItem('theme') === 'dark') toggleTheme();
   };
 
-  // Confirmación para eliminar por patrón
+  /* ----------------- Buscador tabla ----------------- */
+  document.addEventListener('DOMContentLoaded', function () {
+    const input = document.getElementById('buscadorIp');
+    const table = document.getElementById('tablaIps');
+    if (input && table) {
+      input.addEventListener('keyup', function () {
+        const filtro = input.value.toLowerCase();
+        const filas = table.getElementsByTagName('tr');
+        for (let i = 1; i < filas.length; i++) {
+          const celdas = filas[i].getElementsByTagName('td');
+          if (celdas.length > 0) {
+            const ip = celdas[0].textContent.toLowerCase();
+            filas[i].style.display = ip.includes(filtro) ? '' : 'none';
+          }
+        }
+      });
+    }
+  });
+
+  /* ----------------- Datos de notificaciones (inyectados por servidor) ----------------- */
+  // El backend nos pasa "messages" (lista de tuplas category, message).
+  // Aquí construimos un array estructurado para la UI (historial y filtros).
+  const serverMessages = [
+    {% for category, message in messages %}
+      {"category": "{{category}}", "message": {{ message|tojson }} }{% if not loop.last %},{% endif %}
+    {% endfor %}
+  ];
+
+  /* ----------------- Toasts: solo la acción, 5s success / 10s error ----------------- */
+  (function showRecentToasts() {
+    // Usamos únicamente los últimos flashes de la petición (no el historial completo)
+    // Heurística sencilla: mostramos toasts sólo de los mensajes que contienen palabras claves de acción.
+    const actionKeywords = ["añadida", "añadidas", "eliminada", "eliminadas", "rechazada", "rechazadas", "Acción no permitida", "IP duplicada", "IP rechazada"];
+    const recent = serverMessages.filter(m => actionKeywords.some(k => (m.message || "").includes(k)));
+    const portal = document.getElementById('toast-portal');
+
+    recent.forEach(m => {
+      const toastEl = document.createElement('div');
+      toastEl.className = 'toast align-items-center text-bg-' + mapToastColor(m.category) + ' border-0';
+      toastEl.setAttribute('role', 'status');
+      toastEl.setAttribute('aria-live', 'assertive');
+      toastEl.setAttribute('aria-atomic', 'true');
+
+      const msgOnly = m.message; // ya pediste “solo la acción”, sin historial
+      toastEl.innerHTML = `
+        <div class="d-flex">
+          <div class="toast-body">${escapeHtml(msgOnly)}</div>
+          <button type="button" class="btn-close btn-close-white me-2 m-auto" data-bs-dismiss="toast" aria-label="Close"></button>
+        </div>`;
+
+      portal.appendChild(toastEl);
+      const delay = isErrorCategory(m.category) ? 10000 : 5000; // 10s error, 5s ok
+      const bsToast = new bootstrap.Toast(toastEl, { autohide: true, delay });
+      bsToast.show();
+    });
+  })();
+
+  function isErrorCategory(cat) {
+    return (cat === 'danger' || cat === 'accion_no_permitida');
+  }
+  function mapToastColor(cat) {
+    if (cat === 'success') return 'success';
+    if (cat === 'warning') return 'warning';
+    if (cat === 'accion_no_permitida') return 'danger';
+    if (cat === 'danger') return 'danger';
+    return 'secondary';
+  }
+  function escapeHtml(str) {
+    return (str || '').replace(/[&<>"']/g, s => ({'&':'&amp;','<':'&lt;','>':'&gt;','"':'&quot;',"'":'&#39;'}[s]));
+  }
+
+  /* ----------------- Offcanvas de notificaciones: filtros + paginación ----------------- */
+  const PAGE_SIZE = 10;
+  let notifData = serverMessages.map((m, i) => {
+    // Intento de extraer fecha al principio si viene así "YYYY-MM-DD HH:MM:SS ..." (ya lo mandas así a veces)
+    let dt = null, txt = m.message || '';
+    const mdt = txt.match(/^(\d{4}-\d{2}-\d{2})(?:\s+(\d{2}:\d{2}:\d{2}))?/);
+    if (mdt) {
+      dt = new Date((mdt[1] + (mdt[2] ? 'T' + mdt[2] : 'T00:00:00')));
+    }
+    return {
+      id: i+1,
+      category: m.category,
+      message: txt,
+      date: dt
+    };
+  });
+
+  let unreadCount = 0; // si tienes flag de no leídas en backend, aquí lo puedes hidratar
+  updateBadge();
+
+  function updateBadge() {
+    const b = document.getElementById('notif-badge');
+    if (!b) return;
+    const count = unreadCount || 0;
+    b.textContent = count;
+    b.classList.toggle('d-none', count <= 0);
+  }
+
+  const listEl = document.getElementById('notifList');
+  const pagEl = document.getElementById('notifPagination');
+  const infoEl = document.getElementById('notifCountInfo');
+
+  let filterType = '';
+  let filterDate = '';
+  let currentPage = 1;
+
+  function applyFilters() {
+    filterType = document.getElementById('filterType').value;
+    filterDate = document.getElementById('filterDate').value; // YYYY-MM-DD o ''
+    currentPage = 1;
+    renderList();
+  }
+  function clearFilters() {
+    document.getElementById('filterType').value = '';
+    document.getElementById('filterDate').value = '';
+    filterType = filterDate = '';
+    currentPage = 1;
+    renderList();
+  }
+
+  document.getElementById('applyFilters').addEventListener('click', applyFilters);
+  document.getElementById('clearFilters').addEventListener('click', clearFilters);
+
+  function filtered() {
+    return notifData.filter(n => {
+      if (filterType && n.category !== filterType) return false;
+      if (filterDate) {
+        // comparamos solo por fecha (día)
+        const d = n.date;
+        if (!d) return false;
+        const ymd = d.toISOString().slice(0,10);
+        if (ymd !== filterDate) return false;
+      }
+      return true;
+    });
+  }
+
+  function renderList() {
+    const data = filtered();
+    infoEl.textContent = `Mostrando ${Math.min(PAGE_SIZE, data.length)} de ${data.length} notificaciones`;
+    const totalPages = Math.max(1, Math.ceil(data.length / PAGE_SIZE));
+    if (currentPage > totalPages) currentPage = totalPages;
+
+    const start = (currentPage - 1) * PAGE_SIZE;
+    const pageItems = data.slice(start, start + PAGE_SIZE);
+
+    // Render lista
+    listEl.innerHTML = '';
+    pageItems.forEach(n => {
+      const cls = mapToastColor(n.category);
+      const pill = n.category === 'success' ? '✅' :
+                   n.category === 'warning' ? '⚠️' :
+                   (n.category === 'danger' || n.category === 'accion_no_permitida') ? '❌' : 'ℹ️';
+      const dtTxt = n.date ? n.date.toLocaleString() : '';
+      const item = document.createElement('div');
+      item.className = `border rounded p-2 bg-${cls === 'secondary' ? 'light' : 'white'}`;
+      item.innerHTML = `
+        <div class="d-flex align-items-center justify-content-between">
+          <span class="badge text-bg-${cls}">${pill}</span>
+          <span class="small text-muted ms-2">${escapeHtml(dtTxt)}</span>
+        </div>
+        <div class="mt-1">${escapeHtml(n.message)}</div>
+      `;
+      listEl.appendChild(item);
+    });
+
+    // Render paginación
+    pagEl.innerHTML = '';
+    const mkPage = (p, label = p, disabled = false, active = false) => {
+      const li = document.createElement('li');
+      li.className = `page-item ${disabled ? 'disabled' : ''} ${active ? 'active' : ''}`;
+      const a = document.createElement('a');
+      a.className = 'page-link';
+      a.href = '#';
+      a.textContent = label;
+      a.addEventListener('click', (e) => {
+        e.preventDefault();
+        if (!disabled && currentPage !== p) {
+          currentPage = p;
+          renderList();
+        }
+      });
+      li.appendChild(a);
+      return li;
+    };
+    pagEl.appendChild(mkPage(Math.max(1, currentPage-1), '«', currentPage === 1, false));
+    for (let p = 1; p <= Math.max(1, Math.ceil(data.length / PAGE_SIZE)); p++) {
+      pagEl.appendChild(mkPage(p, String(p), false, p === currentPage));
+    }
+    pagEl.appendChild(mkPage(Math.min(Math.ceil(data.length / PAGE_SIZE)||1, currentPage+1), '»', currentPage >= (Math.ceil(data.length / PAGE_SIZE)||1), false));
+  }
+
+  // Render inicial
+  renderList();
+
+  // Al abrir offcanvas, resetea no leídas (si en el futuro manejas contadores reales)
+  const offcanvasEl = document.getElementById('offcanvasNotifs');
+  if (offcanvasEl) {
+    offcanvasEl.addEventListener('shown.bs.offcanvas', () => {
+      unreadCount = 0;
+      updateBadge();
+    });
+  }
+
+  /* ----------------- Preview para eliminar por patrón ----------------- */
+  (function initDeletePreview() {
+    const input = document.getElementById('delete_net_input');
+    const preview = document.getElementById('previewResult');
+    if (!input || !preview) return;
+
+    let lastController = null;
+
+    input.addEventListener('input', () => {
+      const val = input.value.trim();
+      if (!val) {
+        preview.textContent = "Escribe un patrón para ver cuántas IPs coinciden.";
+        preview.classList.remove('text-danger','text-success');
+        preview.classList.add('text-muted');
+        return;
+      }
+
+      // Abortamos consulta previa si sigue en vuelo
+      if (lastController) lastController.abort();
+      lastController = new AbortController();
+
+      fetch(`/preview-delete?pattern=${encodeURIComponent(val)}`, { signal: lastController.signal })
+        .then(r => r.json())
+        .then(data => {
+          if (data.error) {
+            preview.textContent = `❌ ${data.error}`;
+            preview.classList.remove('text-success','text-muted');
+            preview.classList.add('text-danger');
+          } else {
+            preview.textContent = `Coinciden ${data.count} IP(s).`;
+            preview.classList.remove('text-danger','text-muted');
+            preview.classList.add('text-success');
+          }
+        })
+        .catch(err => {
+          if (err.name === 'AbortError') return;
+          preview.textContent = "❌ Error al consultar coincidencias.";
+          preview.classList.remove('text-success','text-muted');
+          preview.classList.add('text-danger');
+        });
+    });
+  })();
+
   function confirmDeletePattern() {
     const val = document.getElementById('delete_net_input').value.trim();
     return confirm(`Vas a eliminar todas las IPs que coincidan con:\n\n${val}\n\n¿Confirmas?`);
   }
-
-  // Script de búsqueda en la tabla
-  document.addEventListener('DOMContentLoaded', function () {
-    const input = document.getElementById('buscadorIp');
-    const table = document.getElementById('tablaIps');
-    input.addEventListener('keyup', function () {
-      const filtro = input.value.toLowerCase();
-      const filas = table.getElementsByTagName('tr');
-      for (let i = 1; i < filas.length; i++) {
-        const celdas = filas[i].getElementsByTagName('td');
-        if (celdas.length > 0) {
-          const ip = celdas[0].textContent.toLowerCase();
-          filas[i].style.display = ip.includes(filtro) ? '' : 'none';
-        }
-      }
-    });
-  });
 </script>
 
 </body>
