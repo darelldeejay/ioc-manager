@@ -28,20 +28,36 @@ def dotted_netmask_to_prefix(mask):
     return ipaddress.IPv4Network("0.0.0.0/{0}".format(mask)).prefixlen
 
 
-def is_allowed_ip(ip_str):
-    """Solo IPv4 públicas; bloquea privadas, loopback, link-local, multicast, reservadas y 0.0.0.0."""
+def ip_block_reason(ip_str):
+    """
+    Devuelve una cadena con el MOTIVO del bloqueo de esa IP
+    o None si la IP es permitida (IPv4 pública).
+    """
     try:
         obj = ipaddress.ip_address(ip_str)
     except ValueError:
-        return False
+        return "IP inválida"
 
     if isinstance(obj, ipaddress.IPv6Address):
-        return False
+        return "IPv6 no soportado"
     if obj.is_unspecified:   # 0.0.0.0
-        return False
-    if obj.is_private or obj.is_loopback or obj.is_link_local or obj.is_multicast or obj.is_reserved:
-        return False
-    return True
+        return "bloqueo de absolutamente todo"
+    if obj.is_private:
+        return "IP privada (RFC1918)"
+    if obj.is_loopback:
+        return "IP loopback"
+    if obj.is_link_local:
+        return "IP link-local"
+    if obj.is_multicast:
+        return "IP multicast"
+    if obj.is_reserved:
+        return "IP reservada"
+    return None
+
+
+def is_allowed_ip(ip_str):
+    """Solo IPv4 públicas; usa ip_block_reason para decidir."""
+    return ip_block_reason(ip_str) is None
 
 
 def expand_input_to_ips(text, max_expand=MAX_EXPAND):
@@ -127,7 +143,7 @@ def expand_input_to_ips(text, max_expand=MAX_EXPAND):
 
 
 # =========================
-#  Notificaciones (sin cambios funcionales)
+#  Notificaciones (persistentes)
 # =========================
 def guardar_notif(category, message):
     notif = {"time": datetime.now().strftime("%Y-%m-%d %H:%M:%S"),
@@ -354,20 +370,24 @@ def index():
             try:
                 expanded = expand_input_to_ips(raw_input)
 
-                # ---- NUEVO: popup exacto para entrada manual de UNA sola IP rechazada
+                # --- Mensaje específico si el usuario metió UNA sola IP y es no permitida/duplicada
                 single_input = len(expanded) == 1
                 single_ip = expanded[0] if single_input else None
                 pre_notified = False
                 if single_input:
                     if single_ip in existentes:
-                        flash("IP duplicada: {0}".format(single_ip), "danger")
-                        guardar_notif("danger", "IP duplicada: {0}".format(single_ip))
+                        msg = "IP duplicada: {0}".format(single_ip)
+                        flash(msg, "danger")
+                        guardar_notif("danger", msg)
                         pre_notified = True
-                    elif not is_allowed_ip(single_ip):
-                        flash("IP no permitida (privada/reservada/loopback/link-local/multicast): {0}".format(single_ip), "danger")
-                        guardar_notif("danger", "IP no permitida: {0}".format(single_ip))
-                        pre_notified = True
-                # -----------------------------------------------
+                    else:
+                        reason = ip_block_reason(single_ip)
+                        if reason:
+                            msg = "IP rechazada: {0} — {1}".format(single_ip, reason)
+                            flash(msg, "danger")
+                            guardar_notif("danger", msg)
+                            pre_notified = True
+                # -------------------------------------------------------------
 
                 add_ok, add_bad = add_ips_validated(
                     lines, existentes, expanded, ttl_val=ttl_val, contador_ruta=COUNTER_MANUAL
@@ -376,10 +396,7 @@ def index():
                     save_lines(lines)
                     flash("{0} IP(s) añadida(s) correctamente".format(add_ok), "success")
                 else:
-                    # si ya mostramos mensaje específico para la única IP, no repitas el genérico
-                    if single_input and pre_notified:
-                        pass
-                    else:
+                    if not (single_input and pre_notified):
                         error = "Nada que añadir (todas inválidas/privadas/duplicadas/no permitidas)"
                 if add_bad > 0:
                     if not (single_input and pre_notified):
