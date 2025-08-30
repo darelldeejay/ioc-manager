@@ -353,6 +353,22 @@ def index():
         else:
             try:
                 expanded = expand_input_to_ips(raw_input)
+
+                # ---- NUEVO: popup exacto para entrada manual de UNA sola IP rechazada
+                single_input = len(expanded) == 1
+                single_ip = expanded[0] if single_input else None
+                pre_notified = False
+                if single_input:
+                    if single_ip in existentes:
+                        flash("IP duplicada: {0}".format(single_ip), "danger")
+                        guardar_notif("danger", "IP duplicada: {0}".format(single_ip))
+                        pre_notified = True
+                    elif not is_allowed_ip(single_ip):
+                        flash("IP no permitida (privada/reservada/loopback/link-local/multicast): {0}".format(single_ip), "danger")
+                        guardar_notif("danger", "IP no permitida: {0}".format(single_ip))
+                        pre_notified = True
+                # -----------------------------------------------
+
                 add_ok, add_bad = add_ips_validated(
                     lines, existentes, expanded, ttl_val=ttl_val, contador_ruta=COUNTER_MANUAL
                 )
@@ -360,9 +376,15 @@ def index():
                     save_lines(lines)
                     flash("{0} IP(s) añadida(s) correctamente".format(add_ok), "success")
                 else:
-                    error = "Nada que añadir (todas inválidas/privadas/duplicadas/no permitidas)"
+                    # si ya mostramos mensaje específico para la única IP, no repitas el genérico
+                    if single_input and pre_notified:
+                        pass
+                    else:
+                        error = "Nada que añadir (todas inválidas/privadas/duplicadas/no permitidas)"
                 if add_bad > 0:
-                    flash("{0} entradas rechazadas (inválidas/privadas/duplicadas/no permitidas)".format(add_bad), "danger")
+                    if not (single_input and pre_notified):
+                        flash("{0} entradas rechazadas (inválidas/privadas/duplicadas/no permitidas)".format(add_bad), "danger")
+
             except ValueError as e:
                 if str(e) == "accion_no_permitida":
                     flash("⚠️ Acción no permitida: bloqueo de absolutamente todo", "accion_no_permitida")
@@ -374,7 +396,7 @@ def index():
                 error = "Error inesperado: {0}".format(str(e))
                 guardar_notif("danger", error)
 
-    # ---- HARDENING: construir messages de forma segura (no rompe el login jamás)
+    # ---- construir messages de forma segura
     messages_safe = []
     try:
         notifs = get_notifs()
@@ -384,7 +406,6 @@ def index():
             messages_safe.append((cat, msg))
     except Exception:
         messages_safe = []
-    # ------------------------------------------------------
 
     return render_template(
         "index.html",
