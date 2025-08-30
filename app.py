@@ -24,123 +24,80 @@ MAX_EXPAND = 4096  # límite anti-explosión
 # =========================
 #  Utilidades de red
 # =========================
-def dotted_netmask_to_prefix(mask: str) -> int:
-    return ipaddress.IPv4Network(f"0.0.0.0/{mask}").prefixlen
+def dotted_netmask_to_prefix(mask):
+    return ipaddress.IPv4Network("0.0.0.0/{0}".format(mask)).prefixlen
 
 
-def is_ipv6(obj) -> bool:
-    return isinstance(obj, (ipaddress.IPv6Address, ipaddress.IPv6Network))
-
-
-def is_allowed_ip(ip_str: str) -> bool:
-    """
-    Solo permitimos IPv4 públicas. Bloqueamos:
-    - 0.0.0.0 (unspecified) y cualquier variante reservada
-    - privadas (RFC1918), loopback, link-local, multicast, reservadas
-    - IPv6 (si no quieres soportarla)
-    """
+def is_allowed_ip(ip_str):
+    """Solo IPv4 públicas; bloquea privadas, loopback, multicast, etc."""
     try:
         obj = ipaddress.ip_address(ip_str)
     except ValueError:
         return False
 
-    if is_ipv6(obj):
+    if isinstance(obj, ipaddress.IPv6Address):
         return False
-
     if obj.is_unspecified:   # 0.0.0.0
         return False
-    if obj.is_private:
-        return False
-    if obj.is_loopback:
-        return False
-    if obj.is_link_local:
-        return False
-    if obj.is_multicast:
-        return False
-    if obj.is_reserved:
+    if obj.is_private or obj.is_loopback or obj.is_link_local or obj.is_multicast or obj.is_reserved:
         return False
     return True
 
 
-def is_allowed_network(net: ipaddress._BaseNetwork) -> bool:
+def expand_input_to_ips(text, max_expand=MAX_EXPAND):
     """
-    Rechaza redes privadas/reservadas/loopback/link-local/multicast o IPv6.
-    Útil para cortar de raíz CIDR no públicos sin expandir.
-    """
-    if is_ipv6(net):
-        return False
-    # 0.0.0.0/.. u otras redes especiales
-    if net.network_address.is_unspecified:
-        return False
-    if net.is_private:
-        return False
-    if net.is_loopback:
-        return False
-    if net.is_link_local:
-        return False
-    if net.is_multicast:
-        return False
-    if net.is_reserved:
-        return False
-    return True
-
-
-def expand_input_to_ips(text: str, max_expand: int = MAX_EXPAND) -> list[str]:
-    """
-    Convierte entrada (IP, CIDR, rango A-B, IP+máscara) en IPs.
-    Reglas especiales:
-      - 0.0.0.0 o redes 0.0.0.0/… => 'accion_no_permitida'
-      - Redes privadas/reservadas => ValueError("Red no pública")
+    Convierte entrada (IP, CIDR, rango A-B, IP+máscara) en lista de IPs.
+    Regla especial: 0.0.0.0 o cualquier red basada en 0.0.0.0 => 'accion_no_permitida'
     """
     if not text:
         raise ValueError("Entrada vacía")
 
     raw = re.sub(r"\s+", " ", text.strip())
 
-    # Caso crítico explícito
+    # --- Bloqueo global: 0.0.0.0 y variantes ---
     if raw == "0.0.0.0":
         raise ValueError("accion_no_permitida")
+    if "/" in raw and raw.strip().startswith("0.0.0.0"):
+        raise ValueError("accion_no_permitida")
+    if " " in raw and raw.split(" ", 1)[0].strip() == "0.0.0.0":
+        raise ValueError("accion_no_permitida")
+    # --------------------------------------------
 
     # Rango A-B
     if "-" in raw and "/" not in raw:
-        left, right = [p.strip() for p in raw.split("-", 1)]
+        parts = raw.split("-", 1)
+        left = parts[0].strip()
+        right = parts[1].strip()
         try:
             a = ipaddress.ip_address(left)
             b = ipaddress.ip_address(right)
         except ValueError:
             raise ValueError("Rango inválido (IPs no válidas)")
 
-        if is_ipv6(a) or is_ipv6(b):
+        if isinstance(a, ipaddress.IPv6Address) or isinstance(b, ipaddress.IPv6Address):
             raise ValueError("IPv6 no soportado")
         if int(a) > int(b):
             raise ValueError("Rango inválido (inicio > fin)")
 
         total = int(b) - int(a) + 1
         if total > max_expand:
-            raise ValueError(f"Rango expande a {total} IPs (> {max_expand})")
+            raise ValueError("Rango expande a {0} IPs (> {1})".format(total, max_expand))
 
         ips = [str(ipaddress.IPv4Address(int(a) + i)) for i in range(total)]
-        # Bloque especial 0.0.0.0 si apareciese en el rango
         if "0.0.0.0" in ips:
             raise ValueError("accion_no_permitida")
         return ips
 
-    # CIDR
+    # CIDR normal
     if "/" in raw:
-        if raw.startswith("0.0.0.0"):
-            raise ValueError("accion_no_permitida")
         try:
             net = ipaddress.ip_network(raw, strict=False)
         except ValueError:
             raise ValueError("CIDR inválido. Ej: 203.0.113.0/24")
 
-        if not is_allowed_network(net):
-            raise ValueError("Red no pública")
-
-        # tamaño para control
         size = net.num_addresses if net.prefixlen >= 31 else max(net.num_addresses - 2, 0)
         if size > max_expand:
-            raise ValueError(f"La red expande a {size} IPs (> {max_expand}). Use un prefijo más específico.")
+            raise ValueError("La red expande a {0} IPs (> {1}). Use un prefijo más específico.".format(size, max_expand))
 
         return [str(h) for h in net.hosts()]
 
@@ -148,14 +105,12 @@ def expand_input_to_ips(text: str, max_expand: int = MAX_EXPAND) -> list[str]:
     if " " in raw and "." in raw:
         base, mask = raw.split(" ", 1)
         base = base.strip()
-        if base == "0.0.0.0":
-            raise ValueError("accion_no_permitida")
         try:
             ipaddress.ip_address(base)
             prefix = dotted_netmask_to_prefix(mask.strip())
         except ValueError:
             raise ValueError("Máscara o IP inválida. Ej: 203.0.113.0 255.255.255.0")
-        return expand_input_to_ips(f"{base}/{prefix}", max_expand=max_expand)
+        return expand_input_to_ips("{0}/{1}".format(base, prefix), max_expand=max_expand)
 
     # IP simple
     try:
@@ -163,9 +118,7 @@ def expand_input_to_ips(text: str, max_expand: int = MAX_EXPAND) -> list[str]:
     except ValueError:
         raise ValueError("IP inválida")
 
-    if obj.is_unspecified:  # 0.0.0.0
-        raise ValueError("accion_no_permitida")
-    if is_ipv6(obj):
+    if isinstance(obj, ipaddress.IPv6Address):
         raise ValueError("IPv6 no soportado")
 
     return [raw]
@@ -201,7 +154,7 @@ def get_notifs(limit=200):
 
 
 # =========================
-#  Almacenamiento y contadores
+#  Helpers almacenamiento y contadores
 # =========================
 def eliminar_ips_vencidas():
     now = datetime.now()
@@ -221,7 +174,7 @@ def eliminar_ips_vencidas():
                         nuevas_lineas.append(linea.strip())
                     else:
                         with open(LOG_FILE, 'a', encoding='utf-8') as logf:
-                            logf.write(f"{now} - Eliminada IP vencida: {ip}\n")
+                            logf.write("{0} - Eliminada IP vencida: {1}\n".format(now, ip))
                         eliminado = True
                 except Exception:
                     nuevas_lineas.append(linea.strip())
@@ -269,18 +222,13 @@ def save_lines(lines):
 
 def log(accion, ip):
     with open(LOG_FILE, "a", encoding="utf-8") as f:
-        f.write(f"{datetime.now()} - {accion}: {ip}\n")
+        f.write("{0} - {1}: {2}\n".format(datetime.now(), accion, ip))
 
 
 # =========================
-#  Core: alta validada (manual/CSV)
+#  Core
 # =========================
-def add_ips_validated(lines: list[str], existentes: set[str], iterable_ips: list[str], ttl_val: str,
-                      contador_ruta: str | None = None) -> tuple[int, int]:
-    """
-    Inserta IPs tras validar públicas y no duplicadas.
-    Devuelve (añadidas, rechazadas).
-    """
+def add_ips_validated(lines, existentes, iterable_ips, ttl_val, contador_ruta=None):
     añadidas = 0
     rechazadas = 0
     for ip_str in iterable_ips:
@@ -291,10 +239,10 @@ def add_ips_validated(lines: list[str], existentes: set[str], iterable_ips: list
             rechazadas += 1
             continue
         fecha = datetime.now().strftime("%Y-%m-%d")
-        lines.append(f"{ip_str}|{fecha}|{ttl_val}")
+        lines.append("{0}|{1}|{2}".format(ip_str, fecha, ttl_val))
         existentes.add(ip_str)
         log("Añadida", ip_str)
-        guardar_notif("success", f"IP añadida: {ip_str}")
+        guardar_notif("success", "IP añadida: {0}".format(ip_str))
         if contador_ruta:
             incrementar_contador(contador_ruta)
         añadidas += 1
@@ -307,7 +255,7 @@ def add_ips_validated(lines: list[str], existentes: set[str], iterable_ips: list
 @app.route("/login", methods=["GET", "POST"])
 def login():
     if request.method == "POST":
-        if request.form["username"] == "admin" and request.form["password"] == "admin":
+        if request.form.get("username") == "admin" and request.form.get("password") == "admin":
             session["username"] = "admin"
             return redirect(url_for("index"))
         flash("Credenciales incorrectas", "danger")
@@ -329,7 +277,7 @@ def index():
 
     error = None
     lines = load_lines()
-    existentes = {l.split("|", 1)[0] for l in lines}
+    existentes = set([l.split("|", 1)[0] for l in lines])
 
     if request.method == "POST":
         # Eliminar todas
@@ -347,32 +295,12 @@ def index():
             if len(updated_lines) < len(lines):
                 save_lines(updated_lines)
                 log("Eliminada", ip_to_delete)
-                guardar_notif("warning", f"IP eliminada: {ip_to_delete}")
-                flash(f"IP {ip_to_delete} eliminada correctamente", "success")
+                guardar_notif("warning", "IP eliminada: {0}".format(ip_to_delete))
+                flash("IP {0} eliminada correctamente".format(ip_to_delete), "success")
             else:
                 flash("IP no encontrada", "danger")
-                guardar_notif("danger", f"No se encontró IP: {ip_to_delete}")
+                guardar_notif("danger", "No se encontró IP: {0}".format(ip_to_delete))
             return redirect(url_for("index"))
-
-        # Eliminar por patrón
-        if "delete-net" in request.form:
-            patron = request.form.get("delete_net_input", "").strip()
-            from_pattern_lines = load_lines()
-            try:
-                kept, removed = filter_lines_delete_pattern(from_pattern_lines, patron)
-                if removed == 0:
-                    flash("No se encontraron IPs que coincidan con el patrón.", "warning")
-                    guardar_notif("warning", f"Sin coincidencias al borrar: {patron}")
-                else:
-                    save_lines(kept)
-                    log("Eliminadas por patrón", f"{patron} ({removed} entradas)")
-                    guardar_notif("warning", f"Eliminadas {removed} IP(s) por patrón: {patron}")
-                    flash(f"Se eliminaron {removed} IP(s) que coinciden con '{patron}'.", "success")
-                return redirect(url_for("index"))
-            except ValueError as e:
-                flash(str(e), "danger")
-                guardar_notif("danger", f"Error patrón: {str(e)}")
-                return redirect(url_for("index"))
 
         # Subida CSV/TXT
         file = request.files.get("file")
@@ -406,11 +334,11 @@ def index():
 
             save_lines(lines)
             if valid_ips_total:
-                flash(f"{valid_ips_total} IPs añadidas correctamente (CSV).", "success")
-                guardar_notif("success", f"{valid_ips_total} IPs añadidas (CSV)")
+                flash("{0} IPs añadidas correctamente (CSV).".format(valid_ips_total), "success")
+                guardar_notif("success", "{0} IPs añadidas (CSV)".format(valid_ips_total))
             if rejected_total:
-                flash(f"{rejected_total} entradas rechazadas (inválidas/privadas/duplicadas/no permitidas)", "danger")
-                guardar_notif("danger", f"{rejected_total} entradas rechazadas (CSV)")
+                flash("{0} entradas rechazadas (inválidas/privadas/duplicadas/no permitidas)".format(rejected_total), "danger")
+                guardar_notif("danger", "{0} entradas rechazadas (CSV)".format(rejected_total))
             return redirect(url_for("index"))
 
         # Alta manual
@@ -428,33 +356,35 @@ def index():
                 )
                 if add_ok > 0:
                     save_lines(lines)
-                    flash(f"{add_ok} IP(s) añadida(s) correctamente", "success")
+                    flash("{0} IP(s) añadida(s) correctamente".format(add_ok), "success")
                 else:
                     error = "Nada que añadir (todas inválidas/privadas/duplicadas/no permitidas)"
                 if add_bad > 0:
-                    flash(f"{add_bad} entradas rechazadas (inválidas/privadas/duplicadas/no permitidas)", "danger")
+                    flash("{0} entradas rechazadas (inválidas/privadas/duplicadas/no permitidas)".format(add_bad), "danger")
             except ValueError as e:
                 if str(e) == "accion_no_permitida":
                     flash("⚠️ Acción no permitida: bloqueo de absolutamente todo", "accion_no_permitida")
                     guardar_notif("accion_no_permitida", "Intento de bloqueo global (manual)")
                 else:
                     error = str(e)
-                    guardar_notif("danger", f"Error alta manual: {error}")
+                    guardar_notif("danger", "Error alta manual: {0}".format(error))
             except Exception as e:
-                error = f"Error inesperado: {str(e)}"
+                error = "Error inesperado: {0}".format(str(e))
                 guardar_notif("danger", error)
 
-    return render_template("index.html",
-                           ips=lines,
-                           error=error,
-                           total_ips=len(lines),
-                           contador_manual=leer_contador(COUNTER_MANUAL),
-                           contador_csv=leer_contador(COUNTER_CSV),
-                           messages=[(n["category"], f"{n['time']} {n['message']}") for n in get_notifs()])
+    return render_template(
+        "index.html",
+        ips=lines,
+        error=error,
+        total_ips=len(lines),
+        contador_manual=leer_contador(COUNTER_MANUAL),
+        contador_csv=leer_contador(COUNTER_CSV),
+        messages=[(n["category"], "{0} {1}".format(n["time"], n["message"])) for n in get_notifs()]
+    )
 
 
 # =========================
-#  Feed text/plain (con doble validación)
+#  Feed
 # =========================
 @app.route("/feed/ioc-feed.txt")
 def feed():
@@ -466,7 +396,6 @@ def feed():
                 if not line:
                     continue
                 ip = line.split("|", 1)[0].strip()
-                # Doble-check por seguridad
                 if ip and is_allowed_ip(ip):
                     ips.append(ip)
 
@@ -479,7 +408,7 @@ def feed():
 
     client_ip = request.headers.get("X-Forwarded-For", request.remote_addr or "-").split(",")[0].strip()
     with open(LOG_FILE, "a", encoding="utf-8") as f:
-        f.write(f"{datetime.now()} - FEED requested by {client_ip} - served {len(ips)} entries\n")
+        f.write("{0} - FEED requested by {1} - served {2} entries\n".format(datetime.now(), client_ip, len(ips)))
     return resp
 
 
