@@ -13,26 +13,83 @@
   <link rel="stylesheet" href="{{ url_for('static', filename='css/index.css') }}">
 
   <style>
+    /* ---------- UI refinements ---------- */
+
     /* Hints legibles también en modo oscuro */
-    .hint-box{font-size:.9rem;border:1px dashed #ced4da;border-radius:.5rem;padding:.75rem;background:#f8f9fa;color:#212529}
-    .bg-dark .hint-box{border-color:#495057;background:#1f1f1f;color:#e9ecef}
+    .hint-box {
+      font-size: .9rem;
+      border: 1px dashed #ced4da;
+      border-radius: .5rem;
+      padding: .75rem;
+      background: #f8f9fa;
+      color: #212529;
+    }
+    .bg-dark .hint-box {
+      border-color: #495057;
+      background: #1f1f1f;
+      color: #e9ecef;
+    }
 
-    /* Placeholders y controles en oscuro */
-    .bg-dark ::placeholder{color:#adb5bd!important;opacity:1}
-    .bg-dark .form-control,.bg-dark .form-select{background:#1f1f1f;color:#e9ecef;border-color:#495057}
-    .bg-dark .table{color:#e9ecef}
+    /* Placeholders visibles en oscuro */
+    .bg-dark ::placeholder { color: #adb5bd !important; opacity: 1; }
+    .bg-dark .form-control, .bg-dark .form-select {
+      background-color: #1f1f1f; color: #e9ecef; border-color: #495057;
+    }
+    .bg-dark .table { color: #e9ecef; }
 
-    /* Toasts abajo centrados */
-    #toast-portal{position:fixed;bottom:16px;left:50%;transform:translateX(-50%);z-index:1060;display:flex;flex-direction:column;gap:8px;max-width:min(90vw,560px);width:max-content;pointer-events:none}
-    .toast{pointer-events:auto;border:none!important;box-shadow:0 6px 18px rgba(0,0,0,.25)}
+    /* Toasts: sin bordes raros, abajo centrados */
+    #toast-portal {
+      position: fixed;
+      bottom: 16px;
+      left: 50%;
+      transform: translateX(-50%);
+      z-index: 1060;
+      display: flex;
+      flex-direction: column;
+      gap: 8px;
+      max-width: min(90vw, 560px);
+      width: max-content;
+      pointer-events: none;
+    }
+    .toast {
+      pointer-events: auto;
+      border: none !important;
+      box-shadow: 0 6px 18px rgba(0,0,0,.25);
+    }
 
-    /* Logo abajo izquierda */
-    #corner-logo{position:fixed;bottom:16px;left:16px;width:96px;height:auto;opacity:.85;z-index:1040}
-    @media(max-width:576px){#corner-logo{width:68px}}
+    /* Botón Notificaciones flotante (abajo derecha) con burbuja */
+    #notif-fab {
+      position: fixed;
+      right: 16px;
+      bottom: 16px;
+      z-index: 1065;
+      border-radius: 9999px;
+      width: 56px;
+      height: 56px;
+      display: flex;
+      align-items: center;
+      justify-content: center;
+      box-shadow: 0 8px 22px rgba(0,0,0,.25);
+    }
+    #notif-badge {
+      position: absolute;
+      top: -6px;
+      right: -4px;
+    }
 
-    /* Botón Notificaciones arriba derecha con burbuja */
-    #notif-btn{position:relative}
-    #notif-badge{position:absolute;top:-6px;right:-8px}
+    /* Logo esquina (responsivo) */
+    #corner-logo {
+      position: fixed;
+      bottom: 16px;
+      left: 16px;
+      width: 96px;
+      height: auto;
+      opacity: .85;
+      z-index: 1040;
+    }
+    @media (max-width: 576px) {
+      #corner-logo { width: 68px; }
+    }
   </style>
 </head>
 <body class="bg-light">
@@ -40,17 +97,7 @@
 <div class="container py-3">
   <div class="d-flex justify-content-between align-items-center mb-3">
     <button class="btn btn-outline-secondary btn-sm" onclick="toggleTheme()">🌙 Modo Oscuro</button>
-
-    <div class="d-flex align-items-center gap-2">
-      <!-- Botón Notificaciones (arriba derecha) -->
-      <button id="notif-btn" class="btn btn-outline-primary btn-sm" type="button"
-              data-bs-toggle="offcanvas" data-bs-target="#offcanvasNotifs" aria-controls="offcanvasNotifs">
-        🔔 Notificaciones
-        <span id="notif-badge" class="badge text-bg-danger rounded-pill d-none">0</span>
-      </button>
-
-      <a href="/logout" class="btn btn-outline-danger btn-sm">Logout</a>
-    </div>
+    <a href="/logout" class="btn btn-outline-danger btn-sm">Logout</a>
   </div>
 
   <h2 class="mb-4 text-center">Gestor de IPs Maliciosas</h2>
@@ -60,13 +107,9 @@
     ℹ️ Añadidas: Manual (<strong>{{ contador_manual }}</strong>) · CSV (<strong>{{ contador_csv }}</strong>)
   </div>
 
-  <!-- ⚠️ Solo errores “serios” en página (fallback si no hay 'messages') -->
-  {% for category, message in (messages|default([])) %}
-    {% if category in ['danger', 'accion_no_permitida'] %}
-      <div class="alert alert-{{ 'danger' if category=='accion_no_permitida' else category }} mt-2">
-        {{ message }}
-      </div>
-    {% endif %}
+  <!-- Mensajes flash server-side (errores de validación visibles en página) -->
+  {% for category, message in (messages or []) %}
+    <div class="alert alert-{{ category }} mt-2">{{ message }}</div>
   {% endfor %}
 
   <form method="POST" enctype="multipart/form-data" class="mt-3">
@@ -262,6 +305,12 @@
 <!-- Logo DPB fijo -->
 <img id="corner-logo" src="{{ url_for('static', filename='img/logo-dpb.svg') }}" alt="Logo DPB">
 
+<!-- Botón flotante de Notificaciones (abajo dcha) -->
+<button id="notif-fab" class="btn btn-primary" type="button" data-bs-toggle="offcanvas" data-bs-target="#offcanvasNotifs" aria-controls="offcanvasNotifs">
+  🔔
+  <span id="notif-badge" class="badge text-bg-danger rounded-pill d-none">0</span>
+</button>
+
 <!-- Offcanvas de Notificaciones -->
 <div class="offcanvas offcanvas-end" tabindex="-1" id="offcanvasNotifs" aria-labelledby="offcanvasNotifsLabel">
   <div class="offcanvas-header">
@@ -299,114 +348,252 @@
 
 <script>
   /* ----------------- Tema oscuro ----------------- */
-  function toggleTheme(){
-    const b=document.body,isDark=b.classList.toggle('bg-dark');
-    b.classList.toggle('text-white',isDark);
-    document.querySelectorAll('.card,.form-control,.form-select,.table').forEach(e=>{
-      e.classList.toggle('bg-dark',isDark);e.classList.toggle('text-white',isDark);
+  function toggleTheme() {
+    const body = document.body;
+    const isDark = body.classList.toggle('bg-dark');
+    body.classList.toggle('text-white', isDark);
+    document.querySelectorAll('.card, .form-control, .form-select, .table').forEach(e => {
+      e.classList.toggle('bg-dark', isDark);
+      e.classList.toggle('text-white', isDark);
     });
-    localStorage.setItem('theme',isDark?'dark':'light');
+    localStorage.setItem('theme', isDark ? 'dark' : 'light');
   }
-  window.onload=()=>{ if(localStorage.getItem('theme')==='dark') toggleTheme(); };
+  window.onload = () => {
+    if (localStorage.getItem('theme') === 'dark') toggleTheme();
+  };
 
   /* ----------------- Buscador tabla ----------------- */
-  document.addEventListener('DOMContentLoaded',function(){
-    const input=document.getElementById('buscadorIp'),table=document.getElementById('tablaIps');
-    if(input&&table){
-      input.addEventListener('keyup',function(){
-        const filtro=input.value.toLowerCase(), filas=table.getElementsByTagName('tr');
-        for(let i=1;i<filas.length;i++){
-          const c=filas[i].getElementsByTagName('td');
-          if(c.length>0){ const ip=c[0].textContent.toLowerCase(); filas[i].style.display=ip.includes(filtro)?'':'none'; }
+  document.addEventListener('DOMContentLoaded', function () {
+    const input = document.getElementById('buscadorIp');
+    const table = document.getElementById('tablaIps');
+    if (input && table) {
+      input.addEventListener('keyup', function () {
+        const filtro = input.value.toLowerCase();
+        const filas = table.getElementsByTagName('tr');
+        for (let i = 1; i < filas.length; i++) {
+          const celdas = filas[i].getElementsByTagName('td');
+          if (celdas.length > 0) {
+            const ip = celdas[0].textContent.toLowerCase();
+            filas[i].style.display = ip.includes(filtro) ? '' : 'none';
+          }
         }
       });
     }
   });
 
-  /* ----------------- Datos de notificaciones (inyectados por servidor) ----------------- */
+  /* ----------------- Datos de notificaciones (inyectados) ----------------- */
   const serverMessages = [
-    {% for category, message in (messages|default([])) %}
-      {"category":"{{ category }}","message":{{ message|tojson }} }{% if not loop.last %},{% endif %}
+    {% for category, message in (messages or []) %}
+      {"category": "{{category}}", "message": {{ message|tojson }} }{% if not loop.last %},{% endif %}
     {% endfor %}
   ];
 
-  /* ----------------- TOAST: solo la última acción (5s ok / 10s error) ----------------- */
-  (function(){
-    const keys=["añadida","añadidas","eliminada","eliminadas","rechazada","rechazadas","Acción no permitida","IP duplicada","IP rechazada","Nada que añadir"];
-    let last=null;
-    for(let i=serverMessages.length-1;i>=0;i--){
-      const m=serverMessages[i], txt=m?.message||"";
-      if(keys.some(k=>txt.includes(k))){ last=m; break; }
-    }
-    if(!last && serverMessages.length) last = serverMessages.at(-1);
-    if(!last) return;
+  /* ----------------- Toasts: solo la acción, 5s ok / 10s error ----------------- */
+  (function showRecentToasts() {
+    const actionKeywords = ["añadida","añadidas","eliminada","eliminadas","rechazada","rechazadas","Acción no permitida","IP duplicada","IP rechazada","Nada que añadir"];
+    const recent = serverMessages.filter(m => actionKeywords.some(k => (m.message || "").includes(k)));
+    const portal = document.getElementById('toast-portal');
 
-    const portal=document.getElementById('toast-portal');
-    const el=document.createElement('div');
-    el.className='toast align-items-center text-bg-'+color(last.category)+' border-0';
-    el.innerHTML='<div class="d-flex"><div class="toast-body">'+esc(last.message||'')+'</div><button type="button" class="btn-close btn-close-white me-2 m-auto" data-bs-dismiss="toast" aria-label="Close"></button></div>';
-    portal.appendChild(el);
-    const delay = (last.category==='danger'||last.category==='accion_no_permitida') ? 10000 : 5000;
-    new bootstrap.Toast(el,{autohide:true,delay}).show();
+    recent.forEach(m => {
+      const toastEl = document.createElement('div');
+      toastEl.className = 'toast align-items-center text-bg-' + mapToastColor(m.category) + ' border-0';
+      toastEl.setAttribute('role', 'status');
+      toastEl.setAttribute('aria-live', 'assertive');
+      toastEl.setAttribute('aria-atomic', 'true');
+
+      const msgOnly = m.message;
+      toastEl.innerHTML = `
+        <div class="d-flex">
+          <div class="toast-body">${escapeHtml(msgOnly)}</div>
+          <button type="button" class="btn-close btn-close-white me-2 m-auto" data-bs-dismiss="toast" aria-label="Close"></button>
+        </div>`;
+
+      portal.appendChild(toastEl);
+      const delay = isErrorCategory(m.category) ? 10000 : 5000;
+      const bsToast = new bootstrap.Toast(toastEl, { autohide: true, delay });
+      bsToast.show();
+    });
   })();
 
-  function color(cat){ if(cat==='success')return'success'; if(cat==='warning')return'warning'; if(cat==='accion_no_permitida'||cat==='danger')return'danger'; return'secondary'; }
-  function esc(s){return (s||'').replace(/[&<>"']/g,m=>({'&':'&amp;','<':'&lt;','>':'&gt;','"':'&quot;',"'":'&#39;'}[m]))}
-
-  /* ----------------- Offcanvas: filtros + paginación (10 por página) ----------------- */
-  const PAGE_SIZE=10;
-  let notifData = serverMessages.map((m,i)=>{ let dt=null,txt=m.message||''; const mm=txt.match(/^(\d{4}-\d{2}-\d{2})(?:\s+(\d{2}:\d{2}:\d{2}))?/); if(mm){ dt=new Date(mm[1]+(mm[2]?'T'+mm[2]:'T00:00:00')); } return {id:i+1,category:m.category,message:txt,date:dt}; });
-  let unreadCount=0; updateBadge();
-  function updateBadge(){const b=document.getElementById('notif-badge'); if(!b)return; b.textContent=unreadCount; b.classList.toggle('d-none', unreadCount<=0);}
-
-  const listEl=document.getElementById('notifList'), pagEl=document.getElementById('notifPagination'), infoEl=document.getElementById('notifCountInfo');
-  let filterType='', filterDate='', currentPage=1;
-  document.getElementById('applyFilters').onclick=()=>{filterType=document.getElementById('filterType').value; filterDate=document.getElementById('filterDate').value; currentPage=1; renderList();};
-  document.getElementById('clearFilters').onclick=()=>{document.getElementById('filterType').value=''; document.getElementById('filterDate').value=''; filterType=filterDate=''; currentPage=1; renderList();};
-
-  function filtered(){return notifData.filter(n=>{ if(filterType&&n.category!==filterType)return false; if(filterDate){const d=n.date; if(!d)return false; if(d.toISOString().slice(0,10)!==filterDate)return false;} return true; });}
-  function renderList(){
-    const data=filtered(), totalPages=Math.max(1,Math.ceil(data.length/PAGE_SIZE)); if(currentPage>totalPages) currentPage=totalPages;
-    const start=(currentPage-1)*PAGE_SIZE, page=data.slice(start,start+PAGE_SIZE);
-    infoEl.textContent=`Mostrando ${page.length} de ${data.length} notificaciones`;
-    listEl.innerHTML='';
-    page.forEach(n=>{
-      const cls=color(n.category), pill=n.category==='success'?'✅':n.category==='warning'?'⚠️':(n.category==='danger'||n.category==='accion_no_permitida')?'❌':'ℹ️';
-      const dtTxt=n.date? n.date.toLocaleString() : '';
-      const div=document.createElement('div'); div.className='border rounded p-2 bg-white';
-      div.innerHTML=`<div class="d-flex align-items-center justify-content-between"><span class="badge text-bg-${cls}">${pill}</span><span class="small text-muted ms-2">${esc(dtTxt)}</span></div><div class="mt-1">${esc(n.message)}</div>`;
-      listEl.appendChild(div);
-    });
-    pagEl.innerHTML='';
-    const mk=(p,l,d,a)=>{const li=document.createElement('li'); li.className=`page-item ${d?'disabled':''} ${a?'active':''}`; const aEl=document.createElement('a'); aEl.className='page-link'; aEl.href='#'; aEl.textContent=l; aEl.onclick=(e)=>{e.preventDefault(); if(!d&&currentPage!==p){currentPage=p; renderList();}}; li.appendChild(aEl); return li;};
-    const pages=Math.max(1,Math.ceil(data.length/PAGE_SIZE));
-    pagEl.appendChild(mk(Math.max(1,currentPage-1),'«',currentPage===1,false));
-    for(let p=1;p<=pages;p++) pagEl.appendChild(mk(p,String(p),false,p===currentPage));
-    pagEl.appendChild(mk(Math.min(pages,currentPage+1),'»',currentPage>=pages,false));
+  function isErrorCategory(cat) {
+    return (cat === 'danger' || cat === 'accion_no_permitida');
   }
+  function mapToastColor(cat) {
+    if (cat === 'success') return 'success';
+    if (cat === 'warning') return 'warning';
+    if (cat === 'accion_no_permitida') return 'danger';
+    if (cat === 'danger') return 'danger';
+    return 'secondary';
+  }
+  function escapeHtml(str) {
+    return (str || '').replace(/[&<>"']/g, s => ({'&':'&amp;','<':'&lt;','>':'&gt;','"':'&quot;',"'":'&#39;'}[s]));
+  }
+
+  /* ----------------- Offcanvas: filtros + paginación ----------------- */
+  const PAGE_SIZE = 10;
+  let notifData = serverMessages.map((m, i) => {
+    let dt = null, txt = m.message || '';
+    const mdt = txt.match(/^(\d{4}-\d{2}-\d{2})(?:\s+(\d{2}:\d{2}:\d{2}))?/);
+    if (mdt) { dt = new Date((mdt[1] + (mdt[2] ? 'T' + mdt[2] : 'T00:00:00'))); }
+    return { id: i+1, category: m.category, message: txt, date: dt };
+  });
+
+  let unreadCount = 0;
+  updateBadge();
+
+  function updateBadge() {
+    const b = document.getElementById('notif-badge');
+    if (!b) return;
+    const count = unreadCount || 0;
+    b.textContent = count;
+    b.classList.toggle('d-none', count <= 0);
+  }
+
+  const listEl = document.getElementById('notifList');
+  const pagEl = document.getElementById('notifPagination');
+  const infoEl = document.getElementById('notifCountInfo');
+
+  let filterType = '';
+  let filterDate = '';
+  let currentPage = 1;
+
+  function applyFilters() {
+    filterType = document.getElementById('filterType').value;
+    filterDate = document.getElementById('filterDate').value;
+    currentPage = 1;
+    renderList();
+  }
+  function clearFilters() {
+    document.getElementById('filterType').value = '';
+    document.getElementById('filterDate').value = '';
+    filterType = filterDate = '';
+    currentPage = 1;
+    renderList();
+  }
+
+  document.getElementById('applyFilters').addEventListener('click', applyFilters);
+  document.getElementById('clearFilters').addEventListener('click', clearFilters);
+
+  function filtered() {
+    return notifData.filter(n => {
+      if (filterType && n.category !== filterType) return false;
+      if (filterDate) {
+        const d = n.date;
+        if (!d) return false;
+        const ymd = d.toISOString().slice(0,10);
+        if (ymd !== filterDate) return false;
+      }
+      return true;
+    });
+  }
+
+  function renderList() {
+    const data = filtered();
+    infoEl.textContent = `Mostrando ${Math.min(PAGE_SIZE, data.length)} de ${data.length} notificaciones`;
+    const totalPages = Math.max(1, Math.ceil(data.length / PAGE_SIZE));
+    if (currentPage > totalPages) currentPage = totalPages;
+
+    const start = (currentPage - 1) * PAGE_SIZE;
+    const pageItems = data.slice(start, start + PAGE_SIZE);
+
+    listEl.innerHTML = '';
+    pageItems.forEach(n => {
+      const cls = mapToastColor(n.category);
+      const pill = n.category === 'success' ? '✅' :
+                   n.category === 'warning' ? '⚠️' :
+                   (n.category === 'danger' || n.category === 'accion_no_permitida') ? '❌' : 'ℹ️';
+      const dtTxt = n.date ? n.date.toLocaleString() : '';
+      const item = document.createElement('div');
+      item.className = `border rounded p-2 bg-${cls === 'secondary' ? 'light' : 'white'}`;
+      item.innerHTML = `
+        <div class="d-flex align-items-center justify-content-between">
+          <span class="badge text-bg-${cls}">${pill}</span>
+          <span class="small text-muted ms-2">${escapeHtml(dtTxt)}</span>
+        </div>
+        <div class="mt-1">${escapeHtml(n.message)}</div>
+      `;
+      listEl.appendChild(item);
+    });
+
+    pagEl.innerHTML = '';
+    const mkPage = (p, label = p, disabled = false, active = false) => {
+      const li = document.createElement('li');
+      li.className = `page-item ${disabled ? 'disabled' : ''} ${active ? 'active' : ''}`;
+      const a = document.createElement('a');
+      a.className = 'page-link';
+      a.href = '#';
+      a.textContent = label;
+      a.addEventListener('click', (e) => {
+        e.preventDefault();
+        if (!disabled && currentPage !== p) {
+          currentPage = p;
+          renderList();
+        }
+      });
+      li.appendChild(a);
+      return li;
+    };
+    pagEl.appendChild(mkPage(Math.max(1, currentPage-1), '«', currentPage === 1, false));
+    for (let p = 1; p <= Math.max(1, Math.ceil(data.length / PAGE_SIZE)); p++) {
+      pagEl.appendChild(mkPage(p, String(p), false, p === currentPage));
+    }
+    pagEl.appendChild(mkPage(Math.min(Math.ceil(data.length / PAGE_SIZE)||1, currentPage+1), '»', currentPage >= (Math.ceil(data.length / PAGE_SIZE)||1), false));
+  }
+
   renderList();
 
-  const off=document.getElementById('offcanvasNotifs');
-  if(off){ off.addEventListener('shown.bs.offcanvas',()=>{ unreadCount=0; updateBadge(); }); }
+  const offcanvasEl = document.getElementById('offcanvasNotifs');
+  if (offcanvasEl) {
+    offcanvasEl.addEventListener('shown.bs.offcanvas', () => {
+      unreadCount = 0;
+      updateBadge();
+    });
+  }
 
   /* ----------------- Preview para eliminar por patrón ----------------- */
-  (function(){
-    const input=document.getElementById('delete_net_input'), preview=document.getElementById('previewResult'); if(!input||!preview)return;
-    let ctrl=null;
-    input.addEventListener('input',()=>{
-      const val=input.value.trim();
-      if(!val){ preview.textContent="Escribe un patrón para ver cuántas IPs coinciden."; preview.className='mt-2 small text-muted'; return; }
-      if(ctrl) ctrl.abort(); ctrl=new AbortController();
-      fetch(`/preview-delete?pattern=${encodeURIComponent(val)}`,{signal:ctrl.signal})
-        .then(r=>r.json()).then(d=>{
-          if(d.error){ preview.textContent=`❌ ${d.error}`; preview.className='mt-2 small text-danger';}
-          else{ preview.textContent=`Coinciden ${d.count} IP(s).`; preview.className='mt-2 small text-success';}
-        }).catch(e=>{ if(e.name==='AbortError')return; preview.textContent="❌ Error al consultar coincidencias."; preview.className='mt-2 small text-danger';});
+  (function initDeletePreview() {
+    const input = document.getElementById('delete_net_input');
+    const preview = document.getElementById('previewResult');
+    if (!input || !preview) return;
+
+    let lastController = null;
+
+    input.addEventListener('input', () => {
+      const val = input.value.trim();
+      if (!val) {
+        preview.textContent = "Escribe un patrón para ver cuántas IPs coinciden.";
+        preview.classList.remove('text-danger','text-success');
+        preview.classList.add('text-muted');
+        return;
+      }
+
+      if (lastController) lastController.abort();
+      lastController = new AbortController();
+
+      fetch(`/preview-delete?pattern=${encodeURIComponent(val)}`, { signal: lastController.signal })
+        .then(r => r.json())
+        .then(data => {
+          if (data.error) {
+            preview.textContent = `❌ ${data.error}`;
+            preview.classList.remove('text-success','text-muted');
+            preview.classList.add('text-danger');
+          } else {
+            preview.textContent = `Coinciden ${data.count} IP(s).`;
+            preview.classList.remove('text-danger','text-muted');
+            preview.classList.add('text-success');
+          }
+        })
+        .catch(err => {
+          if (err.name === 'AbortError') return;
+          preview.textContent = "❌ Error al consultar coincidencias.";
+          preview.classList.remove('text-success','text-muted');
+          preview.classList.add('text-danger');
+        });
     });
   })();
 
-  function confirmDeletePattern(){
-    const val=document.getElementById('delete_net_input').value.trim();
+  function confirmDeletePattern() {
+    const val = document.getElementById('delete_net_input').value.trim();
     return confirm(`Vas a eliminar todas las IPs que coincidan con:\n\n${val}\n\n¿Confirmas?`);
   }
 </script>
