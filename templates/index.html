@@ -26,8 +26,8 @@
     #toast-portal{position:fixed;bottom:16px;left:50%;transform:translateX(-50%);z-index:1060;display:flex;flex-direction:column;gap:8px;max-width:min(90vw,560px);width:max-content;pointer-events:none}
     .toast{pointer-events:auto;border:none!important;box-shadow:0 6px 18px rgba(0,0,0,.25)}
 
-    /* Logo abajo derecha */
-    #corner-logo{position:fixed;bottom:16px;right:16px;width:96px;height:auto;opacity:.85;z-index:1040}
+    /* Logo abajo izquierda */
+    #corner-logo{position:fixed;bottom:16px;left:16px;width:96px;height:auto;opacity:.85;z-index:1040}
     @media(max-width:576px){#corner-logo{width:68px}}
 
     /* Botón Notificaciones arriba derecha con burbuja */
@@ -60,10 +60,12 @@
     ℹ️ Añadidas: Manual (<strong>{{ contador_manual }}</strong>) · CSV (<strong>{{ contador_csv }}</strong>)
   </div>
 
-  <!-- ⚠️ Solo mostramos en página los errores “serios”: danger y accion_no_permitida -->
-  {% for category, message in messages %}
+  <!-- ⚠️ Solo errores “serios” en página (fallback si no hay 'messages') -->
+  {% for category, message in (messages|default([])) %}
     {% if category in ['danger', 'accion_no_permitida'] %}
-      <div class="alert alert-{{ 'danger' if category=='accion_no_permitida' else category }} mt-2">{{ message }}</div>
+      <div class="alert alert-{{ 'danger' if category=='accion_no_permitida' else category }} mt-2">
+        {{ message }}
+      </div>
     {% endif %}
   {% endfor %}
 
@@ -173,6 +175,7 @@
                  placeholder="Ej: 203.0.113.0/24 · 203.0.113.10-203.0.113.50 · 203.0.113.0 255.255.255.0 · 203.0.113.5"
                  required>
 
+          <!-- Resultado de previsualización -->
           <div id="previewResult" class="mt-2 small text-muted">
             Escribe un patrón para ver cuántas IPs coinciden.
           </div>
@@ -199,6 +202,7 @@
   <hr>
   <h4>IPs bloqueadas</h4>
 
+  <!-- Buscador de IPs -->
   <div class="mb-3">
     <input type="text" id="buscadorIp" class="form-control" placeholder="Buscar IP...">
   </div>
@@ -222,6 +226,7 @@
           <td>
             <button class="btn btn-sm btn-outline-danger" data-bs-toggle="modal" data-bs-target="#confirmDelete{{ loop.index }}">Eliminar</button>
 
+            <!-- Modal Confirmar eliminación individual -->
             <div class="modal fade" id="confirmDelete{{ loop.index }}" tabindex="-1" aria-hidden="true">
               <div class="modal-dialog modal-dialog-centered">
                 <div class="modal-content">
@@ -264,6 +269,7 @@
     <button type="button" class="btn-close" data-bs-dismiss="offcanvas" aria-label="Cerrar"></button>
   </div>
   <div class="offcanvas-body d-flex flex-column" style="gap:.75rem;">
+    <!-- Filtros -->
     <div class="d-flex flex-wrap align-items-center gap-2 mb-2">
       <select id="filterType" class="form-select form-select-sm" style="max-width:180px">
         <option value="">Todos los tipos</option>
@@ -278,8 +284,10 @@
       <span class="ms-auto small text-muted" id="notifCountInfo"></span>
     </div>
 
+    <!-- Lista -->
     <div id="notifList" class="d-flex flex-column" style="gap:.5rem;"></div>
 
+    <!-- Paginación (10 por página) -->
     <nav class="mt-2">
       <ul id="notifPagination" class="pagination pagination-sm mb-0"></ul>
     </nav>
@@ -290,7 +298,7 @@
 <div id="toast-portal" aria-live="polite" aria-atomic="true"></div>
 
 <script>
-  /* Tema oscuro */
+  /* ----------------- Tema oscuro ----------------- */
   function toggleTheme(){
     const b=document.body,isDark=b.classList.toggle('bg-dark');
     b.classList.toggle('text-white',isDark);
@@ -301,7 +309,7 @@
   }
   window.onload=()=>{ if(localStorage.getItem('theme')==='dark') toggleTheme(); };
 
-  /* Buscador tabla */
+  /* ----------------- Buscador tabla ----------------- */
   document.addEventListener('DOMContentLoaded',function(){
     const input=document.getElementById('buscadorIp'),table=document.getElementById('tablaIps');
     if(input&&table){
@@ -315,14 +323,14 @@
     }
   });
 
-  /* Notificaciones del servidor */
+  /* ----------------- Datos de notificaciones (inyectados por servidor) ----------------- */
   const serverMessages = [
-    {% for category, message in messages %}
-      {"category":"{{category}}","message":{{ message|tojson }}}{% if not loop.last %},{% endif %}
+    {% for category, message in (messages|default([])) %}
+      {"category":"{{ category }}","message":{{ message|tojson }} }{% if not loop.last %},{% endif %}
     {% endfor %}
   ];
 
-  /* TOAST: solo la última acción (5s ok / 10s error) */
+  /* ----------------- TOAST: solo la última acción (5s ok / 10s error) ----------------- */
   (function(){
     const keys=["añadida","añadidas","eliminada","eliminadas","rechazada","rechazadas","Acción no permitida","IP duplicada","IP rechazada","Nada que añadir"];
     let last=null;
@@ -345,7 +353,7 @@
   function color(cat){ if(cat==='success')return'success'; if(cat==='warning')return'warning'; if(cat==='accion_no_permitida'||cat==='danger')return'danger'; return'secondary'; }
   function esc(s){return (s||'').replace(/[&<>"']/g,m=>({'&':'&amp;','<':'&lt;','>':'&gt;','"':'&quot;',"'":'&#39;'}[m]))}
 
-  /* Offcanvas: filtros + paginación (10 por página) */
+  /* ----------------- Offcanvas: filtros + paginación (10 por página) ----------------- */
   const PAGE_SIZE=10;
   let notifData = serverMessages.map((m,i)=>{ let dt=null,txt=m.message||''; const mm=txt.match(/^(\d{4}-\d{2}-\d{2})(?:\s+(\d{2}:\d{2}:\d{2}))?/); if(mm){ dt=new Date(mm[1]+(mm[2]?'T'+mm[2]:'T00:00:00')); } return {id:i+1,category:m.category,message:txt,date:dt}; });
   let unreadCount=0; updateBadge();
@@ -381,7 +389,7 @@
   const off=document.getElementById('offcanvasNotifs');
   if(off){ off.addEventListener('shown.bs.offcanvas',()=>{ unreadCount=0; updateBadge(); }); }
 
-  /* Preview para eliminar por patrón */
+  /* ----------------- Preview para eliminar por patrón ----------------- */
   (function(){
     const input=document.getElementById('delete_net_input'), preview=document.getElementById('previewResult'); if(!input||!preview)return;
     let ctrl=null;
