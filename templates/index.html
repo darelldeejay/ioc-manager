@@ -22,7 +22,7 @@
     .bg-dark .form-control,.bg-dark .form-select{background-color:#1f1f1f;color:#e9ecef;border-color:#495057}
     .bg-dark .table{color:#e9ecef}
 
-    /* Toasts: esquina inferior derecha */
+    /* Toasts: abajo derecha */
     #toast-portal{
       position:fixed;right:16px;bottom:16px;z-index:1060;
       display:flex;flex-direction:column;gap:8px;max-width:min(90vw,560px);
@@ -30,14 +30,14 @@
     }
     .toast{pointer-events:auto;border:none!important;box-shadow:0 6px 18px rgba(0,0,0,.25)}
 
-    /* Botón Notificaciones flotante (abajo derecha) con burbuja */
+    /* Botón Notificaciones flotante (abajo dcha) con burbuja */
     #notif-fab{
       position:fixed;right:16px;bottom:16px;z-index:1065;border-radius:9999px;width:56px;height:56px;
       display:flex;align-items:center;justify-content:center;box-shadow:0 8px 22px rgba(0,0,0,.25)
     }
     #notif-badge{position:absolute;top:-6px;right:-4px}
 
-    /* Logo esquina (como lo tenías) */
+    /* Logo esquina (sin tocar) */
     #corner-logo{
       position:fixed;bottom:16px;left:16px;width:96px;height:auto;opacity:.85;z-index:1040
     }
@@ -60,7 +60,7 @@
   </div>
 
   <!-- Solo errores serios en página -->
-  {% for category, message in (messages or []) %}
+  {% for category, message in messages|default([]) %}
     {% if category in ['danger', 'accion_no_permitida'] %}
       <div class="alert alert-{{ 'danger' if category=='accion_no_permitida' else category }} mt-2">{{ message }}</div>
     {% endif %}
@@ -212,7 +212,7 @@
       </tr>
     </thead>
     <tbody>
-      {% for ip in ips %}
+      {% for ip in ips|default([]) %}
         {% set parts = ip.split('|') %}
         <tr>
           <td>{{ parts[0] }}</td>
@@ -327,31 +327,32 @@
   });
 
   /* ----------------- Datos de notificaciones (inyectados) ----------------- */
-  const serverMessages = [
-    {% for category, message in (messages or []) %}
-      {"category":"{{category}}","message":{{ message|tojson }} }{% if not loop.last %},{% endif %}
-    {% endfor %}
-  ];
+  const serverMessages = {{ messages|default([])|tojson }};
 
   /* ----------------- Toast: SOLO la última acción (5s ok / 10s error) --------------- */
   (function(){
     const keys=["añadida","añadidas","eliminada","eliminadas","rechazada","rechazadas","Acción no permitida","IP duplicada","IP rechazada","Nada que añadir"];
     let last=null;
     for(let i=serverMessages.length-1;i>=0;i--){
-      const m=serverMessages[i], txt=m?.message||"";
-      if(keys.some(k=>txt.includes(k))){ last=m; break; }
+      const m=serverMessages[i], txt=(m && m[1]) ? m[1] : (m?.message||"");
+      if(keys.some(k=> (txt||"").includes(k))){ last=m; break; }
     }
     if(!last) return;
+
+    // Normalizamos par (category, message)
+    const cat = (Array.isArray(last) ? last[0] : last.category) || 'secondary';
+    const msg = (Array.isArray(last) ? last[1] : last.message) || '';
+
     const portal=document.getElementById('toast-portal');
     const el=document.createElement('div');
-    el.className='toast align-items-center text-bg-'+color(last.category)+' border-0';
+    el.className='toast align-items-center text-bg-'+color(cat)+' border-0';
     el.setAttribute('role','status'); el.setAttribute('aria-live','assertive'); el.setAttribute('aria-atomic','true');
     el.innerHTML=`<div class="d-flex">
-        <div class="toast-body">${esc(last.message||'')}</div>
+        <div class="toast-body">${esc(msg)}</div>
         <button type="button" class="btn-close btn-close-white me-2 m-auto" data-bs-dismiss="toast" aria-label="Close"></button>
       </div>`;
     portal.appendChild(el);
-    const delay=(last.category==='danger'||last.category==='accion_no_permitida')?10000:5000;
+    const delay=(cat==='danger'||cat==='accion_no_permitida')?10000:5000;
     new bootstrap.Toast(el,{autohide:true,delay}).show();
   })();
 
@@ -360,12 +361,16 @@
 
   /* ----------------- Offcanvas: filtros + paginación (10 por página) ----------------- */
   const PAGE_SIZE=10;
-  let notifData = serverMessages.map((m,i)=>{
-    let dt=null,txt=m.message||'';
+  let notifData = (serverMessages||[]).map((m,i)=>{
+    // admitir formato [(cat,msg), ...] o [{category, message}, ...]
+    const cat = Array.isArray(m) ? m[0] : (m?.category||'secondary');
+    const txt = Array.isArray(m) ? m[1] : (m?.message||'');
+    let dt=null;
     const mm=txt.match(/^(\d{4}-\d{2}-\d{2})(?:\s+(\d{2}:\d{2}:\d{2}))?/);
     if(mm){ dt=new Date(mm[1]+(mm[2]?'T'+mm[2]:'T00:00:00')); }
-    return {id:i+1,category:m.category,message:txt,date:dt};
+    return {id:i+1,category:cat,message:txt,date:dt};
   });
+
   let unreadCount=0; updateBadge();
   function updateBadge(){const b=document.getElementById('notif-badge'); if(!b)return; const c=unreadCount||0; b.textContent=c; b.classList.toggle('d-none', c<=0);}
 
