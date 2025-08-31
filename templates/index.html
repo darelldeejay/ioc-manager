@@ -13,8 +13,6 @@
   <link rel="stylesheet" href="{{ url_for('static', filename='css/index.css') }}">
 
   <style>
-    /* ---------- UI refinements ---------- */
-
     /* Hints legibles también en modo oscuro */
     .hint-box{font-size:.9rem;border:1px dashed #ced4da;border-radius:.5rem;padding:.75rem;background:#f8f9fa;color:#212529}
     .bg-dark .hint-box{border-color:#495057;background:#1f1f1f;color:#e9ecef}
@@ -32,36 +30,26 @@
     }
     .toast{pointer-events:auto;border:none!important;box-shadow:0 6px 18px rgba(0,0,0,.25)}
 
-    /* Logo en cabecera (top-right) */
-    #header-logo{
-      height:28px; width:auto; opacity:.9;
+    /* Botón Notificaciones flotante (abajo derecha) con burbuja */
+    #notif-fab{
+      position:fixed;right:16px;bottom:16px;z-index:1065;border-radius:9999px;width:56px;height:56px;
+      display:flex;align-items:center;justify-content:center;box-shadow:0 8px 22px rgba(0,0,0,.25)
     }
-    @media (max-width:576px){ #header-logo{ height:22px; } }
+    #notif-badge{position:absolute;top:-6px;right:-4px}
 
-    /* Badge botón notificaciones */
-    #notif-badge{position:absolute;top:-6px;right:-8px}
+    /* Logo esquina (como lo tenías) */
+    #corner-logo{
+      position:fixed;bottom:16px;left:16px;width:96px;height:auto;opacity:.85;z-index:1040
+    }
+    @media (max-width:576px){#corner-logo{width:68px}}
   </style>
 </head>
 <body class="bg-light">
 
 <div class="container py-3">
   <div class="d-flex justify-content-between align-items-center mb-3">
-
     <button class="btn btn-outline-secondary btn-sm" onclick="toggleTheme()">🌙 Modo Oscuro</button>
-
-    <div class="d-flex align-items-center gap-2">
-      <!-- Logo arriba derecha -->
-      <img id="header-logo" src="{{ url_for('static', filename='img/logo-dpb.svg') }}" alt="Logo DPB">
-
-      <!-- Botón Notificaciones (arriba derecha) -->
-      <button id="notif-btn" class="btn btn-outline-primary btn-sm position-relative" type="button"
-              data-bs-toggle="offcanvas" data-bs-target="#offcanvasNotifs" aria-controls="offcanvasNotifs">
-        🔔 Notificaciones
-        <span id="notif-badge" class="badge text-bg-danger rounded-pill d-none">0</span>
-      </button>
-
-      <a href="/logout" class="btn btn-outline-danger btn-sm">Logout</a>
-    </div>
+    <a href="/logout" class="btn btn-outline-danger btn-sm">Logout</a>
   </div>
 
   <h2 class="mb-4 text-center">Gestor de IPs Maliciosas</h2>
@@ -184,7 +172,6 @@
                  placeholder="Ej: 203.0.113.0/24 · 203.0.113.10-203.0.113.50 · 203.0.113.0 255.255.255.0 · 203.0.113.5"
                  required>
 
-          <!-- Resultado de previsualización -->
           <div id="previewResult" class="mt-2 small text-muted">
             Escribe un patrón para ver cuántas IPs coinciden.
           </div>
@@ -211,7 +198,6 @@
   <hr>
   <h4>IPs bloqueadas</h4>
 
-  <!-- Buscador de IPs -->
   <div class="mb-3">
     <input type="text" id="buscadorIp" class="form-control" placeholder="Buscar IP...">
   </div>
@@ -235,7 +221,6 @@
           <td>
             <button class="btn btn-sm btn-outline-danger" data-bs-toggle="modal" data-bs-target="#confirmDelete{{ loop.index }}">Eliminar</button>
 
-            <!-- Modal Confirmar eliminación individual -->
             <div class="modal fade" id="confirmDelete{{ loop.index }}" tabindex="-1" aria-hidden="true">
               <div class="modal-dialog modal-dialog-centered">
                 <div class="modal-content">
@@ -268,14 +253,22 @@
   </div>
 </div>
 
-<!-- Offcanvas de Notificaciones (se abre con el botón de cabecera) -->
+<!-- Logo DPB fijo (sin tocar) -->
+<img id="corner-logo" src="{{ url_for('static', filename='img/logo-dpb.svg') }}" alt="Logo DPB">
+
+<!-- Botón flotante de Notificaciones (abajo dcha) -->
+<button id="notif-fab" class="btn btn-primary" type="button" data-bs-toggle="offcanvas" data-bs-target="#offcanvasNotifs" aria-controls="offcanvasNotifs">
+  🔔
+  <span id="notif-badge" class="badge text-bg-danger rounded-pill d-none">0</span>
+</button>
+
+<!-- Offcanvas de Notificaciones -->
 <div class="offcanvas offcanvas-end" tabindex="-1" id="offcanvasNotifs" aria-labelledby="offcanvasNotifsLabel">
   <div class="offcanvas-header">
     <h5 id="offcanvasNotifsLabel">Notificaciones</h5>
     <button type="button" class="btn-close" data-bs-dismiss="offcanvas" aria-label="Cerrar"></button>
   </div>
   <div class="offcanvas-body d-flex flex-column" style="gap:.75rem;">
-    <!-- Filtros -->
     <div class="d-flex flex-wrap align-items-center gap-2 mb-2">
       <select id="filterType" class="form-select form-select-sm" style="max-width:180px">
         <option value="">Todos los tipos</option>
@@ -290,10 +283,8 @@
       <span class="ms-auto small text-muted" id="notifCountInfo"></span>
     </div>
 
-    <!-- Lista -->
     <div id="notifList" class="d-flex flex-column" style="gap:.5rem;"></div>
 
-    <!-- Paginación (10 por página) -->
     <nav class="mt-2">
       <ul id="notifPagination" class="pagination pagination-sm mb-0"></ul>
     </nav>
@@ -342,23 +333,26 @@
     {% endfor %}
   ];
 
-  /* ----------------- Toasts: solo la acción, 5s ok / 10s error ----------------- */
+  /* ----------------- Toast: SOLO la última acción (5s ok / 10s error) --------------- */
   (function(){
     const keys=["añadida","añadidas","eliminada","eliminadas","rechazada","rechazadas","Acción no permitida","IP duplicada","IP rechazada","Nada que añadir"];
-    const recent = serverMessages.filter(m => keys.some(k => (m.message||"").includes(k)));
+    let last=null;
+    for(let i=serverMessages.length-1;i>=0;i--){
+      const m=serverMessages[i], txt=m?.message||"";
+      if(keys.some(k=>txt.includes(k))){ last=m; break; }
+    }
+    if(!last) return;
     const portal=document.getElementById('toast-portal');
-    recent.forEach(m=>{
-      const el=document.createElement('div');
-      el.className='toast align-items-center text-bg-'+color(m.category)+' border-0';
-      el.setAttribute('role','status'); el.setAttribute('aria-live','assertive'); el.setAttribute('aria-atomic','true');
-      el.innerHTML=`<div class="d-flex">
-          <div class="toast-body">${esc(m.message||'')}</div>
-          <button type="button" class="btn-close btn-close-white me-2 m-auto" data-bs-dismiss="toast" aria-label="Close"></button>
-        </div>`;
-      portal.appendChild(el);
-      const delay=(m.category==='danger'||m.category==='accion_no_permitida')?10000:5000;
-      new bootstrap.Toast(el,{autohide:true,delay}).show();
-    });
+    const el=document.createElement('div');
+    el.className='toast align-items-center text-bg-'+color(last.category)+' border-0';
+    el.setAttribute('role','status'); el.setAttribute('aria-live','assertive'); el.setAttribute('aria-atomic','true');
+    el.innerHTML=`<div class="d-flex">
+        <div class="toast-body">${esc(last.message||'')}</div>
+        <button type="button" class="btn-close btn-close-white me-2 m-auto" data-bs-dismiss="toast" aria-label="Close"></button>
+      </div>`;
+    portal.appendChild(el);
+    const delay=(last.category==='danger'||last.category==='accion_no_permitida')?10000:5000;
+    new bootstrap.Toast(el,{autohide:true,delay}).show();
   })();
 
   function color(cat){ if(cat==='success')return'success'; if(cat==='warning')return'warning'; if(cat==='accion_no_permitida'||cat==='danger')return'danger'; return'secondary'; }
