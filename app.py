@@ -25,7 +25,7 @@ MAX_EXPAND = 4096
 #  Utilidades de red
 # =========================
 def dotted_netmask_to_prefix(mask):
-    return ipaddress.IPv4Network(f"0.0.0.0/{mask}").prefixlen
+    return ipaddress.IPv4Network("0.0.0.0/{0}".format(mask)).prefixlen
 
 
 def ip_block_reason(ip_str):
@@ -101,7 +101,7 @@ def expand_input_to_ips(text, max_expand=MAX_EXPAND):
     if " " in raw and "." in raw:
         base, mask = raw.split(" ", 1)
         prefix = dotted_netmask_to_prefix(mask.strip())
-        return expand_input_to_ips(f"{base}/{prefix}", max_expand)
+        return expand_input_to_ips("{}/{}".format(base, prefix), max_expand)
 
     # IP suelta
     ipaddress.ip_address(raw)  # valida (IPv4/IPv6)
@@ -111,13 +111,13 @@ def expand_input_to_ips(text, max_expand=MAX_EXPAND):
 # =========================
 #  Delete pattern
 # =========================
-def parse_delete_pattern(raw: str):
+def parse_delete_pattern(raw):
     s = re.sub(r"\s+", " ", raw.strip())
 
     if " " in s and "." in s and "/" not in s:
         base, mask = s.split(" ", 1)
         pfx = dotted_netmask_to_prefix(mask.strip())
-        return ("cidr", ipaddress.ip_network(f"{base}/{pfx}", strict=False))
+        return ("cidr", ipaddress.ip_network("{}/{}".format(base, pfx), strict=False))
 
     if "/" in s:
         return ("cidr", ipaddress.ip_network(s, strict=False))
@@ -133,7 +133,7 @@ def parse_delete_pattern(raw: str):
     return ("single", ipaddress.ip_address(s))
 
 
-def filter_lines_delete_pattern(lines: list[str], pattern: str):
+def filter_lines_delete_pattern(lines, pattern):
     kind, obj = parse_delete_pattern(pattern)
     kept, removed = [], 0
     for line in lines:
@@ -206,7 +206,8 @@ def eliminar_ips_vencidas():
                     fecha = datetime.strptime(fecha_str, "%Y-%m-%d")
                     ttl = int(ttl_str)
                 except Exception:
-                    nuevas.append(linea.strip()); continue
+                    nuevas.append(linea.strip())
+                    continue
                 if ttl == 0 or (now - fecha).days < ttl:
                     nuevas.append(linea.strip())
         with open(FEED_FILE, "w", encoding="utf-8") as f:
@@ -245,7 +246,7 @@ def add_ips_validated(lines, existentes, iterable_ips, ttl_val, contador_ruta=No
         if not is_allowed_ip(ip_str):
             rechazadas += 1
             continue
-        # Evitar IPv6
+        # Evitar IPv6 explícitamente
         try:
             if isinstance(ipaddress.ip_address(ip_str), ipaddress.IPv6Address):
                 rechazadas += 1
@@ -269,11 +270,14 @@ def add_ips_validated(lines, existentes, iterable_ips, ttl_val, contador_ruta=No
                 val = 0
                 if os.path.exists(contador_ruta):
                     with open(contador_ruta) as f:
-                        try: val = int(f.read().strip())
-                        except: val = 0
+                        try:
+                            val = int(f.read().strip())
+                        except:
+                            val = 0
                 with open(contador_ruta, "w") as f:
-                    f.write(str(val+1))
-            except: pass
+                    f.write(str(val + 1))
+            except:
+                pass
         añadidas += 1
     return añadidas, rechazadas
 
@@ -305,8 +309,6 @@ def login():
             session["username"] = "admin"
             return redirect(url_for("index"))
         flash("Credenciales incorrectas", "danger")
-    # login.html no necesita 'messages'; si lo necesitara:
-    # return render_template("login.html", messages=coerce_message_pairs(get_flashed_messages(with_categories=True)))
     return render_template("login.html")
 
 
