@@ -37,7 +37,7 @@
     }
     .bg-dark .table { color: #e9ecef; }
 
-    /* Toasts: sin bordes “raros”, abajo centrados */
+    /* Toasts: abajo centrados */
     #toast-portal {
       position: fixed;
       bottom: 16px;
@@ -61,7 +61,7 @@
     #corner-logo {
       position: fixed;
       bottom: 16px;
-      right: 16px; /* <- movido a derecha */
+      right: 16px;
       width: 96px;
       height: auto;
       opacity: .85;
@@ -105,7 +105,7 @@
     ℹ️ Añadidas: Manual (<strong>{{ contador_manual }}</strong>) · CSV (<strong>{{ contador_csv }}</strong>)
   </div>
 
-  <!-- Mensajes flash server-side (errores de validación visibles en página) -->
+  <!-- Mensajes flash server-side -->
   {% for category, message in messages %}
     <div class="alert alert-{{ category }} mt-2">{{ message }}</div>
   {% endfor %}
@@ -380,31 +380,48 @@
     {% endfor %}
   ];
 
-  /* ----------------- Toasts: solo la acción, 5s success / 10s error ----------------- */
-  (function showRecentToasts() {
-    const actionKeywords = ["añadida", "añadidas", "eliminada", "eliminadas", "rechazada", "rechazadas", "Acción no permitida", "IP duplicada", "IP rechazada"];
-    const recent = serverMessages.filter(m => actionKeywords.some(k => (m.message || "").includes(k)));
+  /* ----------------- TOAST: SOLO LA ÚLTIMA ACCIÓN ----------------- */
+  (function showOnlyLastToast() {
+    // Palabras clave que identifican acciones (alta/eliminación/rechazo/etc.)
+    const actionKeywords = [
+      "añadida", "añadidas", "eliminada", "eliminadas",
+      "rechazada", "rechazadas", "Acción no permitida",
+      "IP duplicada", "IP rechazada", "Nada que añadir"
+    ];
+
+    // Buscamos desde el final la primera que contenga acción
+    let lastAction = null;
+    for (let i = serverMessages.length - 1; i >= 0; i--) {
+      const msg = serverMessages[i]?.message || "";
+      if (actionKeywords.some(k => msg.includes(k))) {
+        lastAction = serverMessages[i];
+        break;
+      }
+    }
+    // Si no hay, usamos la última en general
+    if (!lastAction && serverMessages.length) {
+      lastAction = serverMessages[serverMessages.length - 1];
+    }
+    if (!lastAction) return;
+
     const portal = document.getElementById('toast-portal');
+    const toastEl = document.createElement('div');
+    toastEl.className = 'toast align-items-center text-bg-' + mapToastColor(lastAction.category) + ' border-0';
+    toastEl.setAttribute('role', 'status');
+    toastEl.setAttribute('aria-live', 'assertive');
+    toastEl.setAttribute('aria-atomic', 'true');
 
-    recent.forEach(m => {
-      const toastEl = document.createElement('div');
-      toastEl.className = 'toast align-items-center text-bg-' + mapToastColor(m.category) + ' border-0';
-      toastEl.setAttribute('role', 'status');
-      toastEl.setAttribute('aria-live', 'assertive');
-      toastEl.setAttribute('aria-atomic', 'true');
+    const msgOnly = lastAction.message || '';
+    toastEl.innerHTML = `
+      <div class="d-flex">
+        <div class="toast-body">${escapeHtml(msgOnly)}</div>
+        <button type="button" class="btn-close btn-close-white me-2 m-auto" data-bs-dismiss="toast" aria-label="Close"></button>
+      </div>`;
 
-      const msgOnly = m.message;
-      toastEl.innerHTML = `
-        <div class="d-flex">
-          <div class="toast-body">${escapeHtml(msgOnly)}</div>
-          <button type="button" class="btn-close btn-close-white me-2 m-auto" data-bs-dismiss="toast" aria-label="Close"></button>
-        </div>`;
-
-      portal.appendChild(toastEl);
-      const delay = isErrorCategory(m.category) ? 10000 : 5000;
-      const bsToast = new bootstrap.Toast(toastEl, { autohide: true, delay });
-      bsToast.show();
-    });
+    portal.appendChild(toastEl);
+    const delay = isErrorCategory(lastAction.category) ? 10000 : 5000; // 10s error, 5s ok
+    const bsToast = new bootstrap.Toast(toastEl, { autohide: true, delay });
+    bsToast.show();
   })();
 
   function isErrorCategory(cat) {
