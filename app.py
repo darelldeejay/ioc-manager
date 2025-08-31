@@ -1,6 +1,6 @@
 from flask import (
     Flask, render_template, request, redirect, url_for,
-    session, flash, make_response, jsonify
+    session, flash, make_response, jsonify, get_flashed_messages
 )
 from datetime import datetime
 import ipaddress
@@ -279,6 +279,23 @@ def add_ips_validated(lines, existentes, iterable_ips, ttl_val, contador_ruta=No
 
 
 # =========================
+#  Flashes seguros para plantillas
+# =========================
+def coerce_message_pairs(raw_flashes):
+    """
+    Asegura lista de pares (category, message) para la plantilla.
+    Evita 500 si algún flash vino sin categoría.
+    """
+    pairs = []
+    for item in raw_flashes:
+        if isinstance(item, (list, tuple)) and len(item) >= 2:
+            pairs.append((str(item[0] or 'info'), str(item[1])))
+        else:
+            pairs.append(('info', str(item)))
+    return pairs
+
+
+# =========================
 #  Rutas
 # =========================
 @app.route("/login", methods=["GET", "POST"])
@@ -288,6 +305,8 @@ def login():
             session["username"] = "admin"
             return redirect(url_for("index"))
         flash("Credenciales incorrectas", "danger")
+    # login.html no necesita 'messages'; si lo necesitara:
+    # return render_template("login.html", messages=coerce_message_pairs(get_flashed_messages(with_categories=True)))
     return render_template("login.html")
 
 
@@ -428,11 +447,15 @@ def index():
         else:
             error = "Debes introducir una IP, red CIDR, rango A-B o IP con máscara"
 
-    # Mezclo flashes + historial para que el offcanvas tenga contenido
-    messages = list(session.get('_flashes', []))
+    # ========= Construcción segura de 'messages' para la plantilla =========
+    # Consumimos flashes de esta petición (si los hay) y los normalizamos.
+    raw_flashes = get_flashed_messages(with_categories=True)
+    messages = coerce_message_pairs(raw_flashes)
+
+    # Añadimos historial persistente como “informativo” para el offcanvas
     try:
         for n in get_notifs(limit=200):
-            cat = n.get("category", "secondary")
+            cat = str(n.get("category", "secondary"))
             msg = f"{n.get('time','')} {n.get('message','')}".strip()
             messages.append((cat, msg))
     except Exception:
