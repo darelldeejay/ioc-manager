@@ -156,93 +156,324 @@
     {% endif %}
   </form>
 
-  <hr>
-  <h4>IPs bloqueadas</h4>
-
-  <div class="mb-3">
-    <input type="text" id="buscadorIp" class="form-control" placeholder="Buscar IP...">
+  <!-- Modal Confirmación Eliminar Todas -->
+  <div class="modal fade" id="confirmDeleteAll" tabindex="-1" aria-hidden="true">
+    <div class="modal-dialog modal-dialog-centered">
+      <div class="modal-content">
+        <form method="POST">
+          <div class="modal-header">
+            <h5 class="modal-title text-danger">¿Eliminar todas las IPs?</h5>
+            <button type="button" class="btn-close" data-bs-dismiss="modal" aria-label="Cerrar"></button>
+          </div>
+          <div class="modal-body">
+            ¿Estás seguro de que deseas eliminar <strong>todas</strong> las IPs bloqueadas?<br>
+            Esta acción <strong>no se puede deshacer</strong>.
+          </div>
+          <div class="modal-footer">
+            <input type="hidden" name="delete-all" value="1">
+            <button type="submit" class="btn btn-danger">Eliminar todas</button>
+            <button type="button" class="btn btn-secondary" data-bs-dismiss="modal">Cancelar</button>
+          </div>
+        </form>
+      </div>
+    </div>
   </div>
-
-  <table class="table table-striped" id="tablaIps">
-    <thead>
-      <tr>
-        <th>IP</th>
-        <th>Fecha</th>
-        <th>TTL</th>
-        <th>Acción</th>
-      </tr>
-    </thead>
-    <tbody>
-      {% for ip in ips %}
-        {% set parts = ip.split('|') %}
+  <!-- Tabla de IPs actuales -->
+  <div class="table-responsive mb-5">
+    <table class="table table-bordered table-hover">
+      <thead class="table-dark">
         <tr>
-          <td>{{ parts[0] }}</td>
-          <td>{{ parts[1] }}</td>
-          <td>{{ '∞' if parts[2] == '0' else parts[2] }}</td>
+          <th>Dirección IP</th>
+          <th>Fecha</th>
+          <th>TTL (días)</th>
+          <th>Acción</th>
+        </tr>
+      </thead>
+      <tbody>
+        {% for ip in ips %}
+        <tr>
+          <td>{{ ip.split('|')[0] }}</td>
+          <td>{{ ip.split('|')[1] }}</td>
+          <td>{{ ip.split('|')[2] }}</td>
           <td>
-            <button class="btn btn-sm btn-outline-danger" data-bs-toggle="modal" data-bs-target="#confirmDelete{{ loop.index }}">Eliminar</button>
-
-            <div class="modal fade" id="confirmDelete{{ loop.index }}" tabindex="-1" aria-hidden="true">
-              <div class="modal-dialog modal-dialog-centered">
-                <div class="modal-content">
-                  <form method="POST">
-                    <div class="modal-header">
-                      <h5 class="modal-title">Confirmar eliminación</h5>
-                      <button type="button" class="btn-close" data-bs-dismiss="modal" aria-label="Cerrar"></button>
-                    </div>
-                    <div class="modal-body">
-                      ¿Eliminar <strong>{{ parts[0] }}</strong>?
-                    </div>
-                    <div class="modal-footer">
-                      <input type="hidden" name="delete_ip" value="{{ parts[0] }}">
-                      <button type="submit" class="btn btn-danger">Eliminar</button>
-                      <button type="button" class="btn btn-secondary" data-bs-dismiss="modal">Cancelar</button>
-                    </div>
-                  </form>
-                </div>
-              </div>
-            </div>
+            <form method="POST" style="margin: 0;">
+              <input type="hidden" name="delete_ip" value="{{ ip.split('|')[0] }}">
+              <button type="submit" class="btn btn-sm btn-danger">Eliminar</button>
+            </form>
           </td>
         </tr>
-      {% endfor %}
-    </tbody>
-  </table>
-
-  <div class="text-center mt-4">
-    <p class="text-muted">Proyecto hecho por Darell Pérez · Todos los derechos reservados</p>
+        {% endfor %}
+      </tbody>
+    </table>
   </div>
-</div>
 
-<img id="corner-logo" src="{{ url_for('static', filename='img/logo-dpb.svg') }}" alt="Logo DPB">
-
-<!-- Offcanvas Notificaciones -->
-<div class="offcanvas offcanvas-end" tabindex="-1" id="offcanvasNotifs" aria-labelledby="offcanvasNotifsLabel">
-  <div class="offcanvas-header">
-    <h5 id="offcanvasNotifsLabel">Notificaciones</h5>
-    <button type="button" class="btn-close" data-bs-dismiss="offcanvas" aria-label="Cerrar"></button>
+  <!-- Modal Eliminar por patrón -->
+  <div class="modal fade" id="modalDeleteNet" tabindex="-1" aria-hidden="true">
+    <div class="modal-dialog modal-dialog-centered">
+      <div class="modal-content">
+        <form method="POST">
+          <div class="modal-header">
+            <h5 class="modal-title text-danger">Eliminar por patrón</h5>
+            <button type="button" class="btn-close" data-bs-dismiss="modal" aria-label="Cerrar"></button>
+          </div>
+          <div class="modal-body">
+            <label for="delete_net_input" class="form-label">Introduce el patrón de red:</label>
+            <input type="text" class="form-control" name="delete_net_input" id="delete_net_input"
+                   placeholder="Ej: 192.168.1.0/24, 203.0.113.10-203.0.113.50, etc.">
+            <div class="mt-2" id="preview-delete-result"></div>
+          </div>
+          <div class="modal-footer">
+            <input type="hidden" name="delete-net" value="1">
+            <button type="submit" class="btn btn-warning">Eliminar coincidencias</button>
+            <button type="button" class="btn btn-secondary" data-bs-dismiss="modal">Cancelar</button>
+          </div>
+        </form>
+      </div>
+    </div>
   </div>
-  <div class="offcanvas-body" id="notifList">
-    <!-- Aquí se inyectarán las notificaciones con JS -->
+  <!-- Logo fijo en la esquina inferior izquierda -->
+  <img id="corner-logo" src="{{ url_for('static', filename='img/logo-dpb.svg') }}" alt="Logo DPB">
+
+  <!-- Botón flotante de Notificaciones -->
+  <button id="notif-fab" class="btn btn-primary" type="button" data-bs-toggle="offcanvas" data-bs-target="#offcanvasNotifs" aria-controls="offcanvasNotifs">
+    🔔
+    <span id="notif-badge" class="badge text-bg-danger rounded-pill d-none">0</span>
+  </button>
+
+  <!-- Panel lateral de notificaciones -->
+  <div class="offcanvas offcanvas-end" tabindex="-1" id="offcanvasNotifs" aria-labelledby="offcanvasNotifsLabel">
+    <div class="offcanvas-header">
+      <h5 id="offcanvasNotifsLabel">Notificaciones</h5>
+      <button type="button" class="btn-close" data-bs-dismiss="offcanvas" aria-label="Cerrar"></button>
+    </div>
+    <div class="offcanvas-body d-flex flex-column" style="gap:.75rem;">
+      <div class="d-flex flex-wrap align-items-center gap-2 mb-2">
+        <select id="filterType" class="form-select form-select-sm" style="max-width:180px">
+          <option value="">Todos los tipos</option>
+          <option value="success">Altas correctas</option>
+          <option value="warning">Eliminaciones</option>
+          <option value="danger">Rechazadas/Errores</option>
+          <option value="accion_no_permitida">Bloqueo global</option>
+        </select>
+        <input id="filterDate" type="date" class="form-control form-control-sm" style="max-width:180px">
+        <button id="applyFilters" class="btn btn-outline-primary btn-sm">Aplicar</button>
+        <button id="clearFilters" class="btn btn-outline-secondary btn-sm">Limpiar</button>
+        <span class="ms-auto small text-muted" id="notifCountInfo"></span>
+      </div>
+
+      <!-- Lista de notificaciones -->
+      <div id="notifList" class="d-flex flex-column" style="gap:.5rem;"></div>
+
+      <!-- Paginación -->
+      <nav class="mt-2">
+        <ul id="notifPagination" class="pagination pagination-sm mb-0"></ul>
+      </nav>
+    </div>
   </div>
-</div>
 
-<!-- Portal de Toasts -->
-<div id="toast-portal" aria-live="polite" aria-atomic="true"></div>
-
+  <!-- Toasts abajo a la derecha -->
+  <div id="toast-portal" aria-live="polite" aria-atomic="true"></div>
 <script>
+  // ---------- Modo Oscuro ----------
   function toggleTheme() {
     const body = document.body;
     const isDark = body.classList.toggle('bg-dark');
     body.classList.toggle('text-white', isDark);
-    document.querySelectorAll('.card, .form-control, .form-select, .table').forEach(e => {
-      e.classList.toggle('bg-dark', isDark);
-      e.classList.toggle('text-white', isDark);
-    });
     localStorage.setItem('theme', isDark ? 'dark' : 'light');
   }
   window.onload = () => {
     if (localStorage.getItem('theme') === 'dark') toggleTheme();
   };
+
+  // ---------- Buscador de IP ----------
+  document.addEventListener('DOMContentLoaded', function () {
+    const input = document.getElementById('buscadorIp');
+    const table = document.getElementById('tablaIps');
+    input?.addEventListener('keyup', function () {
+      const filtro = input.value.toLowerCase();
+      const filas = table.getElementsByTagName('tr');
+      for (let i = 1; i < filas.length; i++) {
+        const ip = filas[i].getElementsByTagName('td')[0]?.textContent.toLowerCase() || '';
+        filas[i].style.display = ip.includes(filtro) ? '' : 'none';
+      }
+    });
+  });
+
+  // ---------- Toasts ----------
+  const serverMessages = [
+    {% for category, message in (messages or []) %}
+      {"category": "{{category}}", "message": {{ message|tojson }} }{% if not loop.last %},{% endif %}
+    {% endfor %}
+  ];
+
+  function escapeHtml(str) {
+    return (str || '').replace(/[&<>"']/g, s => ({
+      '&':'&amp;', '<':'&lt;', '>':'&gt;', '"':'&quot;', "'":'&#39;'
+    }[s]));
+  }
+
+  function mapToastColor(cat) {
+    if (cat === 'success') return 'success';
+    if (cat === 'warning') return 'warning';
+    if (cat === 'danger' || cat === 'accion_no_permitida') return 'danger';
+    return 'secondary';
+  }
+
+  function showToasts() {
+    const toastPortal = document.getElementById('toast-portal');
+    const recentMsgs = serverMessages.filter(m =>
+      ["añadida", "eliminada", "rechazada", "rechazadas", "duplicada", "permite"].some(k =>
+        (m.message || "").includes(k))
+    );
+
+    recentMsgs.forEach(m => {
+      const toast = document.createElement('div');
+      toast.className = `toast align-items-center text-bg-${mapToastColor(m.category)} border-0`;
+      toast.setAttribute('role', 'alert');
+      toast.setAttribute('aria-live', 'assertive');
+      toast.setAttribute('aria-atomic', 'true');
+      toast.innerHTML = `
+        <div class="d-flex">
+          <div class="toast-body">${escapeHtml(m.message)}</div>
+          <button type="button" class="btn-close btn-close-white me-2 m-auto" data-bs-dismiss="toast"></button>
+        </div>
+      `;
+      toastPortal.appendChild(toast);
+      new bootstrap.Toast(toast, { delay: 5000 }).show();
+    });
+  }
+  showToasts();
+
+  // ---------- Vista previa de patrón ----------
+  const deleteInput = document.getElementById('delete_net_input');
+  const previewResult = document.getElementById('previewResult');
+
+  if (deleteInput && previewResult) {
+    deleteInput.addEventListener('input', () => {
+      const pattern = deleteInput.value.trim();
+      if (!pattern) {
+        previewResult.textContent = "Escribe un patrón para ver cuántas IPs coinciden.";
+        previewResult.className = 'text-muted';
+        return;
+      }
+
+      fetch(`/preview-delete?pattern=${encodeURIComponent(pattern)}`)
+        .then(r => r.json())
+        .then(data => {
+          if (data.error) {
+            previewResult.textContent = `❌ ${data.error}`;
+            previewResult.className = 'text-danger';
+          } else {
+            previewResult.textContent = `Coinciden ${data.count} IP(s).`;
+            previewResult.className = 'text-success';
+          }
+        })
+        .catch(() => {
+          previewResult.textContent = "❌ Error al consultar coincidencias.";
+          previewResult.className = 'text-danger';
+        });
+    });
+  }
+
+  function confirmDeletePattern() {
+    const val = deleteInput?.value.trim();
+    return confirm(`Vas a eliminar todas las IPs que coincidan con:\n\n${val}\n\n¿Confirmas?`);
+  }
+
+  // ---------- Filtros de notificaciones ----------
+  const notifList = document.getElementById('notifList');
+  const notifPagination = document.getElementById('notifPagination');
+  const notifBadge = document.getElementById('notif-badge');
+  const notifInfo = document.getElementById('notifCountInfo');
+  const PAGE_SIZE = 10;
+
+  let currentPage = 1;
+  let filterType = '';
+  let filterDate = '';
+
+  const notifData = serverMessages.map((m, i) => {
+    let dt = null;
+    const match = m.message.match(/^(\d{4}-\d{2}-\d{2})(?:\s+(\d{2}:\d{2}:\d{2}))?/);
+    if (match) dt = new Date(`${match[1]}T${match[2] || '00:00:00'}`);
+    return { id: i+1, category: m.category, message: m.message, date: dt };
+  });
+
+  function updateBadge() {
+    const unread = notifData.length;
+    notifBadge.textContent = unread;
+    notifBadge.classList.toggle('d-none', unread === 0);
+  }
+
+  function applyFilters() {
+    filterType = document.getElementById('filterType').value;
+    filterDate = document.getElementById('filterDate').value;
+    currentPage = 1;
+    renderNotifList();
+  }
+
+  function clearFilters() {
+    filterType = '';
+    filterDate = '';
+    document.getElementById('filterType').value = '';
+    document.getElementById('filterDate').value = '';
+    currentPage = 1;
+    renderNotifList();
+  }
+
+  function renderNotifList() {
+    const filtered = notifData.filter(n => {
+      if (filterType && n.category !== filterType) return false;
+      if (filterDate && n.date) {
+        const d = n.date.toISOString().split('T')[0];
+        return d === filterDate;
+      }
+      return true;
+    });
+
+    notifInfo.textContent = `Mostrando ${filtered.length} notificaciones`;
+    notifList.innerHTML = '';
+
+    const totalPages = Math.ceil(filtered.length / PAGE_SIZE);
+    if (currentPage > totalPages) currentPage = totalPages || 1;
+
+    const start = (currentPage - 1) * PAGE_SIZE;
+    const pageData = filtered.slice(start, start + PAGE_SIZE);
+
+    pageData.forEach(n => {
+      const el = document.createElement('div');
+      el.className = 'border rounded p-2 bg-white';
+      el.innerHTML = `
+        <div class="d-flex justify-content-between">
+          <span class="badge bg-${mapToastColor(n.category)}">${n.category.toUpperCase()}</span>
+          <small>${n.date?.toLocaleString() || ''}</small>
+        </div>
+        <div class="mt-1">${escapeHtml(n.message)}</div>
+      `;
+      notifList.appendChild(el);
+    });
+
+    notifPagination.innerHTML = '';
+    for (let i = 1; i <= totalPages; i++) {
+      const li = document.createElement('li');
+      li.className = `page-item ${i === currentPage ? 'active' : ''}`;
+      const a = document.createElement('a');
+      a.className = 'page-link';
+      a.href = '#';
+      a.textContent = i;
+      a.onclick = (e) => {
+        e.preventDefault();
+        currentPage = i;
+        renderNotifList();
+      };
+      li.appendChild(a);
+      notifPagination.appendChild(li);
+    }
+  }
+
+  document.getElementById('applyFilters').onclick = applyFilters;
+  document.getElementById('clearFilters').onclick = clearFilters;
+  renderNotifList();
+  updateBadge();
 </script>
 
 </body>
