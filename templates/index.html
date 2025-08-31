@@ -37,18 +37,19 @@
     }
     .bg-dark .table { color: #e9ecef; }
 
-    /* Toasts: abajo derecha, sin bordes raros */
+    /* Toasts: sin bordes raros, abajo centrados */
     #toast-portal {
       position: fixed;
-      right: 16px;
       bottom: 16px;
+      left: 50%;
+      transform: translateX(-50%);
       z-index: 1060;
       display: flex;
       flex-direction: column;
       gap: 8px;
       max-width: min(90vw, 560px);
       width: max-content;
-      pointer-events: none; /* no bloquea la UI debajo */
+      pointer-events: none;
     }
     .toast {
       pointer-events: auto;
@@ -56,7 +57,7 @@
       box-shadow: 0 6px 18px rgba(0,0,0,.25);
     }
 
-    /* FAB de notificaciones (abajo derecha) con burbuja */
+    /* Botón Notificaciones flotante (abajo derecha) con burbuja */
     #notif-fab {
       position: fixed;
       right: 16px;
@@ -76,20 +77,18 @@
       right: -4px;
     }
 
-    /* Logo esquina (RESPETAR ubicación original) */
+    /* Logo esquina (responsivo) — AHORA ABAJO DERECHA */
     #corner-logo {
       position: fixed;
       bottom: 16px;
-      left: 16px;
+      right: 16px;   /* <- movido a la derecha */
       width: 96px;
       height: auto;
       opacity: .85;
       z-index: 1040;
     }
     @media (max-width: 576px) {
-      #corner-logo { 
-        width: 68px; 
-      }
+      #corner-logo { width: 68px; }
     }
   </style>
 </head>
@@ -108,7 +107,7 @@
     ℹ️ Añadidas: Manual (<strong>{{ contador_manual }}</strong>) · CSV (<strong>{{ contador_csv }}</strong>)
   </div>
 
-  <!-- Mensajes flash server-side (mantenemos visibles todos, como en tu versión) -->
+  <!-- Mensajes flash server-side (errores de validación visibles en página) -->
   {% for category, message in (messages or []) %}
     <div class="alert alert-{{ category }} mt-2">{{ message }}</div>
   {% endfor %}
@@ -303,7 +302,7 @@
   </div>
 </div>
 
-<!-- Logo DPB fijo (no tocar) -->
+<!-- Logo DPB fijo (ahora abajo derecha) -->
 <img id="corner-logo" src="{{ url_for('static', filename='img/logo-dpb.svg') }}" alt="Logo DPB">
 
 <!-- Botón flotante de Notificaciones (abajo dcha) -->
@@ -389,30 +388,31 @@
     {% endfor %}
   ];
 
-  /* ----------------- Toast: SOLO la última acción (5s ok / 10s error) ----------------- */
-  (function showOnlyLastActionToast() {
-    if (!serverMessages.length) return;
-    // Toma la última notificación de la petición actual
-    const last = serverMessages[serverMessages.length - 1];
-    if (!last || !last.message) return;
-
+  /* ----------------- Toasts: solo la acción, 5s ok / 10s error ----------------- */
+  (function showRecentToasts() {
+    const actionKeywords = ["añadida","añadidas","eliminada","eliminadas","rechazada","rechazadas","Acción no permitida","IP duplicada","IP rechazada","Nada que añadir"];
+    const recent = serverMessages.filter(m => actionKeywords.some(k => (m.message || "").includes(k)));
     const portal = document.getElementById('toast-portal');
-    const toastEl = document.createElement('div');
-    toastEl.className = 'toast align-items-center text-bg-' + mapToastColor(last.category) + ' border-0';
-    toastEl.setAttribute('role', 'status');
-    toastEl.setAttribute('aria-live', 'assertive');
-    toastEl.setAttribute('aria-atomic', 'true');
 
-    toastEl.innerHTML = `
-      <div class="d-flex">
-        <div class="toast-body">${escapeHtml(last.message)}</div>
-        <button type="button" class="btn-close btn-close-white me-2 m-auto" data-bs-dismiss="toast" aria-label="Cerrar"></button>
-      </div>`;
+    recent.forEach(m => {
+      const toastEl = document.createElement('div');
+      toastEl.className = 'toast align-items-center text-bg-' + mapToastColor(m.category) + ' border-0';
+      toastEl.setAttribute('role', 'status');
+      toastEl.setAttribute('aria-live', 'assertive');
+      toastEl.setAttribute('aria-atomic', 'true');
 
-    portal.appendChild(toastEl);
-    const delay = isErrorCategory(last.category) ? 10000 : 5000; // 10s error, 5s ok
-    const bsToast = new bootstrap.Toast(toastEl, { autohide: true, delay });
-    bsToast.show();
+      const msgOnly = m.message;
+      toastEl.innerHTML = `
+        <div class="d-flex">
+          <div class="toast-body">${escapeHtml(msgOnly)}</div>
+          <button type="button" class="btn-close btn-close-white me-2 m-auto" data-bs-dismiss="toast" aria-label="Close"></button>
+        </div>`;
+
+      portal.appendChild(toastEl);
+      const delay = isErrorCategory(m.category) ? 10000 : 5000;
+      const bsToast = new bootstrap.Toast(toastEl, { autohide: true, delay });
+      bsToast.show();
+    });
   })();
 
   function isErrorCategory(cat) {
@@ -429,24 +429,16 @@
     return (str || '').replace(/[&<>"']/g, s => ({'&':'&amp;','<':'&lt;','>':'&gt;','"':'&quot;',"'":'&#39;'}[s]));
   }
 
-  /* ----------------- Offcanvas: historial con filtros + paginación (10/página) ----------------- */
+  /* ----------------- Offcanvas: filtros + paginación ----------------- */
   const PAGE_SIZE = 10;
   let notifData = serverMessages.map((m, i) => {
-    // Intento de extraer fecha si el mensaje empieza con "YYYY-MM-DD HH:MM:SS ..."
     let dt = null, txt = m.message || '';
     const mdt = txt.match(/^(\d{4}-\d{2}-\d{2})(?:\s+(\d{2}:\d{2}:\d{2}))?/);
-    if (mdt) {
-      dt = new Date((mdt[1] + (mdt[2] ? 'T' + mdt[2] : 'T00:00:00')));
-    }
-    return {
-      id: i+1,
-      category: m.category,
-      message: txt,
-      date: dt
-    };
+    if (mdt) { dt = new Date((mdt[1] + (mdt[2] ? 'T' + mdt[2] : 'T00:00:00'))); }
+    return { id: i+1, category: m.category, message: txt, date: dt };
   });
 
-  let unreadCount = 0; // Si algún día marcas no leídas desde backend, actualiza aquí
+  let unreadCount = 0;
   updateBadge();
 
   function updateBadge() {
@@ -467,7 +459,7 @@
 
   function applyFilters() {
     filterType = document.getElementById('filterType').value;
-    filterDate = document.getElementById('filterDate').value; // YYYY-MM-DD
+    filterDate = document.getElementById('filterDate').value;
     currentPage = 1;
     renderList();
   }
@@ -497,15 +489,13 @@
 
   function renderList() {
     const data = filtered();
+    infoEl.textContent = `Mostrando ${Math.min(PAGE_SIZE, data.length)} de ${data.length} notificaciones`;
     const totalPages = Math.max(1, Math.ceil(data.length / PAGE_SIZE));
     if (currentPage > totalPages) currentPage = totalPages;
 
     const start = (currentPage - 1) * PAGE_SIZE;
     const pageItems = data.slice(start, start + PAGE_SIZE);
 
-    infoEl.textContent = `Mostrando ${pageItems.length} de ${data.length} notificaciones`;
-
-    // Render lista
     listEl.innerHTML = '';
     pageItems.forEach(n => {
       const cls = mapToastColor(n.category);
@@ -514,7 +504,7 @@
                    (n.category === 'danger' || n.category === 'accion_no_permitida') ? '❌' : 'ℹ️';
       const dtTxt = n.date ? n.date.toLocaleString() : '';
       const item = document.createElement('div');
-      item.className = 'border rounded p-2 bg-white';
+      item.className = `border rounded p-2 bg-${cls === 'secondary' ? 'light' : 'white'}`;
       item.innerHTML = `
         <div class="d-flex align-items-center justify-content-between">
           <span class="badge text-bg-${cls}">${pill}</span>
@@ -525,7 +515,6 @@
       listEl.appendChild(item);
     });
 
-    // Render paginación
     pagEl.innerHTML = '';
     const mkPage = (p, label = p, disabled = false, active = false) => {
       const li = document.createElement('li');
@@ -544,18 +533,15 @@
       li.appendChild(a);
       return li;
     };
-    const pages = Math.max(1, Math.ceil(data.length / PAGE_SIZE));
     pagEl.appendChild(mkPage(Math.max(1, currentPage-1), '«', currentPage === 1, false));
-    for (let p = 1; p <= pages; p++) {
+    for (let p = 1; p <= Math.max(1, Math.ceil(data.length / PAGE_SIZE)); p++) {
       pagEl.appendChild(mkPage(p, String(p), false, p === currentPage));
     }
-    pagEl.appendChild(mkPage(Math.min(pages, currentPage+1), '»', currentPage >= pages, false));
+    pagEl.appendChild(mkPage(Math.min(Math.ceil(data.length / PAGE_SIZE)||1, currentPage+1), '»', currentPage >= (Math.ceil(data.length / PAGE_SIZE)||1), false));
   }
 
-  // Render inicial
   renderList();
 
-  // Al abrir el offcanvas, podrías resetear no leídas si las usas
   const offcanvasEl = document.getElementById('offcanvasNotifs');
   if (offcanvasEl) {
     offcanvasEl.addEventListener('shown.bs.offcanvas', () => {
