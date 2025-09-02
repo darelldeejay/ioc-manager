@@ -366,48 +366,51 @@
     {% endfor %}
   ];
 
-  /* ----------------- TOASTS: SOLO acciones de ESTA petición -----------------
-     - Aparecen bajo el botón (arriba-dcha)
-     - 5s para success/warning, 10s para danger/accion_no_permitida
-     - Ignora el historial (mensajes que empiezan con fecha ISO)
+  /* ----------------- TOAST: SOLO la última acción de ESTA petición -----------------
+     - Ignora historial (mensajes que empiezan por fecha ISO)
+     - Duraciones: success 10s, warning 10s, danger 10s, accion_no_permitida 20s
   --------------------------------------------------------------------------- */
-  (function showRequestActionToasts(){
-    const actionKeywords = [
+  (function showOnlyLastActionToast(){
+    const isHistory = (txt) => /^\d{4}-\d{2}-\d{2}\b/.test((txt||"").trim());
+    const actionKeys = [
       "añadida","añadidas","eliminada","eliminadas",
-      "rechazada","rechazadas","Acción no permitida","IP duplicada",
-      "IP rechazada","Nada que añadir"
+      "rechazada","rechazadas","Acción no permitida",
+      "IP duplicada","IP rechazada","Nada que añadir"
     ];
-    const isHistory = (txt) => /^\d{4}-\d{2}-\d{2}/.test((txt||"").trim());
-    const currentOnly = (serverMessages || []).filter(m => !isHistory(m.message||""));
-    const actionable = currentOnly.filter(m =>
-      actionKeywords.some(k => (m.message||"").includes(k))
-    );
-    if (!actionable.length) return;
 
-    // badge de no leídas = nº de acciones de esta petición
-    try {
-      const b = document.getElementById('notif-badge');
-      if (b) {
-        const count = actionable.length;
-        b.textContent = count;
-        b.classList.toggle('d-none', count <= 0);
-      }
-    } catch(e){}
+    // Filtra a solo mensajes de esta petición que sean acciones
+    const current = (serverMessages || []).filter(m => {
+      const txt = (m && m.message) ? String(m.message) : "";
+      return !isHistory(txt) && actionKeys.some(k => txt.includes(k));
+    });
+
+    if (!current.length) return;
+
+    // Toma SOLO la última acción
+    const last = current[current.length - 1];
 
     const portal = document.getElementById('toast-portal');
-    actionable.forEach(m => {
-      const el = document.createElement('div');
-      el.className = 'toast align-items-center text-bg-' + mapToastColor(m.category) + ' border-0';
-      el.innerHTML = `
-        <div class="d-flex">
-          <div class="toast-body">${escapeHtml(m.message || '')}</div>
-          <button type="button" class="btn-close btn-close-white me-2 m-auto"
-                  data-bs-dismiss="toast" aria-label="Close"></button>
-        </div>`;
-      portal.appendChild(el);
-      const delay = (m.category === 'danger' || m.category === 'accion_no_permitida') ? 10000 : 5000;
-      new bootstrap.Toast(el, { autohide: true, delay }).show();
-    });
+    if (!portal) return;
+    portal.innerHTML = ''; // evita mostrar más de uno
+
+    const toast = document.createElement('div');
+    toast.className = 'toast align-items-center text-bg-' + mapToastColor(last.category) + ' border-0';
+    toast.innerHTML = `
+      <div class="d-flex">
+        <div class="toast-body">${escapeHtml(last.message || '')}</div>
+        <button type="button" class="btn-close btn-close-white me-2 m-auto"
+                data-bs-dismiss="toast" aria-label="Close"></button>
+      </div>`;
+
+    portal.appendChild(toast);
+
+    // Duraciones según lo pedido
+    const delay =
+      last.category === 'accion_no_permitida' ? 20000 :
+      last.category === 'success' || last.category === 'warning' || last.category === 'danger' ? 10000 :
+      10000;
+
+    new bootstrap.Toast(toast, { autohide: true, delay }).show();
   })();
 
   /* ----------------- Offcanvas: filtros + paginación ----------------- */
@@ -508,7 +511,7 @@
   }
   renderList();
 
-  // Al abrir offcanvas, consideramos "leídas" las de esta petición (se oculta burbuja)
+  // Al abrir offcanvas, puedes ocultar la burbuja (no solicitado cambiar nada más)
   const offcanvasEl = document.getElementById('offcanvasNotifs');
   if (offcanvasEl) {
     offcanvasEl.addEventListener('shown.bs.offcanvas', () => {
