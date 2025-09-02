@@ -349,7 +349,7 @@ def index():
             save_lines([])
             log("Eliminadas", "todas las IPs")
             guardar_notif("warning", "Se eliminaron todas las IPs")
-            flash("Todas las IPs eliminadas", "success")
+            flash("Todas las IPs eliminadas", "warning")  # <- categoría correcta
             return redirect(url_for("index"))
 
         # Eliminar individual
@@ -357,7 +357,7 @@ def index():
             ip_to_delete = request.form.get("delete_ip")
             new_lines = [l for l in lines if not l.startswith(ip_to_delete + "|")]
             save_lines(new_lines)
-            flash(f"IP {ip_to_delete} eliminada", "success")
+            flash(f"IP {ip_to_delete} eliminada", "warning")  # <- categoría correcta
             guardar_notif("warning", f"IP eliminada: {ip_to_delete}")
             return redirect(url_for("index"))
 
@@ -367,7 +367,7 @@ def index():
             try:
                 new_lines, removed = filter_lines_delete_pattern(lines, patron)
                 save_lines(new_lines)
-                flash(f"Se eliminaron {removed} IP(s) coincidentes con {patron}", "success")
+                flash(f"Se eliminaron {removed} IP(s) coincidentes con {patron}", "warning")  # <- categoría correcta
                 guardar_notif("warning", f"Eliminadas por patrón {patron}: {removed}")
             except Exception as e:
                 flash(str(e), "danger")
@@ -465,9 +465,9 @@ def index():
             error = "Debes introducir una IP, red CIDR, rango A-B o IP con máscara"
 
     # ========= Construcción segura de 'messages' para la plantilla =========
+    # Consumimos flashes de esta petición (si los hay) y los normalizamos.
     raw_flashes = get_flashed_messages(with_categories=True)
     messages = coerce_message_pairs(raw_flashes)
-    flash_count = len(messages)  # Nº de mensajes SOLO de esta petición
 
     # Añadimos historial persistente como “informativo” para el offcanvas
     try:
@@ -488,8 +488,7 @@ def index():
                            total_ips=len(lines),
                            contador_manual=contador_manual_val,
                            contador_csv=contador_csv_val,
-                           messages=messages,
-                           flash_count=flash_count)
+                           messages=messages)
 
 
 @app.route("/feed/ioc-feed.txt")
@@ -531,4 +530,5 @@ def preview_delete():
 #  Main
 # =========================
 if __name__ == "__main__":
+    # Ejecutar en desarrollo
     app.run(debug=True, host="0.0.0.0", port=5050)
