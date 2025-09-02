@@ -24,23 +24,17 @@
       background: #f8f9fa;
       color: #212529;
     }
-    .bg-dark .hint-box {
-      border-color: #495057;
-      background: #1f1f1f;
-      color: #e9ecef;
-    }
+    .bg-dark .hint-box { border-color:#495057; background:#1f1f1f; color:#e9ecef; }
 
     /* Placeholders visibles en oscuro */
-    .bg-dark ::placeholder { color: #adb5bd !important; opacity: 1; }
-    .bg-dark .form-control, .bg-dark .form-select {
-      background-color: #1f1f1f; color: #e9ecef; border-color: #495057;
-    }
-    .bg-dark .table { color: #e9ecef; }
+    .bg-dark ::placeholder { color:#adb5bd !important; opacity:1; }
+    .bg-dark .form-control, .bg-dark .form-select { background:#1f1f1f; color:#e9ecef; border-color:#495057; }
+    .bg-dark .table { color:#e9ecef; }
 
-    /* TOASTS: arriba a la derecha, bajo el botón de notificaciones */
+    /* TOASTS: arriba-derecha, bajo el botón de notificaciones */
     #toast-portal{
       position: fixed;
-      top: 64px;       /* ajusta si tu cabecera es más alta/baja */
+      top: 64px;          /* ajusta si tu cabecera es más alta/baja */
       right: 16px;
       left: auto;
       transform: none;
@@ -52,17 +46,13 @@
       pointer-events: none;
       align-items: flex-end;
     }
-    .toast{
-      pointer-events: auto;
-      border: none !important;
-      box-shadow: 0 6px 18px rgba(0,0,0,.25);
-    }
+    .toast{ pointer-events:auto; border:none !important; box-shadow:0 6px 18px rgba(0,0,0,.25); }
 
-    /* Botón Notificaciones (arriba dcha) con burbuja */
+    /* Botón Notificaciones (arriba derecha) con burbuja */
     #notif-btn{ position:relative; }
     #notif-badge{ position:absolute; top:-6px; right:-8px; }
 
-    /* Logo esquina (abajo derecha, como estaba) */
+    /* Logo esquina (abajo derecha, sin tocar) */
     #corner-logo{
       position:fixed; bottom:16px; right:16px; width:96px; height:auto; opacity:.85; z-index:1040;
     }
@@ -95,7 +85,7 @@
     ℹ️ Añadidas: Manual (<strong>{{ contador_manual }}</strong>) · CSV (<strong>{{ contador_csv }}</strong>)
   </div>
 
-  <!-- Solo errores “graves” en página si 'error' viene del backend -->
+  <!-- Solo errores graves en página (no mostramos aquí el historial ni acciones) -->
   {% if error %}
     <div class="alert alert-danger mt-2">{{ error }}</div>
   {% endif %}
@@ -286,7 +276,7 @@
   </div>
 </div>
 
-<!-- Logo DPB fijo -->
+<!-- Logo DPB fijo (abajo derecha) -->
 <img id="corner-logo" src="{{ url_for('static', filename='img/logo-dpb.svg') }}" alt="Logo DPB">
 
 <!-- Offcanvas de Notificaciones -->
@@ -336,9 +326,7 @@
     });
     localStorage.setItem('theme', isDark ? 'dark' : 'light');
   }
-  window.onload = () => {
-    if (localStorage.getItem('theme') === 'dark') toggleTheme();
-  };
+  window.onload = () => { if (localStorage.getItem('theme') === 'dark') toggleTheme(); };
 
   /* ----------------- Buscador tabla ----------------- */
   document.addEventListener('DOMContentLoaded', function () {
@@ -360,100 +348,100 @@
   });
 
   /* ----------------- Datos de notificaciones (inyectados) ----------------- */
-  const serverMessages = [
+  window.serverMessages = [
     {% for category, message in (messages or []) %}
-      {"category": "{{category}}", "message": {{ message|tojson }} }{% if not loop.last %},{% endif %}
+      {"category":"{{category}}","message":{{ message|tojson }} }{% if not loop.last %},{% endif %}
     {% endfor %}
   ];
 
-  /* ----------------- TOASTS: SOLO Última acción de ESTA petición ----------------- */
-  (function showOnlyLastActionToast(){
-    const actionKeys = [
-      "añadida","añadidas","eliminada","eliminadas",
-      "rechazada","rechazadas","Acción no permitida","IP duplicada",
-      "IP rechazada","Nada que añadir"
-    ];
-    const isHistory = (txt) => /^\s*\d{4}-\d{2}-\d{2}\b/.test((txt||""));
+  /* ----------------- TOASTS: solo la ÚLTIMA acción de esta petición -----------
+     - Ignora historial (líneas que empiezan por fecha)
+     - 5s ok/aviso, 10s error/no permitido
+     - Recolorea si el backend categorizó eliminación como success
+  -------------------------------------------------------------------------- */
+  (function showLastActionToast(){
+    const actionKeys = ["añadida","añadidas","eliminada","eliminadas","rechazada","rechazadas","Acción no permitida","IP duplicada","IP rechazada","Nada que añadir"];
+    const isHistory = (txt) => /^\d{4}-\d{2}-\d{2}\b/.test((txt||"").trim());
+    const current = (window.serverMessages||[]).filter(m => !isHistory(m.message||""));
+    if (!current.length) return;
 
-    // Filtramos mensajes de esta petición (no historial) y que contengan acción
-    const current = (serverMessages||[]).filter(m => !isHistory(m.message||""));
-    const actionable = current.filter(m => actionKeys.some(k => (m.message||"").includes(k)));
-    if (!actionable.length) return;
+    // nos quedamos con la última que sea “accionable”
+    let last = null;
+    for (let i = current.length-1; i >= 0; i--) {
+      const txt = (current[i].message || "");
+      if (actionKeys.some(k => txt.includes(k))) { last = current[i]; break; }
+    }
+    if (!last) return;
 
-    const last = actionable[actionable.length - 1];
+    // Recoloreo por contenido (sin tocar backend):
+    let cat = String(last.category || 'secondary');
+    const txt = String(last.message || '');
+    if (/eliminad/i.test(txt)) cat = 'warning';
+    if (/rechazad/i.test(txt)) cat = 'danger';
 
     const portal = document.getElementById('toast-portal');
-    portal.innerHTML = ''; // evita toasts “pegados”
-
     const el = document.createElement('div');
-    el.className = 'toast align-items-center text-bg-' + mapToastColor(last.category) + ' border-0';
+    el.className = 'toast align-items-center text-bg-' + mapToastColor(cat) + ' border-0';
     el.innerHTML = `
       <div class="d-flex">
-        <div class="toast-body">${escapeHtml(last.message || '')}</div>
-        <button type="button" class="btn-close btn-close-white me-2 m-auto" data-bs-dismiss="toast" aria-label="Close"></button>
+        <div class="toast-body">${escapeHtml(txt)}</div>
+        <button type="button" class="btn-close btn-close-white me-2 m-auto"
+                data-bs-dismiss="toast" aria-label="Close"></button>
       </div>`;
     portal.appendChild(el);
 
-    const delay = (last.category === 'danger' || last.category === 'accion_no_permitida') ? 10000 : 5000;
+    const delay = (cat === 'danger' || cat === 'accion_no_permitida') ? 10000 : 5000;
     new bootstrap.Toast(el, { autohide: true, delay }).show();
-
-    // Burbuja = número de acciones nuevas (no leídas) -> aquí 1
-    const badge = document.getElementById('notif-badge');
-    if (badge) {
-      badge.textContent = String(actionable.length);
-      badge.classList.toggle('d-none', actionable.length <= 0);
-    }
   })();
 
   /* ----------------- Offcanvas: filtros + paginación ----------------- */
   const PAGE_SIZE = 10;
-  let notifData = (serverMessages || []).map((m, i) => {
-    let dt = null, txt = m.message || '';
-    const mdt = txt.match(/^(\d{4}-\d{2}-\d{2})(?:\s+(\d{2}:\d{2}:\d{2}))?/);
-    if (mdt) { dt = new Date((mdt[1] + (mdt[2] ? 'T' + mdt[2] : 'T00:00:00'))); }
-    return { id: i+1, category: m.category, message: txt, date: dt };
+  const notifData = (window.serverMessages || []).map((m,i) => {
+    let dt=null, txt=m.message||'';
+    const mdt=txt.match(/^(\d{4}-\d{2}-\d{2})(?:\s+(\d{2}:\d{2}:\d{2}))?/);
+    if (mdt) dt=new Date(mdt[1]+(mdt[2]?'T'+mdt[2]:'T00:00:00'));
+    return { id:i+1, category:m.category, message:txt, date:dt };
   });
+
+  let unreadCount = 0; updateBadge();
+  function updateBadge(){
+    const b = document.getElementById('notif-badge');
+    if (!b) return;
+    b.textContent = unreadCount;
+    b.classList.toggle('d-none', unreadCount <= 0);
+  }
 
   const listEl = document.getElementById('notifList');
   const pagEl = document.getElementById('notifPagination');
   const infoEl = document.getElementById('notifCountInfo');
-
-  let filterType = '';
-  let filterDate = '';
-  let currentPage = 1;
+  let filterType = '', filterDate = '', currentPage = 1;
 
   document.getElementById('applyFilters').addEventListener('click', () => {
     filterType = document.getElementById('filterType').value;
     filterDate = document.getElementById('filterDate').value;
-    currentPage = 1;
-    renderList();
+    currentPage = 1; renderList();
   });
   document.getElementById('clearFilters').addEventListener('click', () => {
     document.getElementById('filterType').value = '';
     document.getElementById('filterDate').value = '';
-    filterType = filterDate = '';
-    currentPage = 1;
-    renderList();
+    filterType = filterDate = ''; currentPage = 1; renderList();
   });
 
-  function filtered() {
+  function filtered(){
     return notifData.filter(n => {
       if (filterType && n.category !== filterType) return false;
       if (filterDate) {
-        const d = n.date;
-        if (!d) return false;
-        const ymd = d.toISOString().slice(0,10);
-        if (ymd !== filterDate) return false;
+        const d = n.date; if (!d) return false;
+        if (d.toISOString().slice(0,10) !== filterDate) return false;
       }
       return true;
     });
   }
 
-  function renderList() {
+  function renderList(){
     const data = filtered();
     const totalPages = Math.max(1, Math.ceil(data.length / PAGE_SIZE));
     if (currentPage > totalPages) currentPage = totalPages;
-
     const start = (currentPage - 1) * PAGE_SIZE;
     const pageItems = data.slice(start, start + PAGE_SIZE);
 
@@ -462,67 +450,45 @@
     listEl.innerHTML = '';
     pageItems.forEach(n => {
       const cls = mapToastColor(n.category);
-      const pill = n.category === 'success' ? '✅' :
-                   n.category === 'warning' ? '⚠️' :
-                   (n.category === 'danger' || n.category === 'accion_no_permitida') ? '❌' : 'ℹ️';
+      const pill = n.category === 'success' ? '✅'
+                 : n.category === 'warning' ? '⚠️'
+                 : (n.category === 'danger' || n.category === 'accion_no_permitida') ? '❌' : 'ℹ️';
       const dtTxt = n.date ? n.date.toLocaleString() : '';
       const item = document.createElement('div');
-      item.className = `border rounded p-2 bg-white`;
+      item.className = 'border rounded p-2 bg-white';
       item.innerHTML = `
         <div class="d-flex align-items-center justify-content-between">
           <span class="badge text-bg-${cls}">${pill}</span>
           <span class="small text-muted ms-2">${escapeHtml(dtTxt)}</span>
         </div>
-        <div class="mt-1">${escapeHtml(n.message)}</div>
-      `;
+        <div class="mt-1">${escapeHtml(n.message)}</div>`;
       listEl.appendChild(item);
     });
 
     pagEl.innerHTML = '';
-    const mkPage = (p, label = p, disabled = false, active = false) => {
-      const li = document.createElement('li');
-      li.className = `page-item ${disabled ? 'disabled' : ''} ${active ? 'active' : ''}`;
-      const a = document.createElement('a');
-      a.className = 'page-link';
-      a.href = '#';
-      a.textContent = label;
-      a.addEventListener('click', (e) => {
-        e.preventDefault();
-        if (!disabled && currentPage !== p) {
-          currentPage = p;
-          renderList();
-        }
-      });
-      li.appendChild(a);
-      return li;
+    const mkPage = (p,label=p,disabled=false,active=false)=>{
+      const li=document.createElement('li'); li.className=`page-item ${disabled?'disabled':''} ${active?'active':''}`;
+      const a=document.createElement('a'); a.className='page-link'; a.href='#'; a.textContent=label;
+      a.addEventListener('click',(e)=>{e.preventDefault(); if(!disabled && currentPage!==p){ currentPage=p; renderList(); }});
+      li.appendChild(a); return li;
     };
     const pages = Math.max(1, Math.ceil(data.length / PAGE_SIZE));
-    pagEl.appendChild(mkPage(Math.max(1, currentPage-1), '«', currentPage === 1, false));
-    for (let p = 1; p <= pages; p++) pagEl.appendChild(mkPage(p, String(p), false, p === currentPage));
-    pagEl.appendChild(mkPage(Math.min(pages, currentPage+1), '»', currentPage >= pages, false));
+    pagEl.appendChild(mkPage(Math.max(1,currentPage-1),'«',currentPage===1,false));
+    for (let p=1;p<=pages;p++) pagEl.appendChild(mkPage(p,String(p),false,p===currentPage));
+    pagEl.appendChild(mkPage(Math.min(pages,currentPage+1),'»',currentPage>=pages,false));
   }
   renderList();
 
-  // Al abrir offcanvas, resetea burbuja (marcar como “leído”)
   const offcanvasEl = document.getElementById('offcanvasNotifs');
-  if (offcanvasEl) {
-    offcanvasEl.addEventListener('shown.bs.offcanvas', () => {
-      const badge = document.getElementById('notif-badge');
-      if (badge) {
-        badge.textContent = '0';
-        badge.classList.add('d-none');
-      }
-    });
-  }
+  if (offcanvasEl) offcanvasEl.addEventListener('shown.bs.offcanvas', () => { unreadCount = 0; updateBadge(); });
 
-  /* ----------------- Preview para eliminar por patrón ----------------- */
+  /* ----------- Preview coincidencias eliminación por patrón ----------- */
   (function initDeletePreview() {
     const input = document.getElementById('delete_net_input');
     const preview = document.getElementById('previewResult');
     if (!input || !preview) return;
 
     let lastController = null;
-
     input.addEventListener('input', () => {
       const val = input.value.trim();
       if (!val) {
@@ -530,20 +496,14 @@
         preview.className = 'mt-2 small text-muted';
         return;
       }
-
       if (lastController) lastController.abort();
       lastController = new AbortController();
 
-      fetch(`/preview-delete?pattern=${encodeURIComponent(val)}`, { signal: lastController.signal })
+      fetch(`/preview-delete?pattern=${encodeURIComponent(val)}`, { signal:lastController.signal })
         .then(r => r.json())
         .then(data => {
-          if (data.error) {
-            preview.textContent = `❌ ${data.error}`;
-            preview.className = 'mt-2 small text-danger';
-          } else {
-            preview.textContent = `Coinciden ${data.count} IP(s).`;
-            preview.className = 'mt-2 small text-success';
-          }
+          if (data.error) { preview.textContent = `❌ ${data.error}`; preview.className='mt-2 small text-danger'; }
+          else { preview.textContent = `Coinciden ${data.count} IP(s).`; preview.className='mt-2 small text-success'; }
         })
         .catch(err => {
           if (err.name === 'AbortError') return;
@@ -553,18 +513,19 @@
     });
   })();
 
-  /* ---------- utils compartidas ---------- */
-  function mapToastColor(cat) {
+  /* ---------- utils ---------- */
+  function mapToastColor(cat){
     if (cat === 'success') return 'success';
     if (cat === 'warning') return 'warning';
     if (cat === 'accion_no_permitida' || cat === 'danger') return 'danger';
     return 'secondary';
   }
-  function escapeHtml(str) {
-    return (str || '').replace(/[&<>"']/g, s => ({'&':'&amp;','<':'&lt;','>':'&gt;','"':'&quot;',"'":'&#39;'}[s]));
+  function escapeHtml(str){
+    return (str || '').replace(/[&<>"']/g, s => ({'&':'&amp;','<':'&gt;','>':'&gt;','"':'&quot;',"'":'&#39;'}[s] || s))
+                      .replace(/&gt;/g,'&gt;'); /* asegura > */
   }
 
-  function confirmDeletePattern() {
+  function confirmDeletePattern(){
     const val = document.getElementById('delete_net_input').value.trim();
     return confirm(`Vas a eliminar todas las IPs que coincidan con:\n\n${val}\n\n¿Confirmas?`);
   }
