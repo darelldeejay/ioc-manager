@@ -366,11 +366,9 @@
     {% endfor %}
   ];
 
-  /* ----------------- TOASTS: SOLO acciones de ESTA petición -----------------
-     - Aparecen bajo el botón (arriba-dcha)
-     - success/warning → 10s
-     - danger → 10s
-     - accion_no_permitida → 20s
+  /* ----------------- TOASTS: SOLO la última acción de ESTA petición -----------------
+     - Aparece bajo el botón (arriba-dcha)
+     - success/warning → 10s, danger → 10s, accion_no_permitida → 20s
      - Ignora el historial (mensajes que empiezan con fecha ISO)
   --------------------------------------------------------------------------- */
   (function showRequestActionToasts(){
@@ -379,47 +377,39 @@
       "rechazada","rechazadas","Acción no permitida","IP duplicada",
       "IP rechazada","Nada que añadir"
     ];
-    // Historial: mensajes que empiezan con fecha YYYY-MM-DD
     const isHistory = (txt) => /^\s*\d{4}-\d{2}-\d{2}/.test((txt||""));
 
     // Solo mensajes de esta petición (no historial)
     const currentOnly = (serverMessages || []).filter(m => !isHistory(m.message||""));
 
-    // Filtramos solo los que sean acciones
-    const actionable = currentOnly.filter(m =>
-      actionKeywords.some(k => (m.message||"").includes(k))
-    );
+    // Toma SOLO la última acción
+    let lastAction = null;
+    for (let i=currentOnly.length-1; i>=0; i--) {
+      const txt = currentOnly[i]?.message || "";
+      if (actionKeywords.some(k => txt.includes(k))) { lastAction = currentOnly[i]; break; }
+    }
+    if (!lastAction) return;
 
-    if (!actionable.length) return;
-
-    // Mostrar badge con nº de acciones de esta petición
+    // Badge = 1 (una acción mostrada)
     try {
       const b = document.getElementById('notif-badge');
-      if (b) {
-        b.textContent = actionable.length;
-        b.classList.toggle('d-none', actionable.length <= 0);
-      }
+      if (b) { b.textContent = '1'; b.classList.remove('d-none'); }
     } catch(_) {}
 
     const portal = document.getElementById('toast-portal');
+    const el = document.createElement('div');
+    el.className = 'toast align-items-center text-bg-' + mapToastColor(lastAction.category) + ' border-0';
+    el.innerHTML = `
+      <div class="d-flex">
+        <div class="toast-body">${escapeHtml(lastAction.message || '')}</div>
+        <button type="button" class="btn-close btn-close-white me-2 m-auto"
+                data-bs-dismiss="toast" aria-label="Close"></button>
+      </div>`;
+    portal.appendChild(el);
 
-    actionable.forEach(m => {
-      const el = document.createElement('div');
-      el.className = 'toast align-items-center text-bg-' + mapToastColor(m.category) + ' border-0';
-      el.innerHTML = `
-        <div class="d-flex">
-          <div class="toast-body">${escapeHtml(m.message || '')}</div>
-          <button type="button" class="btn-close btn-close-white me-2 m-auto"
-                  data-bs-dismiss="toast" aria-label="Close"></button>
-        </div>`;
-      portal.appendChild(el);
-
-      // Duración específica por categoría
-      let delay = 10000; // success/warning/danger → 10s
-      if (m.category === 'accion_no_permitida') delay = 20000; // bloqueo global → 20s
-
-      new bootstrap.Toast(el, { autohide: true, delay }).show();
-    });
+    let delay = 10000; // success/warning/danger → 10s
+    if (lastAction.category === 'accion_no_permitida') delay = 20000; // bloqueo global → 20s
+    new bootstrap.Toast(el, { autohide: true, delay }).show();
   })();
 
   /* ----------------- Offcanvas: filtros + paginación ----------------- */
@@ -520,7 +510,7 @@
   }
   renderList();
 
-  // Al abrir offcanvas, consideramos "leídas" las de esta petición (se oculta burbuja)
+  // Al abrir offcanvas, consideramos "leída" la de esta petición (se oculta burbuja)
   const offcanvasEl = document.getElementById('offcanvasNotifs');
   if (offcanvasEl) {
     offcanvasEl.addEventListener('shown.bs.offcanvas', () => {
