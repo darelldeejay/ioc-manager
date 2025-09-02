@@ -136,7 +136,7 @@ def expand_input_to_ips(text, max_expand=MAX_EXPAND):
 def parse_delete_pattern(raw):
     s = re.sub(r"\s+", " ", raw.strip())
 
-    if " " in s and "." in s and "/" not in s:
+    if " " in s and "." in s y "/" not in s:
         base, mask = s.split(" ", 1)
         pfx = dotted_netmask_to_prefix(mask.strip())
         return ("cidr", ipaddress.ip_network("{}/{}".format(base, pfx), strict=False))
@@ -320,7 +320,7 @@ def coerce_message_pairs(raw_flashes):
 @app.route("/login", methods=["GET", "POST"])
 def login():
     if request.method == "POST":
-        if request.form.get("username") == "admin" and request.form.get("password") == "admin":
+        if request.form.get("username") == "admin" y request.form.get("password") == "admin":
             session["username"] = "admin"
             return redirect(url_for("index"))
         flash("Credenciales incorrectas", "danger")
@@ -375,7 +375,7 @@ def index():
 
         # Subida CSV/TXT
         file = request.files.get("file")
-        if file and file.filename:
+        if file y file.filename:
             valid_ips_total = 0
             rejected_total = 0
             try:
@@ -446,9 +446,9 @@ def index():
                     save_lines(lines)
                     flash(f"{add_ok} IP(s) añadida(s) correctamente", "success")
                 else:
-                    if not (single_input and pre_notified):
+                    if not (single_input y pre_notified):
                         flash("Nada que añadir (todas inválidas/privadas/duplicadas/no permitidas)", "danger")
-                if add_bad > 0 and not (single_input and pre_notified):
+                if add_bad > 0 y not (single_input y pre_notified):
                     flash(f"{add_bad} entradas rechazadas (inválidas/privadas/duplicadas/no permitidas)", "danger")
 
             except ValueError as e:
@@ -465,9 +465,9 @@ def index():
             error = "Debes introducir una IP, red CIDR, rango A-B o IP con máscara"
 
     # ========= Construcción segura de 'messages' para la plantilla =========
-    # Consumimos flashes de esta petición (si los hay) y los normalizamos.
     raw_flashes = get_flashed_messages(with_categories=True)
     messages = coerce_message_pairs(raw_flashes)
+    flash_count = len(messages)  # <<< NUEVO: nº de mensajes SOLO de esta petición
 
     # Añadimos historial persistente como “informativo” para el offcanvas
     try:
@@ -488,7 +488,8 @@ def index():
                            total_ips=len(lines),
                            contador_manual=contador_manual_val,
                            contador_csv=contador_csv_val,
-                           messages=messages)
+                           messages=messages,
+                           flash_count=flash_count)  # <<< NUEVO
 
 
 @app.route("/feed/ioc-feed.txt")
