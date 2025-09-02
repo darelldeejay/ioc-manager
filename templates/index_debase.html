@@ -37,59 +37,36 @@
     }
     .bg-dark .table { color: #e9ecef; }
 
-    /* Toasts: sin bordes raros, abajo centrados */
-    #toast-portal {
+    /* TOASTS: arriba a la derecha, bajo el botón de notificaciones */
+    #toast-portal{
       position: fixed;
-      bottom: 16px;
-      left: 50%;
-      transform: translateX(-50%);
+      top: 64px;        /* Ajusta si tu cabecera es más alta/baja */
+      right: 16px;
+      left: auto;
+      transform: none;
       z-index: 1060;
       display: flex;
       flex-direction: column;
       gap: 8px;
       max-width: min(90vw, 560px);
-      width: max-content;
-      pointer-events: none;
+      pointer-events: none;     /* no bloquean la UI */
+      align-items: flex-end;
     }
-    .toast {
-      pointer-events: auto;
+    .toast{
+      pointer-events: auto;     /* permite cerrar */
       border: none !important;
       box-shadow: 0 6px 18px rgba(0,0,0,.25);
     }
 
-    /* Botón Notificaciones flotante (abajo derecha) con burbuja */
-    #notif-fab {
-      position: fixed;
-      right: 16px;
-      bottom: 16px;
-      z-index: 1065;
-      border-radius: 9999px;
-      width: 56px;
-      height: 56px;
-      display: flex;
-      align-items: center;
-      justify-content: center;
-      box-shadow: 0 8px 22px rgba(0,0,0,.25);
-    }
-    #notif-badge {
-      position: absolute;
-      top: -6px;
-      right: -4px;
-    }
+    /* Botón Notificaciones (en cabecera) con burbuja */
+    #notif-btn{ position:relative; }
+    #notif-badge{ position:absolute; top:-6px; right:-8px; }
 
-    /* Logo esquina (responsivo) */
-    #corner-logo {
-      position: fixed;
-      bottom: 16px;
-      left: 16px;
-      width: 96px;
-      height: auto;
-      opacity: .85;
-      z-index: 1040;
+    /* Logo esquina (SIN TOCAR, abajo derecha) */
+    #corner-logo{
+      position:fixed; bottom:16px; right:16px; width:96px; height:auto; opacity:.85; z-index:1040;
     }
-    @media (max-width: 576px) {
-      #corner-logo { width: 68px; }
-    }
+    @media (max-width:576px){ #corner-logo{ width:68px; } }
   </style>
 </head>
 <body class="bg-light">
@@ -97,7 +74,18 @@
 <div class="container py-3">
   <div class="d-flex justify-content-between align-items-center mb-3">
     <button class="btn btn-outline-secondary btn-sm" onclick="toggleTheme()">🌙 Modo Oscuro</button>
-    <a href="/logout" class="btn btn-outline-danger btn-sm">Logout</a>
+
+    <div class="d-flex align-items-center gap-2">
+      <!-- Botón Notificaciones (arriba derecha) -->
+      <button id="notif-btn" class="btn btn-outline-primary btn-sm"
+              type="button" data-bs-toggle="offcanvas"
+              data-bs-target="#offcanvasNotifs" aria-controls="offcanvasNotifs">
+        🔔 Notificaciones
+        <span id="notif-badge" class="badge text-bg-danger rounded-pill d-none">0</span>
+      </button>
+
+      <a href="/logout" class="btn btn-outline-danger btn-sm">Logout</a>
+    </div>
   </div>
 
   <h2 class="mb-4 text-center">Gestor de IPs Maliciosas</h2>
@@ -107,10 +95,10 @@
     ℹ️ Añadidas: Manual (<strong>{{ contador_manual }}</strong>) · CSV (<strong>{{ contador_csv }}</strong>)
   </div>
 
-  <!-- Mensajes flash server-side (errores de validación visibles en página) -->
-  {% for category, message in (messages or []) %}
-    <div class="alert alert-{{ category }} mt-2">{{ message }}</div>
-  {% endfor %}
+  <!-- Solo errores graves si el backend los envía en 'error' -->
+  {% if error %}
+    <div class="alert alert-danger mt-2">{{ error }}</div>
+  {% endif %}
 
   <form method="POST" enctype="multipart/form-data" class="mt-3">
     <!-- Alta manual -->
@@ -175,10 +163,6 @@
         </div>
       </div>
     </div>
-
-    {% if error %}
-      <div class="alert alert-danger">{{ error }}</div>
-    {% endif %}
   </form>
 
   <!-- Modal Confirmación Eliminar Todas -->
@@ -302,14 +286,8 @@
   </div>
 </div>
 
-<!-- Logo DPB fijo -->
+<!-- Logo DPB fijo (abajo derecha, SIN TOCAR) -->
 <img id="corner-logo" src="{{ url_for('static', filename='img/logo-dpb.svg') }}" alt="Logo DPB">
-
-<!-- Botón flotante de Notificaciones (abajo dcha) -->
-<button id="notif-fab" class="btn btn-primary" type="button" data-bs-toggle="offcanvas" data-bs-target="#offcanvasNotifs" aria-controls="offcanvasNotifs">
-  🔔
-  <span id="notif-badge" class="badge text-bg-danger rounded-pill d-none">0</span>
-</button>
 
 <!-- Offcanvas de Notificaciones -->
 <div class="offcanvas offcanvas-end" tabindex="-1" id="offcanvasNotifs" aria-labelledby="offcanvasNotifsLabel">
@@ -387,67 +365,66 @@
       {"category": "{{category}}", "message": {{ message|tojson }} }{% if not loop.last %},{% endif %}
     {% endfor %}
   ];
+  const FLASH_COUNT = {{ flash_count|default(0) }};  /* nº de flashes de ESTA petición */
 
-  /* ----------------- Toasts: solo la acción, 5s ok / 10s error ----------------- */
-  (function showRecentToasts() {
-    const actionKeywords = ["añadida","añadidas","eliminada","eliminadas","rechazada","rechazadas","Acción no permitida","IP duplicada","IP rechazada","Nada que añadir"];
-    const recent = serverMessages.filter(m => actionKeywords.some(k => (m.message || "").includes(k)));
+  /* ----------------- TOASTS: SOLO acción FINAL de ESTA petición -----------
+     - Toma sólo los primeros FLASH_COUNT elementos (los flashes actuales)
+     - 10 s por defecto (altas/eliminaciones/errores), 20 s si es bloqueo global
+  --------------------------------------------------------------------------- */
+  (function showRequestActionToasts(){
+    const actionKeywords = [
+      "añadida","añadidas","eliminada","eliminadas",
+      "rechazada","rechazadas","Acción no permitida","IP duplicada",
+      "IP rechazada","Nada que añadir"
+    ];
+
+    // 1) Recorta a los flashes de esta petición
+    const currentOnly = FLASH_COUNT ? serverMessages.slice(0, FLASH_COUNT) : serverMessages;
+
+    // 2) Entre esos, nos quedamos con los "accionables"
+    const actionable = currentOnly.filter(m =>
+      actionKeywords.some(k => (m.message||"").includes(k))
+    );
+
+    // 3) Elegimos SOLO la última acción (la final de la petición)
+    const last = actionable.length ? actionable[actionable.length - 1] : null;
+    if (!last) return;
+
+    // Burbuja de no leídas: nº de acciones de esta petición
+    try {
+      const b = document.getElementById('notif-badge');
+      if (b) {
+        const count = actionable.length;
+        b.textContent = count;
+        b.classList.toggle('d-none', count <= 0);
+      }
+    } catch(e){}
+
+    // Pintamos el toast
     const portal = document.getElementById('toast-portal');
+    const el = document.createElement('div');
+    el.className = 'toast align-items-center text-bg-' + mapToastColor(last.category) + ' border-0';
+    el.innerHTML = `
+      <div class="d-flex">
+        <div class="toast-body">${escapeHtml(last.message || '')}</div>
+        <button type="button" class="btn-close btn-close-white me-2 m-auto"
+                data-bs-dismiss="toast" aria-label="Close"></button>
+      </div>`;
+    portal.appendChild(el);
 
-    recent.forEach(m => {
-      const toastEl = document.createElement('div');
-      toastEl.className = 'toast align-items-center text-bg-' + mapToastColor(m.category) + ' border-0';
-      toastEl.setAttribute('role', 'status');
-      toastEl.setAttribute('aria-live', 'assertive');
-      toastEl.setAttribute('aria-atomic', 'true');
-
-      const msgOnly = m.message;
-      toastEl.innerHTML = `
-        <div class="d-flex">
-          <div class="toast-body">${escapeHtml(msgOnly)}</div>
-          <button type="button" class="btn-close btn-close-white me-2 m-auto" data-bs-dismiss="toast" aria-label="Close"></button>
-        </div>`;
-
-      portal.appendChild(toastEl);
-      const delay = isErrorCategory(m.category) ? 10000 : 5000;
-      const bsToast = new bootstrap.Toast(toastEl, { autohide: true, delay });
-      bsToast.show();
-    });
+    // 10 s por defecto; 20 s si es bloqueo global
+    const delay = (last.category === 'accion_no_permitida') ? 20000 : 10000;
+    new bootstrap.Toast(el, { autohide: true, delay }).show();
   })();
-
-  function isErrorCategory(cat) {
-    return (cat === 'danger' || cat === 'accion_no_permitida');
-  }
-  function mapToastColor(cat) {
-    if (cat === 'success') return 'success';
-    if (cat === 'warning') return 'warning';
-    if (cat === 'accion_no_permitida') return 'danger';
-    if (cat === 'danger') return 'danger';
-    return 'secondary';
-  }
-  function escapeHtml(str) {
-    return (str || '').replace(/[&<>"']/g, s => ({'&':'&amp;','<':'&lt;','>':'&gt;','"':'&quot;',"'":'&#39;'}[s]));
-  }
 
   /* ----------------- Offcanvas: filtros + paginación ----------------- */
   const PAGE_SIZE = 10;
-  let notifData = serverMessages.map((m, i) => {
+  let notifData = (serverMessages || []).map((m, i) => {
     let dt = null, txt = m.message || '';
     const mdt = txt.match(/^(\d{4}-\d{2}-\d{2})(?:\s+(\d{2}:\d{2}:\d{2}))?/);
     if (mdt) { dt = new Date((mdt[1] + (mdt[2] ? 'T' + mdt[2] : 'T00:00:00'))); }
     return { id: i+1, category: m.category, message: txt, date: dt };
   });
-
-  let unreadCount = 0;
-  updateBadge();
-
-  function updateBadge() {
-    const b = document.getElementById('notif-badge');
-    if (!b) return;
-    const count = unreadCount || 0;
-    b.textContent = count;
-    b.classList.toggle('d-none', count <= 0);
-  }
 
   const listEl = document.getElementById('notifList');
   const pagEl = document.getElementById('notifPagination');
@@ -457,22 +434,19 @@
   let filterDate = '';
   let currentPage = 1;
 
-  function applyFilters() {
+  document.getElementById('applyFilters').addEventListener('click', () => {
     filterType = document.getElementById('filterType').value;
     filterDate = document.getElementById('filterDate').value;
     currentPage = 1;
     renderList();
-  }
-  function clearFilters() {
+  });
+  document.getElementById('clearFilters').addEventListener('click', () => {
     document.getElementById('filterType').value = '';
     document.getElementById('filterDate').value = '';
     filterType = filterDate = '';
     currentPage = 1;
     renderList();
-  }
-
-  document.getElementById('applyFilters').addEventListener('click', applyFilters);
-  document.getElementById('clearFilters').addEventListener('click', clearFilters);
+  });
 
   function filtered() {
     return notifData.filter(n => {
@@ -489,12 +463,13 @@
 
   function renderList() {
     const data = filtered();
-    infoEl.textContent = `Mostrando ${Math.min(PAGE_SIZE, data.length)} de ${data.length} notificaciones`;
     const totalPages = Math.max(1, Math.ceil(data.length / PAGE_SIZE));
     if (currentPage > totalPages) currentPage = totalPages;
 
     const start = (currentPage - 1) * PAGE_SIZE;
     const pageItems = data.slice(start, start + PAGE_SIZE);
+
+    infoEl.textContent = `Mostrando ${pageItems.length} de ${data.length} notificaciones`;
 
     listEl.innerHTML = '';
     pageItems.forEach(n => {
@@ -504,7 +479,7 @@
                    (n.category === 'danger' || n.category === 'accion_no_permitida') ? '❌' : 'ℹ️';
       const dtTxt = n.date ? n.date.toLocaleString() : '';
       const item = document.createElement('div');
-      item.className = `border rounded p-2 bg-${cls === 'secondary' ? 'light' : 'white'}`;
+      item.className = `border rounded p-2 bg-white`;
       item.innerHTML = `
         <div class="d-flex align-items-center justify-content-between">
           <span class="badge text-bg-${cls}">${pill}</span>
@@ -533,64 +508,32 @@
       li.appendChild(a);
       return li;
     };
+    const pages = Math.max(1, Math.ceil(data.length / PAGE_SIZE));
     pagEl.appendChild(mkPage(Math.max(1, currentPage-1), '«', currentPage === 1, false));
-    for (let p = 1; p <= Math.max(1, Math.ceil(data.length / PAGE_SIZE)); p++) {
-      pagEl.appendChild(mkPage(p, String(p), false, p === currentPage));
-    }
-    pagEl.appendChild(mkPage(Math.min(Math.ceil(data.length / PAGE_SIZE)||1, currentPage+1), '»', currentPage >= (Math.ceil(data.length / PAGE_SIZE)||1), false));
+    for (let p = 1; p <= pages; p++) pagEl.appendChild(mkPage(p, String(p), false, p === currentPage));
+    pagEl.appendChild(mkPage(Math.min(pages, currentPage+1), '»', currentPage >= pages, false));
   }
-
   renderList();
 
+  // Al abrir offcanvas, consideramos "leídas" las de esta petición (se oculta burbuja)
   const offcanvasEl = document.getElementById('offcanvasNotifs');
   if (offcanvasEl) {
     offcanvasEl.addEventListener('shown.bs.offcanvas', () => {
-      unreadCount = 0;
-      updateBadge();
+      const b = document.getElementById('notif-badge');
+      if (b) b.classList.add('d-none');
     });
   }
 
-  /* ----------------- Preview para eliminar por patrón ----------------- */
-  (function initDeletePreview() {
-    const input = document.getElementById('delete_net_input');
-    const preview = document.getElementById('previewResult');
-    if (!input || !preview) return;
-
-    let lastController = null;
-
-    input.addEventListener('input', () => {
-      const val = input.value.trim();
-      if (!val) {
-        preview.textContent = "Escribe un patrón para ver cuántas IPs coinciden.";
-        preview.classList.remove('text-danger','text-success');
-        preview.classList.add('text-muted');
-        return;
-      }
-
-      if (lastController) lastController.abort();
-      lastController = new AbortController();
-
-      fetch(`/preview-delete?pattern=${encodeURIComponent(val)}`, { signal: lastController.signal })
-        .then(r => r.json())
-        .then(data => {
-          if (data.error) {
-            preview.textContent = `❌ ${data.error}`;
-            preview.classList.remove('text-success','text-muted');
-            preview.classList.add('text-danger');
-          } else {
-            preview.textContent = `Coinciden ${data.count} IP(s).`;
-            preview.classList.remove('text-danger','text-muted');
-            preview.classList.add('text-success');
-          }
-        })
-        .catch(err => {
-          if (err.name === 'AbortError') return;
-          preview.textContent = "❌ Error al consultar coincidencias.";
-          preview.classList.remove('text-success','text-muted');
-          preview.classList.add('text-danger');
-        });
-    });
-  })();
+  /* ---------- utils compartidas ---------- */
+  function mapToastColor(cat) {
+    if (cat === 'success') return 'success';
+    if (cat === 'warning') return 'warning';
+    if (cat === 'accion_no_permitida' || cat === 'danger') return 'danger';
+    return 'secondary';
+  }
+  function escapeHtml(str) {
+    return (str || '').replace(/[&<>"']/g, s => ({'&':'&amp;','<':'&lt;','>':'&gt;','"':'&quot;',"'":'&#39;'}[s]));
+  }
 
   function confirmDeletePattern() {
     const val = document.getElementById('delete_net_input').value.trim();
