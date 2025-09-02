@@ -40,7 +40,7 @@
     /* TOASTS: arriba a la derecha, bajo el botón de notificaciones */
     #toast-portal{
       position: fixed;
-      top: 64px;       /* ajusta si tu cabecera es más alta/baja */
+      top: 64px;        /* Ajusta si tu cabecera es más alta/baja */
       right: 16px;
       left: auto;
       transform: none;
@@ -49,11 +49,11 @@
       flex-direction: column;
       gap: 8px;
       max-width: min(90vw, 560px);
-      pointer-events: none;
+      pointer-events: none;     /* no bloquean la UI */
       align-items: flex-end;
     }
     .toast{
-      pointer-events: auto;
+      pointer-events: auto;     /* permite cerrar */
       border: none !important;
       box-shadow: 0 6px 18px rgba(0,0,0,.25);
     }
@@ -62,7 +62,7 @@
     #notif-btn{ position:relative; }
     #notif-badge{ position:absolute; top:-6px; right:-8px; }
 
-    /* Logo esquina (sin tocar, abajo derecha) */
+    /* Logo esquina (SIN TOCAR, abajo derecha) */
     #corner-logo{
       position:fixed; bottom:16px; right:16px; width:96px; height:auto; opacity:.85; z-index:1040;
     }
@@ -95,7 +95,7 @@
     ℹ️ Añadidas: Manual (<strong>{{ contador_manual }}</strong>) · CSV (<strong>{{ contador_csv }}</strong>)
   </div>
 
-  <!-- Solo errores graves que vengan en 'error' -->
+  <!-- Solo errores graves si el backend los envía en 'error' -->
   {% if error %}
     <div class="alert alert-danger mt-2">{{ error }}</div>
   {% endif %}
@@ -286,7 +286,7 @@
   </div>
 </div>
 
-<!-- Logo DPB (sin tocar) -->
+<!-- Logo DPB fijo (abajo derecha, SIN TOCAR) -->
 <img id="corner-logo" src="{{ url_for('static', filename='img/logo-dpb.svg') }}" alt="Logo DPB">
 
 <!-- Offcanvas de Notificaciones -->
@@ -366,42 +366,48 @@
     {% endfor %}
   ];
 
-  /* ----------------- TOASTS: SOLO la última acción de ESTA petición -----------------
-     - Se ignora el historial (entran con fecha ISO al principio: YYYY-MM-DD ...)
+  /* ----------------- TOASTS: SOLO acciones de ESTA petición -----------------
+     - Aparecen bajo el botón (arriba-dcha)
      - 5s para success/warning, 10s para danger/accion_no_permitida
+     - Ignora el historial (mensajes que empiezan con fecha ISO)
   --------------------------------------------------------------------------- */
-  (function showOnlyLastActionToast(){
-    const isHistory = (txt) => /^\s*\d{4}-\d{2}-\d{2}\b/.test((txt||""));
+  (function showRequestActionToasts(){
     const actionKeywords = [
       "añadida","añadidas","eliminada","eliminadas",
       "rechazada","rechazadas","Acción no permitida","IP duplicada",
       "IP rechazada","Nada que añadir"
     ];
-
-    // Filtramos flashes de esta petición (sin fecha ISO delante)
-    const currentFlashes = (serverMessages || []).filter(m => !isHistory(m.message));
-    // Nos quedamos SOLO con los que son claramente acciones
-    const actionable = currentFlashes.filter(m =>
+    const isHistory = (txt) => /^\d{4}-\d{2}-\d{2}/.test((txt||"").trim());
+    const currentOnly = (serverMessages || []).filter(m => !isHistory(m.message||""));
+    const actionable = currentOnly.filter(m =>
       actionKeywords.some(k => (m.message||"").includes(k))
     );
     if (!actionable.length) return;
 
-    // Mostramos SOLO la última acción
-    const last = actionable[actionable.length - 1];
+    // badge de no leídas = nº de acciones de esta petición
+    try {
+      const b = document.getElementById('notif-badge');
+      if (b) {
+        const count = actionable.length;
+        b.textContent = count;
+        b.classList.toggle('d-none', count <= 0);
+      }
+    } catch(e){}
 
     const portal = document.getElementById('toast-portal');
-    const el = document.createElement('div');
-    el.className = 'toast align-items-center text-bg-' + mapToastColor(last.category) + ' border-0';
-    el.innerHTML = `
-      <div class="d-flex">
-        <div class="toast-body">${escapeHtml(last.message || '')}</div>
-        <button type="button" class="btn-close btn-close-white me-2 m-auto"
-                data-bs-dismiss="toast" aria-label="Close"></button>
-      </div>`;
-    portal.appendChild(el);
-
-    const delay = (last.category === 'danger' || last.category === 'accion_no_permitida') ? 10000 : 5000;
-    new bootstrap.Toast(el, { autohide: true, delay }).show();
+    actionable.forEach(m => {
+      const el = document.createElement('div');
+      el.className = 'toast align-items-center text-bg-' + mapToastColor(m.category) + ' border-0';
+      el.innerHTML = `
+        <div class="d-flex">
+          <div class="toast-body">${escapeHtml(m.message || '')}</div>
+          <button type="button" class="btn-close btn-close-white me-2 m-auto"
+                  data-bs-dismiss="toast" aria-label="Close"></button>
+        </div>`;
+      portal.appendChild(el);
+      const delay = (m.category === 'danger' || m.category === 'accion_no_permitida') ? 10000 : 5000;
+      new bootstrap.Toast(el, { autohide: true, delay }).show();
+    });
   })();
 
   /* ----------------- Offcanvas: filtros + paginación ----------------- */
@@ -412,16 +418,6 @@
     if (mdt) { dt = new Date((mdt[1] + (mdt[2] ? 'T' + mdt[2] : 'T00:00:00'))); }
     return { id: i+1, category: m.category, message: txt, date: dt };
   });
-
-  let unreadCount = 0; // si en el futuro marcas no leídas por backend, hidrátalo aquí
-  updateBadge();
-  function updateBadge(){
-    const b = document.getElementById('notif-badge');
-    if (!b) return;
-    const count = unreadCount || 0;
-    b.textContent = count;
-    b.classList.toggle('d-none', count <= 0);
-  }
 
   const listEl = document.getElementById('notifList');
   const pagEl = document.getElementById('notifPagination');
@@ -512,11 +508,12 @@
   }
   renderList();
 
+  // Al abrir offcanvas, consideramos "leídas" las de esta petición (se oculta burbuja)
   const offcanvasEl = document.getElementById('offcanvasNotifs');
   if (offcanvasEl) {
     offcanvasEl.addEventListener('shown.bs.offcanvas', () => {
-      unreadCount = 0;
-      updateBadge();
+      const b = document.getElementById('notif-badge');
+      if (b) b.classList.add('d-none');
     });
   }
 
