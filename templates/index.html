@@ -367,8 +367,8 @@
   ];
 
   /* ----------------- TOASTS: SOLO la última acción de ESTA petición -----------------
-     - Aparece bajo el botón (arriba-dcha)
-     - success/warning → 10s, danger → 10s, accion_no_permitida → 20s
+     - Posición: bajo el botón (arriba-dcha)
+     - Duraciones: altas/eliminaciones 10s, rechazadas/errores 10s, bloqueo global 20s
      - Ignora el historial (mensajes que empiezan con fecha ISO)
   --------------------------------------------------------------------------- */
   (function showRequestActionToasts(){
@@ -379,23 +379,27 @@
     ];
     const isHistory = (txt) => /^\s*\d{4}-\d{2}-\d{2}/.test((txt||""));
 
-    // Solo mensajes de esta petición (no historial)
+    // Mensajes de ESTA petición (sin historial)
     const currentOnly = (serverMessages || []).filter(m => !isHistory(m.message||""));
 
-    // Toma SOLO la última acción
+    // Elegimos SIEMPRE el ÚLTIMO mensaje accionable
     let lastAction = null;
-    for (let i=currentOnly.length-1; i>=0; i--) {
-      const txt = currentOnly[i]?.message || "";
-      if (actionKeywords.some(k => txt.includes(k))) { lastAction = currentOnly[i]; break; }
+    for (let i = currentOnly.length - 1; i >= 0; i--) {
+      const txt = (currentOnly[i]?.message || "");
+      if (actionKeywords.some(k => txt.includes(k))) {
+        lastAction = currentOnly[i];
+        break;
+      }
     }
     if (!lastAction) return;
 
-    // Badge = 1 (una acción mostrada)
+    // Badge a 1 (habrá una acción mostrada)
     try {
       const b = document.getElementById('notif-badge');
       if (b) { b.textContent = '1'; b.classList.remove('d-none'); }
     } catch(_) {}
 
+    // Pintamos UN SOLO toast
     const portal = document.getElementById('toast-portal');
     const el = document.createElement('div');
     el.className = 'toast align-items-center text-bg-' + mapToastColor(lastAction.category) + ' border-0';
@@ -407,8 +411,9 @@
       </div>`;
     portal.appendChild(el);
 
-    let delay = 10000; // success/warning/danger → 10s
-    if (lastAction.category === 'accion_no_permitida') delay = 20000; // bloqueo global → 20s
+    // Duraciones
+    let delay = 10000; // por defecto 10s
+    if (lastAction.category === 'accion_no_permitida') delay = 20000; // bloqueo global 20s
     new bootstrap.Toast(el, { autohide: true, delay }).show();
   })();
 
@@ -510,7 +515,7 @@
   }
   renderList();
 
-  // Al abrir offcanvas, consideramos "leída" la de esta petición (se oculta burbuja)
+  // Al abrir offcanvas, consideramos "leídas" las de esta petición (se oculta burbuja)
   const offcanvasEl = document.getElementById('offcanvasNotifs');
   if (offcanvasEl) {
     offcanvasEl.addEventListener('shown.bs.offcanvas', () => {
