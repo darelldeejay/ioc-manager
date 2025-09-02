@@ -22,6 +22,28 @@ MAX_EXPAND = 4096
 
 
 # =========================
+#  Utilidades auxiliares
+# =========================
+def read_counter(path):
+    """Lee un contador entero desde archivo; si no existe, devuelve 0."""
+    try:
+        if os.path.exists(path):
+            with open(path, "r", encoding="utf-8") as f:
+                return int((f.read() or "0").strip())
+    except Exception:
+        pass
+    return 0
+
+
+def write_counter(path, value):
+    try:
+        with open(path, "w", encoding="utf-8") as f:
+            f.write(str(int(value)))
+    except Exception:
+        pass
+
+
+# =========================
 #  Utilidades de red
 # =========================
 def dotted_netmask_to_prefix(mask):
@@ -264,19 +286,12 @@ def add_ips_validated(lines, existentes, iterable_ips, ttl_val, contador_ruta=No
         existentes.add(ip_str)
         log("Añadida", ip_str)
         guardar_notif("success", f"IP añadida: {ip_str}")
-        # (Contadores opcionales)
+        # Contador opcional
         if contador_ruta:
             try:
-                val = 0
-                if os.path.exists(contador_ruta):
-                    with open(contador_ruta) as f:
-                        try:
-                            val = int(f.read().strip())
-                        except:
-                            val = 0
-                with open(contador_ruta, "w") as f:
-                    f.write(str(val + 1))
-            except:
+                val = read_counter(contador_ruta)
+                write_counter(contador_ruta, val + 1)
+            except Exception:
                 pass
         añadidas += 1
     return añadidas, rechazadas
@@ -463,12 +478,16 @@ def index():
     except Exception:
         pass
 
+    # Contadores reales (manual/CSV) para mostrar en cabecera
+    contador_manual_val = read_counter(COUNTER_MANUAL)
+    contador_csv_val = read_counter(COUNTER_CSV)
+
     return render_template("index.html",
                            ips=lines,
                            error=error,
                            total_ips=len(lines),
-                           contador_manual=0,
-                           contador_csv=0,
+                           contador_manual=contador_manual_val,
+                           contador_csv=contador_csv_val,
                            messages=messages)
 
 
