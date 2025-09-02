@@ -37,7 +37,7 @@
     }
     .bg-dark .table { color: #e9ecef; }
 
-    /* TOASTS: arriba a la derecha, bajo el botón de notificaciones */
+    /* TOASTS: arriba derecha, bajo el botón de notificaciones */
     #toast-portal{
       position: fixed;
       top: 64px;        /* Ajusta si tu cabecera es más alta/baja */
@@ -296,6 +296,7 @@
     <button type="button" class="btn-close" data-bs-dismiss="offcanvas" aria-label="Cerrar"></button>
   </div>
   <div class="offcanvas-body d-flex flex-column" style="gap:.75rem;">
+
     <!-- Filtros -->
     <div class="d-flex flex-wrap align-items-center gap-2 mb-2">
       <select id="filterType" class="form-select form-select-sm" style="max-width:180px">
@@ -365,56 +366,48 @@
       {"category": "{{category}}", "message": {{ message|tojson }} }{% if not loop.last %},{% endif %}
     {% endfor %}
   ];
-  const FLASH_COUNT = {{ flash_count|default(0) }};  /* nº de flashes de ESTA petición */
 
-  /* ----------------- TOASTS: SOLO acción FINAL de ESTA petición -----------
-     - Toma sólo los primeros FLASH_COUNT elementos (los flashes actuales)
-     - 10 s por defecto (altas/eliminaciones/errores), 20 s si es bloqueo global
+  /* ----------------- TOASTS: SOLO acciones de ESTA petición -----------------
+     - Aparecen bajo el botón (arriba-dcha)
+     - 10s para success/warning/danger, 20s para accion_no_permitida
+     - Ignora el historial (mensajes que empiezan con fecha ISO)
   --------------------------------------------------------------------------- */
   (function showRequestActionToasts(){
-    const actionKeywords = [
-      "añadida","añadidas","eliminada","eliminadas",
-      "rechazada","rechazadas","Acción no permitida","IP duplicada",
-      "IP rechazada","Nada que añadir"
-    ];
+    const isHistory = (txt) => /^\d{4}-\d{2}-\d{2}/.test((txt||"").trim());
 
-    // 1) Recorta a los flashes de esta petición
-    const currentOnly = FLASH_COUNT ? serverMessages.slice(0, FLASH_COUNT) : serverMessages;
+    // Solo los mensajes de ESTA petición
+    const currentOnly = (serverMessages || []).filter(m => !isHistory(m.message||""));
 
-    // 2) Entre esos, nos quedamos con los "accionables"
-    const actionable = currentOnly.filter(m =>
-      actionKeywords.some(k => (m.message||"").includes(k))
-    );
+    if (!currentOnly.length) return;
 
-    // 3) Elegimos SOLO la última acción (la final de la petición)
-    const last = actionable.length ? actionable[actionable.length - 1] : null;
-    if (!last) return;
-
-    // Burbuja de no leídas: nº de acciones de esta petición
+    // badge de no leídas = nº de acciones de esta petición
     try {
       const b = document.getElementById('notif-badge');
       if (b) {
-        const count = actionable.length;
+        const count = currentOnly.length;
         b.textContent = count;
         b.classList.toggle('d-none', count <= 0);
       }
     } catch(e){}
 
-    // Pintamos el toast
     const portal = document.getElementById('toast-portal');
-    const el = document.createElement('div');
-    el.className = 'toast align-items-center text-bg-' + mapToastColor(last.category) + ' border-0';
-    el.innerHTML = `
-      <div class="d-flex">
-        <div class="toast-body">${escapeHtml(last.message || '')}</div>
-        <button type="button" class="btn-close btn-close-white me-2 m-auto"
-                data-bs-dismiss="toast" aria-label="Close"></button>
-      </div>`;
-    portal.appendChild(el);
 
-    // 10 s por defecto; 20 s si es bloqueo global
-    const delay = (last.category === 'accion_no_permitida') ? 20000 : 10000;
-    new bootstrap.Toast(el, { autohide: true, delay }).show();
+    // Mostrar cada mensaje tal cual (sin palabras clave) para que coincida 1:1
+    currentOnly.forEach(m => {
+      const el = document.createElement('div');
+      el.className = 'toast align-items-center text-bg-' + mapToastColor(m.category) + ' border-0';
+      el.innerHTML = `
+        <div class="d-flex">
+          <div class="toast-body">${escapeHtml(m.message || '')}</div>
+          <button type="button" class="btn-close btn-close-white me-2 m-auto"
+                  data-bs-dismiss="toast" aria-label="Close"></button>
+        </div>`;
+      portal.appendChild(el);
+
+      let delay = 10000; // default 10s
+      if (m.category === 'accion_no_permitida') delay = 20000; // 20s bloqueo global
+      new bootstrap.Toast(el, { autohide: true, delay }).show();
+    });
   })();
 
   /* ----------------- Offcanvas: filtros + paginación ----------------- */
@@ -523,6 +516,44 @@
       if (b) b.classList.add('d-none');
     });
   }
+
+  /* ----------- Preview coincidencias eliminación por patrón ----------- */
+  (function initDeletePreview() {
+    const input = document.getElementById('delete_net_input');
+    const preview = document.getElementById('previewResult');
+    if (!input || !preview) return;
+
+    let lastController = null;
+
+    input.addEventListener('input', () => {
+      const val = input.value.trim();
+      if (!val) {
+        preview.textContent = "Escribe un patrón para ver cuántas IPs coinciden.";
+        preview.className = 'mt-2 small text-muted';
+        return;
+      }
+
+      if (lastController) lastController.abort();
+      lastController = new AbortController();
+
+      fetch(`/preview-delete?pattern=${encodeURIComponent(val)}`, { signal: lastController.signal })
+        .then(r => r.json())
+        .then(data => {
+          if (data.error) {
+            preview.textContent = `❌ ${data.error}`;
+            preview.className = 'mt-2 small text-danger';
+          } else {
+            preview.textContent = `Coinciden ${data.count} IP(s).`;
+            preview.className = 'mt-2 small text-success';
+          }
+        })
+        .catch(err => {
+          if (err.name === 'AbortError') return;
+          preview.textContent = "❌ Error al consultar coincidencias.";
+          preview.className = 'mt-2 small text-danger';
+        });
+    });
+  })();
 
   /* ---------- utils compartidas ---------- */
   function mapToastColor(cat) {
