@@ -366,16 +366,8 @@
     {% endfor %}
   ];
 
-  /* ----------------- TOASTS: SOLO la ÚLTIMA acción de ESTA petición -----------------
-     - Aparecen bajo el botón (arriba-dcha)
-     - Duraciones:
-        * success / warning ....................... 10s
-        * danger (rechazos/errores) ............... 10s
-        * accion_no_permitida (bloqueo global) .... 20s
-     - Ignora el historial (mensajes que empiezan con fecha ISO)
-     - Evita mezclar acciones viejas: usa la ÚLTIMA coincidente
-  --------------------------------------------------------------------------- */
-  (function showLastRequestActionToast(){
+  /* ----------------- TOAST: ÚNICO y de esta petición (prioridad por severidad) ----------------- */
+  (function showPrioritizedToast(){
     const actionKeywords = [
       "añadida","añadidas","eliminada","eliminadas",
       "rechazada","rechazadas","Acción no permitida","IP duplicada",
@@ -383,44 +375,45 @@
     ];
     const isHistory = (txt) => /^\d{4}-\d{2}-\d{2}/.test((txt||"").trim());
 
-    const currentOnly = (serverMessages || []).filter(m => !isHistory(m.message||""));
+    // Solo mensajes de ESTA petición y que sean "accionables"
+    const current = (serverMessages || []).filter(m => !isHistory(m.message||""))
+                                          .filter(m => actionKeywords.some(k => (m.message||"").includes(k)));
 
-    // Última acción relevante de esta petición
-    let lastAction = null;
-    for (let i = currentOnly.length - 1; i >= 0; i--) {
-      const txt = (currentOnly[i].message || "");
-      if (actionKeywords.some(k => txt.includes(k))) {
-        lastAction = currentOnly[i];
-        break;
-      }
-    }
-    if (!lastAction) return;
+    if (!current.length) return;
 
-    // Burbuja: nº de acciones de esta petición (no leídas)
+    // Burbuja: cuántas acciones hubo en esta petición
     try {
-      const count = currentOnly.filter(m => actionKeywords.some(k => (m.message||"").includes(k))).length;
       const b = document.getElementById('notif-badge');
       if (b) {
-        b.textContent = count;
-        b.classList.toggle('d-none', count <= 0);
+        b.textContent = current.length;
+        b.classList.toggle('d-none', current.length <= 0);
       }
     } catch(e){}
 
+    // Prioridad por severidad
+    const order = ['accion_no_permitida','danger','warning','success'];
+    let chosen = null;
+    for (const cat of order) {
+      // último de su categoría
+      for (let i = current.length - 1; i >= 0; i--) {
+        if (current[i].category === cat) { chosen = current[i]; break; }
+      }
+      if (chosen) break;
+    }
+    if (!chosen) chosen = current[current.length - 1];
+
     const portal = document.getElementById('toast-portal');
     const el = document.createElement('div');
-    el.className = 'toast align-items-center text-bg-' + mapToastColor(lastAction.category) + ' border-0';
+    el.className = 'toast align-items-center text-bg-' + mapToastColor(chosen.category) + ' border-0';
     el.innerHTML = `
       <div class="d-flex">
-        <div class="toast-body">${escapeHtml(lastAction.message || '')}</div>
+        <div class="toast-body">${escapeHtml(chosen.message || '')}</div>
         <button type="button" class="btn-close btn-close-white me-2 m-auto"
                 data-bs-dismiss="toast" aria-label="Close"></button>
       </div>`;
-
     portal.appendChild(el);
 
-    let delay = 10000; // por defecto 10s
-    if (lastAction.category === 'accion_no_permitida') delay = 20000; // bloqueo global 20s
-    // (danger ya queda en 10s según lo pedido)
+    const delay = (chosen.category === 'accion_no_permitida') ? 20000 : 10000;
     new bootstrap.Toast(el, { autohide: true, delay }).show();
   })();
 
