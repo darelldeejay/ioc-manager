@@ -368,7 +368,7 @@
 
   /* ----------------- TOAST: SOLO la última acción de ESTA petición -----------------
      - Aparece bajo el botón (arriba-dcha)
-     - 10s para success/warning/danger; 20s para accion_no_permitida
+     - 10s para success/warning; 20s para danger/accion_no_permitida
      - Ignora el historial (mensajes que empiezan con fecha ISO)
   --------------------------------------------------------------------------- */
   (function showLatestActionToast(){
@@ -408,7 +408,8 @@
       </div>`;
     portal.appendChild(el);
 
-    const delay = (m.category === 'accion_no_permitida') ? 20000 : 10000;
+    /* >>> ÚNICO CAMBIO SOLICITADO: duraciones por categoría <<< */
+    const delay = (m.category === 'danger' || m.category === 'accion_no_permitida') ? 20000 : 10000;
     new bootstrap.Toast(el, { autohide: true, delay }).show();
   })();
 
