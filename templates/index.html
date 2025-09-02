@@ -366,8 +366,12 @@
     {% endfor %}
   ];
 
-  /* ----------------- TOAST: ÚNICO y de esta petición (prioridad por severidad) ----------------- */
-  (function showPrioritizedToast(){
+  /* ----------------- TOAST: SOLO la última acción de ESTA petición -----------------
+     - Aparece bajo el botón (arriba-dcha)
+     - 10s para success/warning/danger; 20s para accion_no_permitida
+     - Ignora el historial (mensajes que empiezan con fecha ISO)
+  --------------------------------------------------------------------------- */
+  (function showLatestActionToast(){
     const actionKeywords = [
       "añadida","añadidas","eliminada","eliminadas",
       "rechazada","rechazadas","Acción no permitida","IP duplicada",
@@ -375,45 +379,36 @@
     ];
     const isHistory = (txt) => /^\d{4}-\d{2}-\d{2}/.test((txt||"").trim());
 
-    // Solo mensajes de ESTA petición y que sean "accionables"
-    const current = (serverMessages || []).filter(m => !isHistory(m.message||""))
-                                          .filter(m => actionKeywords.some(k => (m.message||"").includes(k)));
+    const currentOnly = (serverMessages || []).filter(m => !isHistory(m.message||""));
+    const actionable = currentOnly.filter(m =>
+      actionKeywords.some(k => (m.message||"").includes(k))
+    );
+    if (!actionable.length) return;
 
-    if (!current.length) return;
-
-    // Burbuja: cuántas acciones hubo en esta petición
+    // Badge = cuántas acciones ocurrieron en esta petición
     try {
       const b = document.getElementById('notif-badge');
       if (b) {
-        b.textContent = current.length;
-        b.classList.toggle('d-none', current.length <= 0);
+        b.textContent = actionable.length;
+        b.classList.toggle('d-none', actionable.length <= 0);
       }
     } catch(e){}
 
-    // Prioridad por severidad
-    const order = ['accion_no_permitida','danger','warning','success'];
-    let chosen = null;
-    for (const cat of order) {
-      // último de su categoría
-      for (let i = current.length - 1; i >= 0; i--) {
-        if (current[i].category === cat) { chosen = current[i]; break; }
-      }
-      if (chosen) break;
-    }
-    if (!chosen) chosen = current[current.length - 1];
+    // Mostrar SOLO la última acción
+    const m = actionable[actionable.length - 1];
 
     const portal = document.getElementById('toast-portal');
     const el = document.createElement('div');
-    el.className = 'toast align-items-center text-bg-' + mapToastColor(chosen.category) + ' border-0';
+    el.className = 'toast align-items-center text-bg-' + mapToastColor(m.category) + ' border-0';
     el.innerHTML = `
       <div class="d-flex">
-        <div class="toast-body">${escapeHtml(chosen.message || '')}</div>
+        <div class="toast-body">${escapeHtml(m.message || '')}</div>
         <button type="button" class="btn-close btn-close-white me-2 m-auto"
                 data-bs-dismiss="toast" aria-label="Close"></button>
       </div>`;
     portal.appendChild(el);
 
-    const delay = (chosen.category === 'accion_no_permitida') ? 20000 : 10000;
+    const delay = (m.category === 'accion_no_permitida') ? 20000 : 10000;
     new bootstrap.Toast(el, { autohide: true, delay }).show();
   })();
 
@@ -523,44 +518,6 @@
       if (b) b.classList.add('d-none');
     });
   }
-
-  /* ----------- Preview coincidencias eliminación por patrón ----------- */
-  (function initDeletePreview() {
-    const input = document.getElementById('delete_net_input');
-    const preview = document.getElementById('previewResult');
-    if (!input || !preview) return;
-
-    let lastController = null;
-
-    input.addEventListener('input', () => {
-      const val = input.value.trim();
-      if (!val) {
-        preview.textContent = "Escribe un patrón para ver cuántas IPs coinciden.";
-        preview.className = 'mt-2 small text-muted';
-        return;
-      }
-
-      if (lastController) lastController.abort();
-      lastController = new AbortController();
-
-      fetch(`/preview-delete?pattern=${encodeURIComponent(val)}`, { signal: lastController.signal })
-        .then(r => r.json())
-        .then(data => {
-          if (data.error) {
-            preview.textContent = `❌ ${data.error}`;
-            preview.className = 'mt-2 small text-danger';
-          } else {
-            preview.textContent = `Coinciden ${data.count} IP(s).`;
-            preview.className = 'mt-2 small text-success';
-          }
-        })
-        .catch(err => {
-          if (err.name === 'AbortError') return;
-          preview.textContent = "❌ Error al consultar coincidencias.";
-          preview.className = 'mt-2 small text-danger';
-        });
-    });
-  })();
 
   /* ---------- utils compartidas ---------- */
   function mapToastColor(cat) {
