@@ -366,54 +366,36 @@
     {% endfor %}
   ];
 
-  /* ----------------- TOASTS: SOLO la última acción de ESTA petición -----------------
-     - Posición: bajo el botón (arriba-dcha)
-     - Duraciones: altas/eliminaciones 10s, rechazadas/errores 10s, bloqueo global 20s
-     - Ignora el historial (mensajes que empiezan con fecha ISO)
+  /* ----------------- TOAST: SOLO el ÚLTIMO flash de ESTA petición -------------
+     - Ignora historial (líneas que empiezan con fecha)
+     - Duraciones: 20s si 'accion_no_permitida', si no 10s
   --------------------------------------------------------------------------- */
-  (function showRequestActionToasts(){
-    const actionKeywords = [
-      "añadida","añadidas","eliminada","eliminadas",
-      "rechazada","rechazadas","Acción no permitida","IP duplicada",
-      "IP rechazada","Nada que añadir"
-    ];
+  (function showOnlyLastFlash(){
     const isHistory = (txt) => /^\s*\d{4}-\d{2}-\d{2}/.test((txt||""));
-
-    // Mensajes de ESTA petición (sin historial)
     const currentOnly = (serverMessages || []).filter(m => !isHistory(m.message||""));
+    if (!currentOnly.length) return;
 
-    // Elegimos SIEMPRE el ÚLTIMO mensaje accionable
-    let lastAction = null;
-    for (let i = currentOnly.length - 1; i >= 0; i--) {
-      const txt = (currentOnly[i]?.message || "");
-      if (actionKeywords.some(k => txt.includes(k))) {
-        lastAction = currentOnly[i];
-        break;
-      }
-    }
-    if (!lastAction) return;
+    const last = currentOnly[currentOnly.length - 1]; // EL ÚLTIMO flash real
+    if (!last) return;
 
-    // Badge a 1 (habrá una acción mostrada)
+    // Mostrar badge = 1
     try {
       const b = document.getElementById('notif-badge');
       if (b) { b.textContent = '1'; b.classList.remove('d-none'); }
     } catch(_) {}
 
-    // Pintamos UN SOLO toast
     const portal = document.getElementById('toast-portal');
     const el = document.createElement('div');
-    el.className = 'toast align-items-center text-bg-' + mapToastColor(lastAction.category) + ' border-0';
+    el.className = 'toast align-items-center text-bg-' + mapToastColor(last.category) + ' border-0';
     el.innerHTML = `
       <div class="d-flex">
-        <div class="toast-body">${escapeHtml(lastAction.message || '')}</div>
+        <div class="toast-body">${escapeHtml(last.message || '')}</div>
         <button type="button" class="btn-close btn-close-white me-2 m-auto"
                 data-bs-dismiss="toast" aria-label="Close"></button>
       </div>`;
     portal.appendChild(el);
 
-    // Duraciones
-    let delay = 10000; // por defecto 10s
-    if (lastAction.category === 'accion_no_permitida') delay = 20000; // bloqueo global 20s
+    let delay = (last.category === 'accion_no_permitida') ? 20000 : 10000;
     new bootstrap.Toast(el, { autohide: true, delay }).show();
   })();
 
@@ -515,7 +497,7 @@
   }
   renderList();
 
-  // Al abrir offcanvas, consideramos "leídas" las de esta petición (se oculta burbuja)
+  // Al abrir offcanvas, consideramos "leída" la notificación actual (oculta burbuja)
   const offcanvasEl = document.getElementById('offcanvasNotifs');
   if (offcanvasEl) {
     offcanvasEl.addEventListener('shown.bs.offcanvas', () => {
