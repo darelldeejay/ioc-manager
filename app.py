@@ -184,7 +184,7 @@ def filter_lines_delete_pattern(lines, pattern):
 
 
 # =========================
-#  Notificaciones persistentes (para el offcanvas)
+#  Notificaciones persistentes
 # =========================
 def guardar_notif(category, message):
     notif = {"time": datetime.now().strftime("%Y-%m-%d %H:%M:%S"),
@@ -261,10 +261,6 @@ def log(accion, ip):
 #  Alta de IPs (helper)
 # =========================
 def add_ips_validated(lines, existentes, iterable_ips, ttl_val, contador_ruta=None):
-    """
-    Valida y agrega IPs. NO guarda notificación persistente aquí para
-    evitar duplicados; las notificaciones y flashes se controlan en la ruta.
-    """
     añadidas = 0
     rechazadas = 0
     for ip_str in iterable_ips:
@@ -289,7 +285,8 @@ def add_ips_validated(lines, existentes, iterable_ips, ttl_val, contador_ruta=No
         lines.append(f"{ip_str}|{fecha}|{ttl_val}")
         existentes.add(ip_str)
         log("Añadida", ip_str)
-
+        guardar_notif("success", f"IP añadida: {ip_str}")
+        # Contador opcional
         if contador_ruta:
             try:
                 val = read_counter(contador_ruta)
@@ -448,7 +445,6 @@ def index():
                 if add_ok > 0:
                     save_lines(lines)
                     if single_input:
-                        # Notificación y flash alineados (misma frase):
                         guardar_notif("success", f"IP añadida: {single_ip}")
                         flash(f"IP añadida: {single_ip}", "success")
                     else:
@@ -456,12 +452,10 @@ def index():
                         flash(f"{add_ok} IP(s) añadida(s) correctamente", "success")
                 else:
                     if not (single_input and pre_notified):
-                        txt = "Nada que añadir (todas inválidas/privadas/duplicadas/no permitidas)"
-                        flash(txt, "danger")
-                        guardar_notif("danger", txt)
+                        flash("Nada que añadir (todas inválidas/privadas/duplicadas/no permitidas)", "danger")
+                        guardar_notif("danger", "Nada que añadir (todas inválidas/privadas/duplicadas/no permitidas)")
                 if add_bad > 0 and not (single_input and pre_notified):
-                    txt = f"{add_bad} entradas rechazadas (inválidas/privadas/duplicadas/no permitidas)"
-                    flash(txt, "danger")
+                    flash(f"{add_bad} entradas rechazadas (inválidas/privadas/duplicadas/no permitidas)", "danger")
                     guardar_notif("danger", f"{add_bad} entradas rechazadas (manual)")
 
             except ValueError as e:
@@ -469,22 +463,21 @@ def index():
                     flash("⚠️ Acción no permitida: bloqueo de absolutamente todo", "accion_no_permitida")
                     guardar_notif("accion_no_permitida", "Intento de bloqueo global (manual)")
                 else:
-                    txt = str(e)
-                    flash(txt, "danger")
-                    guardar_notif("danger", txt)
+                    flash(str(e), "danger")
+                    guardar_notif("danger", str(e))
             except Exception as e:
-                txt = f"Error inesperado: {str(e)}"
-                flash(txt, "danger")
-                guardar_notif("danger", txt)
+                flash(f"Error inesperado: {str(e)}", "danger")
+                guardar_notif("danger", f"Error inesperado: {str(e)}")
 
             return redirect(url_for("index"))
         else:
             error = "Debes introducir una IP, red CIDR, rango A-B o IP con máscara"
 
     # ========= Construcción segura de 'messages' para la plantilla =========
-    # 1) Flashes de la petición actual (sin fecha al inicio) -> se usan para TOAST
+    # 1) Flashes de la petición actual (sin fecha al inicio) -> se usan para TOAST y badge
     raw_flashes = get_flashed_messages(with_categories=True)
-    messages = coerce_message_pairs(raw_flashes)
+    flash_pairs = coerce_message_pairs(raw_flashes)
+    messages = list(flash_pairs)  # copia
 
     # 2) Historial persistente -> se añade con fecha al inicio del mensaje
     try:
@@ -494,6 +487,9 @@ def index():
             messages.append((cat, msg))
     except Exception:
         pass
+
+    # 3) Última acción explícita (para que el front no tenga que adivinar)
+    last_action = flash_pairs[-1] if flash_pairs else None
 
     # Contadores reales (manual/CSV) para cabecera
     contador_manual_val = read_counter(COUNTER_MANUAL)
@@ -505,7 +501,9 @@ def index():
                            total_ips=len(lines),
                            contador_manual=contador_manual_val,
                            contador_csv=contador_csv_val,
-                           messages=messages)
+                           messages=messages,
+                           last_action=last_action,
+                           flash_count=len(flash_pairs))
 
 
 @app.route("/feed/ioc-feed.txt")
@@ -547,5 +545,4 @@ def preview_delete():
 #  Main
 # =========================
 if __name__ == "__main__":
-    # Permite gunicorn con "app:app" y ejecución directa (debug).
     app.run(debug=True, host="0.0.0.0", port=5050)
