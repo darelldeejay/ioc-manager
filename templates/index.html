@@ -40,7 +40,7 @@
     /* TOASTS: arriba a la derecha, bajo el botón de notificaciones */
     #toast-portal{
       position: fixed;
-      top: 64px; /* Ajusta si tu cabecera es más alta/baja */
+      top: 64px;        /* Ajusta si tu cabecera es más alta/baja */
       right: 16px;
       left: auto;
       transform: none;
@@ -370,7 +370,6 @@
   const LS_LAST_SEEN_KEY = 'notifLastSeen';
 
   function parseNotifTime(str){
-    // Espera "YYYY-MM-DD HH:MM:SS ..." al inicio; devuelve Date o null
     const m = (str||'').match(/^(\d{4}-\d{2}-\d{2})\s+(\d{2}:\d{2}:\d{2})/);
     if(!m) return null;
     return new Date(m[1] + 'T' + m[2]);
@@ -396,8 +395,6 @@
     b.textContent = count;
     b.classList.toggle('d-none', count <= 0);
   }
-
-  // Inicializamos 'last seen' si es la primera vez
   (function initUnreadBadge(){
     if(!localStorage.getItem(LS_LAST_SEEN_KEY)){
       localStorage.setItem(LS_LAST_SEEN_KEY, String(latestHistoryTs() || 0));
@@ -406,26 +403,19 @@
   })();
 
   /* ----------------- TOAST: SOLO la última acción de ESTA petición -----------------
-     - Aparece bajo el botón (arriba-dcha)
+     - Ignora el historial: usamos los mensajes ANTES de la 1ª entrada con fecha
      - 10s para success/warning; 20s para danger/accion_no_permitida
-     - Ignora el historial (mensajes que empiezan con fecha ISO)
   --------------------------------------------------------------------------- */
   (function showLatestActionToast(){
-    const actionKeywords = [
-      "añadida","añadidas","eliminada","eliminadas",
-      "rechazada","rechazadas","Acción no permitida","IP duplicada",
-      "IP rechazada","Nada que añadir"
-    ];
-    const isHistory = (txt) => /^\d{4}-\d{2}-\d{2}/.test((txt||"").trim());
+    const isHistory = (txt) => /^\d{4}-\d{2}-\d{2}\s+\d{2}:\d{2}:\d{2}/.test((txt||"").trim());
 
-    const currentOnly = (serverMessages || []).filter(m => !isHistory(m.message||""));
-    const actionable = currentOnly.filter(m =>
-      actionKeywords.some(k => (m.message||"").includes(k))
-    );
-    if (!actionable.length) return;
+    // Tomamos SOLO los mensajes de esta petición: desde el inicio hasta el primero con fecha
+    let cut = (serverMessages || []).findIndex(m => isHistory(m.message||""));
+    if (cut === -1) cut = (serverMessages || []).length;
+    const currentOnly = (serverMessages || []).slice(0, cut);
 
-    // Mostrar SOLO la última acción
-    const m = actionable[actionable.length - 1];
+    if (!currentOnly.length) return;
+    const m = currentOnly[currentOnly.length - 1]; // última acción de la petición
 
     const portal = document.getElementById('toast-portal');
     const el = document.createElement('div');
@@ -438,7 +428,6 @@
       </div>`;
     portal.appendChild(el);
 
-    // Regla de tiempos: success/warning => 10s; resto => 20s
     const longCats = new Set(['danger','accion_no_permitida']);
     const delay = longCats.has(m.category) ? 20000 : 10000;
     new bootstrap.Toast(el, { autohide: true, delay }).show();
@@ -561,7 +550,6 @@
   function escapeHtml(str) {
     return (str || '').replace(/[&<>"']/g, s => ({'&':'&amp;','<':'&lt;','>':'&gt;','"':'&quot;',"'":'&#39;'}[s]));
   }
-
   function confirmDeletePattern() {
     const val = document.getElementById('delete_net_input').value.trim();
     return confirm(`Vas a eliminar todas las IPs que coincidan con:\n\n${val}\n\n¿Confirmas?`);
