@@ -95,13 +95,11 @@
     ℹ️ Añadidas: Manual (<strong>{{ contador_manual }}</strong>) · CSV (<strong>{{ contador_csv }}</strong>)
   </div>
 
-  <!-- Solo errores graves si el backend los envía en 'error' -->
   {% if error %}
     <div class="alert alert-danger mt-2">{{ error }}</div>
   {% endif %}
 
   <form method="POST" enctype="multipart/form-data" class="mt-3">
-    <!-- Alta manual -->
     <div class="row g-3 mb-3">
       <div class="col-lg-5">
         <input type="text" class="form-control" name="ip"
@@ -123,7 +121,6 @@
       </div>
     </div>
 
-    <!-- Subida CSV/TXT -->
     <div class="row g-3 mb-4">
       <div class="col-lg-5">
         <input type="file" class="form-control" name="file" accept=".txt,.csv">
@@ -144,7 +141,6 @@
       </div>
     </div>
 
-    <!-- Acciones avanzadas -->
     <div class="row g-3 mb-4">
       <div class="col-lg-6">
         <button type="button" class="btn btn-outline-warning w-100" data-bs-toggle="modal" data-bs-target="#modalDeleteNet">
@@ -165,7 +161,6 @@
     </div>
   </form>
 
-  <!-- Modal Confirmación Eliminar Todas -->
   <div class="modal fade" id="confirmDeleteAll" tabindex="-1" aria-hidden="true">
     <div class="modal-dialog modal-dialog-centered">
       <div class="modal-content">
@@ -188,7 +183,6 @@
     </div>
   </div>
 
-  <!-- Modal Eliminar por Patrón (con previsualización) -->
   <div class="modal fade" id="modalDeleteNet" tabindex="-1" aria-hidden="true">
     <div class="modal-dialog">
       <form method="POST" class="modal-content" onsubmit="return confirmDeletePattern();">
@@ -202,7 +196,6 @@
                  placeholder="Ej: 203.0.113.0/24 · 203.0.113.10-203.0.113.50 · 203.0.113.0 255.255.255.0 · 203.0.113.5"
                  required>
 
-          <!-- Resultado de previsualización -->
           <div id="previewResult" class="mt-2 small text-muted">
             Escribe un patrón para ver cuántas IPs coinciden.
           </div>
@@ -229,7 +222,6 @@
   <hr>
   <h4>IPs bloqueadas</h4>
 
-  <!-- Buscador de IPs -->
   <div class="mb-3">
     <input type="text" id="buscadorIp" class="form-control" placeholder="Buscar IP...">
   </div>
@@ -253,7 +245,6 @@
           <td>
             <button class="btn btn-sm btn-outline-danger" data-bs-toggle="modal" data-bs-target="#confirmDelete{{ loop.index }}">Eliminar</button>
 
-            <!-- Modal Confirmar eliminación individual -->
             <div class="modal fade" id="confirmDelete{{ loop.index }}" tabindex="-1" aria-hidden="true">
               <div class="modal-dialog modal-dialog-centered">
                 <div class="modal-content">
@@ -286,17 +277,14 @@
   </div>
 </div>
 
-<!-- Logo DPB fijo (abajo derecha, SIN TOCAR) -->
 <img id="corner-logo" src="{{ url_for('static', filename='img/logo-dpb.svg') }}" alt="Logo DPB">
 
-<!-- Offcanvas de Notificaciones -->
 <div class="offcanvas offcanvas-end" tabindex="-1" id="offcanvasNotifs" aria-labelledby="offcanvasNotifsLabel">
   <div class="offcanvas-header">
     <h5 id="offcanvasNotifsLabel">Notificaciones</h5>
     <button type="button" class="btn-close" data-bs-dismiss="offcanvas" aria-label="Cerrar"></button>
   </div>
   <div class="offcanvas-body d-flex flex-column" style="gap:.75rem;">
-    <!-- Filtros -->
     <div class="d-flex flex-wrap align-items-center gap-2 mb-2">
       <select id="filterType" class="form-select form-select-sm" style="max-width:180px">
         <option value="">Todos los tipos</option>
@@ -311,21 +299,17 @@
       <span class="ms-auto small text-muted" id="notifCountInfo"></span>
     </div>
 
-    <!-- Lista -->
     <div id="notifList" class="d-flex flex-column" style="gap:.5rem;"></div>
 
-    <!-- Paginación (10 por página) -->
     <nav class="mt-2">
       <ul id="notifPagination" class="pagination pagination-sm mb-0"></ul>
     </nav>
   </div>
 </div>
 
-<!-- Portal de toasts -->
 <div id="toast-portal" aria-live="polite" aria-atomic="true"></div>
 
 <script>
-  /* ----------------- Tema oscuro ----------------- */
   function toggleTheme() {
     const body = document.body;
     const isDark = body.classList.toggle('bg-dark');
@@ -340,7 +324,6 @@
     if (localStorage.getItem('theme') === 'dark') toggleTheme();
   };
 
-  /* ----------------- Buscador tabla ----------------- */
   document.addEventListener('DOMContentLoaded', function () {
     const input = document.getElementById('buscadorIp');
     const table = document.getElementById('tablaIps');
@@ -359,61 +342,46 @@
     }
   });
 
-  /* ----------------- Datos de notificaciones (inyectados) ----------------- */
+  /* Datos inyectados */
   const serverMessages = [
     {% for category, message in (messages or []) %}
       {"category": "{{category}}", "message": {{ message|tojson }} }{% if not loop.last %},{% endif %}
     {% endfor %}
   ];
+  const lastAction = {{ last_action|tojson if last_action else 'null' }};
+  const flashCount = {{ flash_count|default(0) }};
 
-  /* ----------------- TOAST: SOLO la última acción de ESTA petición -----------------
-     - Aparece bajo el botón (arriba-dcha)
-     - 10s para success/warning; 20s para danger/accion_no_permitida
-     - Ignora el historial (mensajes que empiezan con fecha ISO)
-  --------------------------------------------------------------------------- */
+  /* TOAST: usar SIEMPRE la última acción que envía el backend */
   (function showLatestActionToast(){
-    const actionKeywords = [
-      "añadida","añadidas","eliminada","eliminadas",
-      "rechazada","rechazadas","Acción no permitida","IP duplicada",
-      "IP rechazada","Nada que añadir"
-    ];
-    const isHistory = (txt) => /^\d{4}-\d{2}-\d{2}/.test((txt||"").trim());
+    if (!lastAction) return;
 
-    const currentOnly = (serverMessages || []).filter(m => !isHistory(m.message||""));
-    const actionable = currentOnly.filter(m =>
-      actionKeywords.some(k => (m.message||"").includes(k))
-    );
-    if (!actionable.length) return;
-
-    // Badge = cuántas acciones ocurrieron en esta petición
+    // badge = nº de mensajes de esta petición
     try {
       const b = document.getElementById('notif-badge');
       if (b) {
-        b.textContent = actionable.length;
-        b.classList.toggle('d-none', actionable.length <= 0);
+        b.textContent = flashCount;
+        b.classList.toggle('d-none', flashCount <= 0);
       }
     } catch(e){}
 
-    // Mostrar SOLO la última acción
-    const m = actionable[actionable.length - 1];
-
     const portal = document.getElementById('toast-portal');
     const el = document.createElement('div');
-    el.className = 'toast align-items-center text-bg-' + mapToastColor(m.category) + ' border-0';
+    el.className = 'toast align-items-center text-bg-' + mapToastColor(lastAction[0]) + ' border-0';
     el.innerHTML = `
       <div class="d-flex">
-        <div class="toast-body">${escapeHtml(m.message || '')}</div>
+        <div class="toast-body">${escapeHtml(lastAction[1] || '')}</div>
         <button type="button" class="btn-close btn-close-white me-2 m-auto"
                 data-bs-dismiss="toast" aria-label="Close"></button>
       </div>`;
     portal.appendChild(el);
 
-    /* >>> ÚNICO CAMBIO SOLICITADO: duraciones por categoría <<< */
-    const delay = (m.category === 'danger' || m.category === 'accion_no_permitida') ? 20000 : 10000;
+    // danger y accion_no_permitida => 20s; success y warning => 10s
+    const cat = lastAction[0];
+    const delay = (cat === 'danger' || cat === 'accion_no_permitida') ? 20000 : 10000;
     new bootstrap.Toast(el, { autohide: true, delay }).show();
   })();
 
-  /* ----------------- Offcanvas: filtros + paginación ----------------- */
+  /* Offcanvas: filtros + paginación */
   const PAGE_SIZE = 10;
   let notifData = (serverMessages || []).map((m, i) => {
     let dt = null, txt = m.message || '';
@@ -511,7 +479,6 @@
   }
   renderList();
 
-  // Al abrir offcanvas, consideramos "leídas" las de esta petición (se oculta burbuja)
   const offcanvasEl = document.getElementById('offcanvasNotifs');
   if (offcanvasEl) {
     offcanvasEl.addEventListener('shown.bs.offcanvas', () => {
@@ -520,7 +487,6 @@
     });
   }
 
-  /* ---------- utils compartidas ---------- */
   function mapToastColor(cat) {
     if (cat === 'success') return 'success';
     if (cat === 'warning') return 'warning';
@@ -530,7 +496,6 @@
   function escapeHtml(str) {
     return (str || '').replace(/[&<>"']/g, s => ({'&':'&amp;','<':'&lt;','>':'&gt;','"':'&quot;',"'":'&#39;'}[s]));
   }
-
   function confirmDeletePattern() {
     const val = document.getElementById('delete_net_input').value.trim();
     return confirm(`Vas a eliminar todas las IPs que coincidan con:\n\n${val}\n\n¿Confirmas?`);
