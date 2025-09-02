@@ -349,7 +349,7 @@ def index():
             save_lines([])
             log("Eliminadas", "todas las IPs")
             guardar_notif("warning", "Se eliminaron todas las IPs")
-            flash("Todas las IPs eliminadas", "success")
+            flash("Se eliminaron todas las IPs", "warning")
             return redirect(url_for("index"))
 
         # Eliminar individual
@@ -357,8 +357,8 @@ def index():
             ip_to_delete = request.form.get("delete_ip")
             new_lines = [l for l in lines if not l.startswith(ip_to_delete + "|")]
             save_lines(new_lines)
-            flash(f"IP {ip_to_delete} eliminada", "success")
             guardar_notif("warning", f"IP eliminada: {ip_to_delete}")
+            flash(f"IP eliminada: {ip_to_delete}", "warning")
             return redirect(url_for("index"))
 
         # Eliminar por patrón
@@ -367,8 +367,8 @@ def index():
             try:
                 new_lines, removed = filter_lines_delete_pattern(lines, patron)
                 save_lines(new_lines)
-                flash(f"Se eliminaron {removed} IP(s) coincidentes con {patron}", "success")
                 guardar_notif("warning", f"Eliminadas por patrón {patron}: {removed}")
+                flash(f"Eliminadas por patrón {patron}: {removed}", "warning")
             except Exception as e:
                 flash(str(e), "danger")
             return redirect(url_for("index"))
@@ -405,11 +405,11 @@ def index():
 
             save_lines(lines)
             if valid_ips_total:
-                flash(f"{valid_ips_total} IPs añadidas correctamente (CSV).", "success")
                 guardar_notif("success", f"{valid_ips_total} IPs añadidas (CSV)")
+                flash(f"{valid_ips_total} IP(s) añadida(s) correctamente (CSV)", "success")
             if rejected_total:
-                flash(f"{rejected_total} entradas rechazadas (inválidas/privadas/duplicadas/no permitidas)", "danger")
                 guardar_notif("danger", f"{rejected_total} entradas rechazadas (CSV)")
+                flash(f"{rejected_total} entradas rechazadas (inválidas/privadas/duplicadas/no permitidas)", "danger")
             return redirect(url_for("index"))
 
         # Alta manual (IP / CIDR / Rango / IP+máscara)
@@ -444,12 +444,19 @@ def index():
                 )
                 if add_ok > 0:
                     save_lines(lines)
-                    flash(f"{add_ok} IP(s) añadida(s) correctamente", "success")
+                    if single_input:
+                        guardar_notif("success", f"IP añadida: {single_ip}")
+                        flash(f"IP añadida: {single_ip}", "success")
+                    else:
+                        guardar_notif("success", f"{add_ok} IPs añadidas")
+                        flash(f"{add_ok} IP(s) añadida(s) correctamente", "success")
                 else:
                     if not (single_input and pre_notified):
                         flash("Nada que añadir (todas inválidas/privadas/duplicadas/no permitidas)", "danger")
+                        guardar_notif("danger", "Nada que añadir (todas inválidas/privadas/duplicadas/no permitidas)")
                 if add_bad > 0 and not (single_input and pre_notified):
                     flash(f"{add_bad} entradas rechazadas (inválidas/privadas/duplicadas/no permitidas)", "danger")
+                    guardar_notif("danger", f"{add_bad} entradas rechazadas (manual)")
 
             except ValueError as e:
                 if str(e) == "accion_no_permitida":
@@ -457,19 +464,22 @@ def index():
                     guardar_notif("accion_no_permitida", "Intento de bloqueo global (manual)")
                 else:
                     flash(str(e), "danger")
+                    guardar_notif("danger", str(e))
             except Exception as e:
                 flash(f"Error inesperado: {str(e)}", "danger")
+                guardar_notif("danger", f"Error inesperado: {str(e)}")
 
             return redirect(url_for("index"))
         else:
             error = "Debes introducir una IP, red CIDR, rango A-B o IP con máscara"
 
     # ========= Construcción segura de 'messages' para la plantilla =========
+    # 1) Flashes de la petición actual (sin fecha al inicio) -> se usan para TOAST y badge
     raw_flashes = get_flashed_messages(with_categories=True)
-    messages = coerce_message_pairs(raw_flashes)
-    flash_count = len(messages)  # Nº de mensajes SOLO de esta petición
+    flash_pairs = coerce_message_pairs(raw_flashes)
+    messages = list(flash_pairs)  # copia
 
-    # Añadimos historial persistente como “informativo” para el offcanvas
+    # 2) Historial persistente -> se añade con fecha al inicio del mensaje
     try:
         for n in get_notifs(limit=200):
             cat = str(n.get("category", "secondary"))
@@ -478,7 +488,10 @@ def index():
     except Exception:
         pass
 
-    # Contadores reales (manual/CSV) para mostrar en cabecera
+    # 3) Última acción explícita (para que el front no tenga que adivinar)
+    last_action = flash_pairs[-1] if flash_pairs else None
+
+    # Contadores reales (manual/CSV) para cabecera
     contador_manual_val = read_counter(COUNTER_MANUAL)
     contador_csv_val = read_counter(COUNTER_CSV)
 
@@ -489,7 +502,8 @@ def index():
                            contador_manual=contador_manual_val,
                            contador_csv=contador_csv_val,
                            messages=messages,
-                           flash_count=flash_count)
+                           last_action=last_action,
+                           flash_count=len(flash_pairs))
 
 
 @app.route("/feed/ioc-feed.txt")
