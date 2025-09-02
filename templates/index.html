@@ -365,25 +365,42 @@
       {"category": "{{category}}", "message": {{ message|tojson }} }{% if not loop.last %},{% endif %}
     {% endfor %}
   ];
+  const FLASH_COUNT = {{ flash_count|default(0) }};  /* nº de flashes de ESTA petición */
 
-  /* ----------------- TOAST: SOLO el ÚLTIMO flash de ESTA petición -------------
-     - Ignora historial (líneas que empiezan con fecha)
-     - Duraciones: 20s si 'accion_no_permitida', si no 10s
+  /* ----------------- TOASTS: SOLO acción FINAL de ESTA petición -----------
+     - Toma sólo los primeros FLASH_COUNT elementos (los flashes actuales)
+     - 10 s por defecto (altas/eliminaciones/errores), 20 s si es bloqueo global
   --------------------------------------------------------------------------- */
-  (function showOnlyLastFlash(){
-    const isHistory = (txt) => /^\s*\d{4}-\d{2}-\d{2}/.test((txt||""));
-    const currentOnly = (serverMessages || []).filter(m => !isHistory(m.message||""));
-    if (!currentOnly.length) return;
+  (function showRequestActionToasts(){
+    const actionKeywords = [
+      "añadida","añadidas","eliminada","eliminadas",
+      "rechazada","rechazadas","Acción no permitida","IP duplicada",
+      "IP rechazada","Nada que añadir"
+    ];
 
-    const last = currentOnly[currentOnly.length - 1]; // EL ÚLTIMO flash real
+    // 1) Recorta a los flashes de esta petición
+    const currentOnly = FLASH_COUNT ? serverMessages.slice(0, FLASH_COUNT) : serverMessages;
+
+    // 2) Entre esos, nos quedamos con los "accionables"
+    const actionable = currentOnly.filter(m =>
+      actionKeywords.some(k => (m.message||"").includes(k))
+    );
+
+    // 3) Elegimos SOLO la última acción (la final de la petición)
+    const last = actionable.length ? actionable[actionable.length - 1] : null;
     if (!last) return;
 
-    // Mostrar badge = 1
+    // Burbuja de no leídas: nº de acciones de esta petición
     try {
       const b = document.getElementById('notif-badge');
-      if (b) { b.textContent = '1'; b.classList.remove('d-none'); }
-    } catch(_) {}
+      if (b) {
+        const count = actionable.length;
+        b.textContent = count;
+        b.classList.toggle('d-none', count <= 0);
+      }
+    } catch(e){}
 
+    // Pintamos el toast
     const portal = document.getElementById('toast-portal');
     const el = document.createElement('div');
     el.className = 'toast align-items-center text-bg-' + mapToastColor(last.category) + ' border-0';
@@ -395,7 +412,8 @@
       </div>`;
     portal.appendChild(el);
 
-    let delay = (last.category === 'accion_no_permitida') ? 20000 : 10000;
+    // 10 s por defecto; 20 s si es bloqueo global
+    const delay = (last.category === 'accion_no_permitida') ? 20000 : 10000;
     new bootstrap.Toast(el, { autohide: true, delay }).show();
   })();
 
@@ -497,7 +515,7 @@
   }
   renderList();
 
-  // Al abrir offcanvas, consideramos "leída" la notificación actual (oculta burbuja)
+  // Al abrir offcanvas, consideramos "leídas" las de esta petición (se oculta burbuja)
   const offcanvasEl = document.getElementById('offcanvasNotifs');
   if (offcanvasEl) {
     offcanvasEl.addEventListener('shown.bs.offcanvas', () => {
@@ -505,44 +523,6 @@
       if (b) b.classList.add('d-none');
     });
   }
-
-  /* ----------- Preview coincidencias eliminación por patrón ----------- */
-  (function initDeletePreview() {
-    const input = document.getElementById('delete_net_input');
-    const preview = document.getElementById('previewResult');
-    if (!input || !preview) return;
-
-    let lastController = null;
-
-    input.addEventListener('input', () => {
-      const val = input.value.trim();
-      if (!val) {
-        preview.textContent = "Escribe un patrón para ver cuántas IPs coinciden.";
-        preview.className = 'mt-2 small text-muted';
-        return;
-      }
-
-      if (lastController) lastController.abort();
-      lastController = new AbortController();
-
-      fetch(`/preview-delete?pattern=${encodeURIComponent(val)}`, { signal: lastController.signal })
-        .then(r => r.json())
-        .then(data => {
-          if (data.error) {
-            preview.textContent = `❌ ${data.error}`;
-            preview.className = 'mt-2 small text-danger';
-          } else {
-            preview.textContent = `Coinciden ${data.count} IP(s).`;
-            preview.className = 'mt-2 small text-success';
-          }
-        })
-        .catch(err => {
-          if (err.name === 'AbortError') return;
-          preview.textContent = "❌ Error al consultar coincidencias.";
-          preview.className = 'mt-2 small text-danger';
-        });
-    });
-  })();
 
   /* ---------- utils compartidas ---------- */
   function mapToastColor(cat) {
