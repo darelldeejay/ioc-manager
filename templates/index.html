@@ -366,70 +366,66 @@
     {% endfor %}
   ];
 
-  /* ======= Badge persistente: cuenta todo lo NO leído hasta que abras el panel ======= */
-  const LS_LAST_SEEN_KEY = 'notifLastSeen';
-
-  function parseNotifTime(str){
-    const m = (str||'').match(/^(\d{4}-\d{2}-\d{2})\s+(\d{2}:\d{2}:\d{2})/);
-    if(!m) return null;
-    return new Date(m[1] + 'T' + m[2]);
-  }
-  function getHistoryWithTimes(){
-    return (serverMessages||[])
-      .map(m => ({...m, dt: parseNotifTime(m.message||'')}))
-      .filter(m => m.dt instanceof Date && !isNaN(m.dt));
-  }
-  function latestHistoryTs(){
-    const list = getHistoryWithTimes();
-    if(!list.length) return 0;
-    return Math.max(...list.map(x => x.dt.getTime()));
-  }
-  function computeUnreadCount(){
-    const lastSeen = parseInt(localStorage.getItem(LS_LAST_SEEN_KEY) || '0', 10);
-    return getHistoryWithTimes().filter(x => x.dt.getTime() > lastSeen).length;
-  }
-  function updateBadge(){
-    const b = document.getElementById('notif-badge');
-    if(!b) return;
-    const count = computeUnreadCount();
-    b.textContent = count;
-    b.classList.toggle('d-none', count <= 0);
-  }
-  (function initUnreadBadge(){
-    if(!localStorage.getItem(LS_LAST_SEEN_KEY)){
-      localStorage.setItem(LS_LAST_SEEN_KEY, String(latestHistoryTs() || 0));
-    }
-    updateBadge();
-  })();
-
-  /* ----------------- TOAST: SOLO la última acción de ESTA petición -----------------
-     - Ignora el historial: usamos los mensajes ANTES de la 1ª entrada con fecha
-     - 10s para success/warning; 20s para danger/accion_no_permitida
+  /* ----------------- TOAST: SOLO la acción RELEVANTE de ESTA petición -----------------
+     - Aparece bajo el botón (arriba-dcha)
+     - Duración por categoría:
+         success / warning  -> 10s
+         danger / accion_no_permitida -> 20s
+     - Ignora el historial (mensajes que empiezan con fecha ISO)
   --------------------------------------------------------------------------- */
-  (function showLatestActionToast(){
-    const isHistory = (txt) => /^\d{4}-\d{2}-\d{2}\s+\d{2}:\d{2}:\d{2}/.test((txt||"").trim());
+  (function showRelevantActionToast(){
+    const isHistory = (txt) => /^\d{4}-\d{2}-\d{2}/.test((txt||"").trim());
+    const currentOnly = (serverMessages || []).filter(m => !isHistory(m.message||""));
 
-    // Tomamos SOLO los mensajes de esta petición: desde el inicio hasta el primero con fecha
-    let cut = (serverMessages || []).findIndex(m => isHistory(m.message||""));
-    if (cut === -1) cut = (serverMessages || []).length;
-    const currentOnly = (serverMessages || []).slice(0, cut);
+    // Clasificamos por categoría "accionable"
+    const actionCats = new Set(['success','warning','danger','accion_no_permitida']);
+    const byCat = {
+      'accion_no_permitida': [],
+      'danger': [],
+      'warning': [],
+      'success': []
+    };
+    currentOnly.forEach(m => {
+      const cat = m?.category || '';
+      if (actionCats.has(cat)) byCat[cat].push(m);
+    });
 
-    if (!currentOnly.length) return;
-    const m = currentOnly[currentOnly.length - 1]; // última acción de la petición
+    // Prioridad: bloqueo global > errores/rechazos > eliminaciones > altas
+    const pick =
+      (byCat['accion_no_permitida'].length && byCat['accion_no_permitida'].at(-1)) ||
+      (byCat['danger'].length && byCat['danger'].at(-1)) ||
+      (byCat['warning'].length && byCat['warning'].at(-1)) ||
+      (byCat['success'].length && byCat['success'].at(-1)) ||
+      null;
+
+    if (!pick) return;
+
+    // Badge = cuántas acciones ocurrieron en esta petición (se mantiene tu comportamiento)
+    try {
+      const b = document.getElementById('notif-badge');
+      if (b) {
+        const actionableCount =
+          byCat['accion_no_permitida'].length +
+          byCat['danger'].length +
+          byCat['warning'].length +
+          byCat['success'].length;
+        b.textContent = actionableCount;
+        b.classList.toggle('d-none', actionableCount <= 0);
+      }
+    } catch(e){}
 
     const portal = document.getElementById('toast-portal');
     const el = document.createElement('div');
-    el.className = 'toast align-items-center text-bg-' + mapToastColor(m.category) + ' border-0';
+    el.className = 'toast align-items-center text-bg-' + mapToastColor(pick.category) + ' border-0';
     el.innerHTML = `
       <div class="d-flex">
-        <div class="toast-body">${escapeHtml(m.message || '')}</div>
+        <div class="toast-body">${escapeHtml(pick.message || '')}</div>
         <button type="button" class="btn-close btn-close-white me-2 m-auto"
                 data-bs-dismiss="toast" aria-label="Close"></button>
       </div>`;
     portal.appendChild(el);
 
-    const longCats = new Set(['danger','accion_no_permitida']);
-    const delay = longCats.has(m.category) ? 20000 : 10000;
+    const delay = (pick.category === 'success' || pick.category === 'warning') ? 10000 : 20000;
     new bootstrap.Toast(el, { autohide: true, delay }).show();
   })();
 
@@ -531,12 +527,12 @@
   }
   renderList();
 
-  // Al abrir offcanvas, marcamos como leídas (actualiza 'last seen' y rehace el badge)
+  // Al abrir offcanvas, consideramos "leídas" las de esta petición (se oculta burbuja)
   const offcanvasEl = document.getElementById('offcanvasNotifs');
   if (offcanvasEl) {
     offcanvasEl.addEventListener('shown.bs.offcanvas', () => {
-      localStorage.setItem(LS_LAST_SEEN_KEY, String(latestHistoryTs() || Date.now()));
-      updateBadge();
+      const b = document.getElementById('notif-badge');
+      if (b) b.classList.add('d-none');
     });
   }
 
@@ -550,6 +546,7 @@
   function escapeHtml(str) {
     return (str || '').replace(/[&<>"']/g, s => ({'&':'&amp;','<':'&lt;','>':'&gt;','"':'&quot;',"'":'&#39;'}[s]));
   }
+
   function confirmDeletePattern() {
     const val = document.getElementById('delete_net_input').value.trim();
     return confirm(`Vas a eliminar todas las IPs que coincidan con:\n\n${val}\n\n¿Confirmas?`);
