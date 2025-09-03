@@ -43,6 +43,14 @@ def write_counter(path, value):
         pass
 
 
+def set_toast(category, message):
+    """Guarda la notificación para TOAST (one-shot) en sesión."""
+    try:
+        session["_toast"] = {"category": str(category), "message": str(message)}
+    except Exception:
+        pass
+
+
 # =========================
 #  Utilidades de red
 # =========================
@@ -286,7 +294,6 @@ def add_ips_validated(lines, existentes, iterable_ips, ttl_val, contador_ruta=No
         existentes.add(ip_str)
         log("Añadida", ip_str)
         guardar_notif("success", f"IP añadida: {ip_str}")
-        # Contador opcional
         if contador_ruta:
             try:
                 val = read_counter(contador_ruta)
@@ -301,10 +308,6 @@ def add_ips_validated(lines, existentes, iterable_ips, ttl_val, contador_ruta=No
 #  Flashes seguros para plantillas
 # =========================
 def coerce_message_pairs(raw_flashes):
-    """
-    Asegura lista de pares (category, message) para la plantilla.
-    Evita 500 si algún flash vino sin categoría.
-    """
     pairs = []
     for item in raw_flashes:
         if isinstance(item, (list, tuple)) and len(item) >= 2:
@@ -324,6 +327,8 @@ def login():
             session["username"] = "admin"
             return redirect(url_for("index"))
         flash("Credenciales incorrectas", "danger")
+        set_toast("danger", "Credenciales incorrectas")
+        return redirect(url_for("login"))
     return render_template("login.html")
 
 
@@ -350,6 +355,7 @@ def index():
             log("Eliminadas", "todas las IPs")
             guardar_notif("warning", "Se eliminaron todas las IPs")
             flash("Se eliminaron todas las IPs", "warning")
+            set_toast("warning", "Se eliminaron todas las IPs")
             return redirect(url_for("index"))
 
         # Eliminar individual
@@ -359,6 +365,7 @@ def index():
             save_lines(new_lines)
             guardar_notif("warning", f"IP eliminada: {ip_to_delete}")
             flash(f"IP eliminada: {ip_to_delete}", "warning")
+            set_toast("warning", f"IP eliminada: {ip_to_delete}")
             return redirect(url_for("index"))
 
         # Eliminar por patrón
@@ -367,10 +374,13 @@ def index():
             try:
                 new_lines, removed = filter_lines_delete_pattern(lines, patron)
                 save_lines(new_lines)
-                guardar_notif("warning", f"Eliminadas por patrón {patron}: {removed}")
-                flash(f"Eliminadas por patrón {patron}: {removed}", "warning")
+                msg = f"Eliminadas por patrón {patron}: {removed}"
+                guardar_notif("warning", msg)
+                flash(msg, "warning")
+                set_toast("warning", msg)
             except Exception as e:
                 flash(str(e), "danger")
+                set_toast("danger", str(e))
             return redirect(url_for("index"))
 
         # Subida CSV/TXT
@@ -390,8 +400,10 @@ def index():
                     expanded = expand_input_to_ips(raw)
                 except ValueError as e:
                     if str(e) == "accion_no_permitida":
-                        flash("⚠️ Acción no permitida: bloqueo de absolutamente todo", "accion_no_permitida")
+                        msg = "⚠️ Acción no permitida: bloqueo de absolutamente todo"
+                        flash(msg, "accion_no_permitida")
                         guardar_notif("accion_no_permitida", "Intento de bloqueo global (CSV)")
+                        set_toast("accion_no_permitida", "Acción no permitida: bloqueo global (0.0.0.0)")
                         continue
                     else:
                         rejected_total += 1
@@ -405,11 +417,15 @@ def index():
 
             save_lines(lines)
             if valid_ips_total:
+                msg = f"{valid_ips_total} IP(s) añadida(s) correctamente (CSV)"
                 guardar_notif("success", f"{valid_ips_total} IPs añadidas (CSV)")
-                flash(f"{valid_ips_total} IP(s) añadida(s) correctamente (CSV)", "success")
-            if rejected_total:
+                flash(msg, "success")
+                set_toast("success", msg)
+            elif rejected_total:
+                msg = f"{rejected_total} entradas rechazadas (inválidas/privadas/duplicadas/no permitidas)"
                 guardar_notif("danger", f"{rejected_total} entradas rechazadas (CSV)")
-                flash(f"{rejected_total} entradas rechazadas (inválidas/privadas/duplicadas/no permitidas)", "danger")
+                flash(msg, "danger")
+                set_toast("danger", msg)
             return redirect(url_for("index"))
 
         # Alta manual (IP / CIDR / Rango / IP+máscara)
@@ -421,7 +437,7 @@ def index():
             try:
                 expanded = expand_input_to_ips(raw_input)
 
-                # Si es una única IP, damos motivo detallado en caso de rechazo/duplicado
+                # Única IP: notificar motivo de rechazo/duplicado
                 single_input = len(expanded) == 1
                 single_ip = expanded[0] if single_input else None
                 pre_notified = False
@@ -430,6 +446,7 @@ def index():
                         msg = f"IP duplicada: {single_ip}"
                         flash(msg, "danger")
                         guardar_notif("danger", msg)
+                        set_toast("danger", msg)
                         pre_notified = True
                     else:
                         reason = ip_block_reason(single_ip)
@@ -437,6 +454,7 @@ def index():
                             msg = f"IP rechazada: {single_ip} — {reason}"
                             flash(msg, "danger")
                             guardar_notif("danger", msg)
+                            set_toast("danger", msg)
                             pre_notified = True
 
                 add_ok, add_bad = add_ips_validated(
@@ -445,46 +463,55 @@ def index():
                 if add_ok > 0:
                     save_lines(lines)
                     if single_input:
-                        guardar_notif("success", f"IP añadida: {single_ip}")
-                        flash(f"IP añadida: {single_ip}", "success")
+                        msg = f"IP añadida: {single_ip}"
+                        guardar_notif("success", msg)
+                        flash(msg, "success")
+                        set_toast("success", msg)
                     else:
+                        msg = f"{add_ok} IP(s) añadida(s) correctamente"
                         guardar_notif("success", f"{add_ok} IPs añadidas")
-                        flash(f"{add_ok} IP(s) añadida(s) correctamente", "success")
+                        flash(msg, "success")
+                        set_toast("success", msg)
                 else:
                     if not (single_input and pre_notified):
-                        flash("Nada que añadir (todas inválidas/privadas/duplicadas/no permitidas)", "danger")
-                        guardar_notif("danger", "Nada que añadir (todas inválidas/privadas/duplicadas/no permitidas)")
+                        msg = "Nada que añadir (todas inválidas/privadas/duplicadas/no permitidas)"
+                        flash(msg, "danger")
+                        guardar_notif("danger", msg)
+                        set_toast("danger", msg)
                 if add_bad > 0 and not (single_input and pre_notified):
-                    flash(f"{add_bad} entradas rechazadas (inválidas/privadas/duplicadas/no permitidas)", "danger")
+                    msg2 = f"{add_bad} entradas rechazadas (inválidas/privadas/duplicadas/no permitidas)"
+                    flash(msg2, "danger")
                     guardar_notif("danger", f"{add_bad} entradas rechazadas (manual)")
+                    set_toast("danger", msg2)
 
             except ValueError as e:
                 if str(e) == "accion_no_permitida":
-                    flash("⚠️ Acción no permitida: bloqueo de absolutamente todo", "accion_no_permitida")
+                    msg = "Acción no permitida: bloqueo de absolutamente todo"
+                    flash("⚠️ " + msg, "accion_no_permitida")
                     guardar_notif("accion_no_permitida", "Intento de bloqueo global (manual)")
+                    set_toast("accion_no_permitida", "Acción no permitida: bloqueo global (0.0.0.0)")
                 else:
                     flash(str(e), "danger")
                     guardar_notif("danger", str(e))
+                    set_toast("danger", str(e))
             except Exception as e:
-                flash(f"Error inesperado: {str(e)}", "danger")
-                guardar_notif("danger", f"Error inesperado: {str(e)}")
+                msg = f"Error inesperado: {str(e)}"
+                flash(msg, "danger")
+                guardar_notif("danger", msg)
+                set_toast("danger", msg)
 
             return redirect(url_for("index"))
         else:
             error = "Debes introducir una IP, red CIDR, rango A-B o IP con máscara"
 
-    # ========= Construcción segura de 'messages' para la plantilla =========
-    # 1) Flashes de la petición actual (sin fecha al inicio) -> se usan para TOAST
+    # ========= Flashes + historial para la plantilla =========
     raw_flashes = get_flashed_messages(with_categories=True)
     messages = coerce_message_pairs(raw_flashes)
 
-    # ----> NUEVO: enviar explícitamente el ÚLTIMO flash de esta petición
-    last_action = None
-    if raw_flashes:
-        cat_msg = coerce_message_pairs([raw_flashes[-1]])[0]
-        last_action = {"category": cat_msg[0], "message": cat_msg[1]}
+    # ONE-SHOT: último toast enviado en la petición anterior
+    last_action = session.pop("_toast", None)
 
-    # 2) Historial persistente -> se añade con fecha al inicio del mensaje
+    # Historial persistente para el offcanvas
     try:
         for n in get_notifs(limit=200):
             cat = str(n.get("category", "secondary"))
@@ -493,7 +520,7 @@ def index():
     except Exception:
         pass
 
-    # Contadores reales (manual/CSV) para cabecera
+    # Contadores reales (manual/CSV)
     contador_manual_val = read_counter(COUNTER_MANUAL)
     contador_csv_val = read_counter(COUNTER_CSV)
 
@@ -526,9 +553,6 @@ def feed():
     return resp
 
 
-# =========================
-#  Nueva ruta: preview-delete
-# =========================
 @app.route("/preview-delete")
 def preview_delete():
     pattern = request.args.get("pattern", "").strip()
@@ -542,8 +566,5 @@ def preview_delete():
         return jsonify({"error": str(e)}), 400
 
 
-# =========================
-#  Main
-# =========================
 if __name__ == "__main__":
     app.run(debug=True, host="0.0.0.0", port=5050)
