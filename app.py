@@ -474,22 +474,20 @@ def index():
             error = "Debes introducir una IP, red CIDR, rango A-B o IP con máscara"
 
     # ========= Construcción segura de 'messages' para la plantilla =========
-    # 1) Flashes de la petición actual (sin fecha al inicio) -> se usan para TOAST y badge
+    # 1) Flashes de la petición actual (sin fecha al inicio) -> TOAST
     raw_flashes = get_flashed_messages(with_categories=True)
-    flash_pairs = coerce_message_pairs(raw_flashes)
-    messages = list(flash_pairs)  # copia
+    messages = coerce_message_pairs(raw_flashes)
 
-    # 2) Historial persistente -> se añade con fecha al inicio del mensaje
+    # 2) Historial persistente (SIEMPRE con fecha al inicio)
     try:
         for n in get_notifs(limit=200):
             cat = str(n.get("category", "secondary"))
-            msg = f"{n.get('time','')} {n.get('message','')}".strip()
+            # --- Arreglo: si falta 'time', lo rellenamos para forzar el prefijo de fecha ---
+            t = n.get("time") or datetime.now().strftime("%Y-%m-%d %H:%M:%S")
+            msg = f"{t} {n.get('message','')}".strip()
             messages.append((cat, msg))
     except Exception:
         pass
-
-    # 3) Última acción explícita (para que el front no tenga que adivinar)
-    last_action = flash_pairs[-1] if flash_pairs else None
 
     # Contadores reales (manual/CSV) para cabecera
     contador_manual_val = read_counter(COUNTER_MANUAL)
@@ -501,9 +499,7 @@ def index():
                            total_ips=len(lines),
                            contador_manual=contador_manual_val,
                            contador_csv=contador_csv_val,
-                           messages=messages,
-                           last_action=last_action,
-                           flash_count=len(flash_pairs))
+                           messages=messages)
 
 
 @app.route("/feed/ioc-feed.txt")
