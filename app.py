@@ -282,14 +282,10 @@ def add_ips_validated(lines, existentes, iterable_ips, ttl_val, contador_ruta=No
             continue
 
         fecha = datetime.now().strftime("%Y-%m-%d")
-        # IMPORTANTE: mantener formato de 3 columnas para Fortinet
         lines.append(f"{ip_str}|{fecha}|{ttl_val}")
         existentes.add(ip_str)
-
-        # Notificación/log de alta
         log("Añadida", ip_str)
         guardar_notif("success", f"IP añadida: {ip_str}")
-
         # Contador opcional
         if contador_ruta:
             try:
@@ -297,9 +293,7 @@ def add_ips_validated(lines, existentes, iterable_ips, ttl_val, contador_ruta=No
                 write_counter(contador_ruta, val + 1)
             except Exception:
                 pass
-
         añadidas += 1
-
     return añadidas, rechazadas
 
 
@@ -363,7 +357,6 @@ def index():
             ip_to_delete = request.form.get("delete_ip")
             new_lines = [l for l in lines if not l.startswith(ip_to_delete + "|")]
             save_lines(new_lines)
-            log("Eliminada", ip_to_delete)
             guardar_notif("warning", f"IP eliminada: {ip_to_delete}")
             flash(f"IP eliminada: {ip_to_delete}", "warning")
             return redirect(url_for("index"))
@@ -374,12 +367,10 @@ def index():
             try:
                 new_lines, removed = filter_lines_delete_pattern(lines, patron)
                 save_lines(new_lines)
-                log("Eliminadas por patrón", patron)
                 guardar_notif("warning", f"Eliminadas por patrón {patron}: {removed}")
                 flash(f"Eliminadas por patrón {patron}: {removed}", "warning")
             except Exception as e:
                 flash(str(e), "danger")
-                guardar_notif("danger", f"Error al eliminar por patrón: {str(e)}")
             return redirect(url_for("index"))
 
         # Subida CSV/TXT
@@ -460,16 +451,12 @@ def index():
                         guardar_notif("success", f"{add_ok} IPs añadidas")
                         flash(f"{add_ok} IP(s) añadida(s) correctamente", "success")
                 else:
-                    # Si no hubo altas y tampoco notificamos un caso de rechazo/duplicado detallado:
                     if not (single_input and pre_notified):
-                        msg = "Nada que añadir (todas inválidas/privadas/duplicadas/no permitidas)"
-                        flash(msg, "danger")
-                        guardar_notif("danger", msg)
-
+                        flash("Nada que añadir (todas inválidas/privadas/duplicadas/no permitidas)", "danger")
+                        guardar_notif("danger", "Nada que añadir (todas inválidas/privadas/duplicadas/no permitidas)")
                 if add_bad > 0 and not (single_input and pre_notified):
-                    msg = f"{add_bad} entradas rechazadas (inválidas/privadas/duplicadas/no permitidas)"
-                    flash(msg, "danger")
-                    guardar_notif("danger", msg)
+                    flash(f"{add_bad} entradas rechazadas (inválidas/privadas/duplicadas/no permitidas)", "danger")
+                    guardar_notif("danger", f"{add_bad} entradas rechazadas (manual)")
 
             except ValueError as e:
                 if str(e) == "accion_no_permitida":
@@ -491,6 +478,12 @@ def index():
     raw_flashes = get_flashed_messages(with_categories=True)
     messages = coerce_message_pairs(raw_flashes)
 
+    # ----> NUEVO: enviar explícitamente el ÚLTIMO flash de esta petición
+    last_action = None
+    if raw_flashes:
+        cat_msg = coerce_message_pairs([raw_flashes[-1]])[0]
+        last_action = {"category": cat_msg[0], "message": cat_msg[1]}
+
     # 2) Historial persistente -> se añade con fecha al inicio del mensaje
     try:
         for n in get_notifs(limit=200):
@@ -510,7 +503,8 @@ def index():
                            total_ips=len(lines),
                            contador_manual=contador_manual_val,
                            contador_csv=contador_csv_val,
-                           messages=messages)
+                           messages=messages,
+                           last_action=last_action)
 
 
 @app.route("/feed/ioc-feed.txt")
@@ -552,5 +546,4 @@ def preview_delete():
 #  Main
 # =========================
 if __name__ == "__main__":
-    # Para desarrollo local. En despliegue usa gunicorn (app:app)
     app.run(debug=True, host="0.0.0.0", port=5050)
