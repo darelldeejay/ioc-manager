@@ -366,10 +366,25 @@
     {% endfor %}
   ];
 
+  /* Utilidad: actualizar burbuja */
+  function updateBadge(unread) {
+    const b = document.getElementById('notif-badge');
+    if (!b) return;
+    b.textContent = unread;
+    b.classList.toggle('d-none', !unread || unread <= 0);
+  }
+
+  /* Inicializar burbuja con lo guardado */
+  (function initBadgeFromStorage(){
+    const stored = parseInt(localStorage.getItem('notif_unread') || '0', 10);
+    updateBadge(stored);
+  })();
+
   /* ----------------- TOAST: SOLO la última acción de ESTA petición -----------------
      - Aparece bajo el botón (arriba-dcha)
      - success/warning -> 10s; danger/accion_no_permitida -> 20s
      - Ignora el historial (mensajes que empiezan con fecha ISO)
+     - Acumula en localStorage el nº de acciones hasta abrir el panel
   --------------------------------------------------------------------------- */
   (function showLatestActionToast(){
     const actionKeywords = [
@@ -386,16 +401,13 @@
     });
     if (!actionable.length) return;
 
-    // Badge = nº de acciones de esta petición (se oculta al abrir el offcanvas)
-    try {
-      const b = document.getElementById('notif-badge');
-      if (b) {
-        b.textContent = actionable.length;
-        b.classList.toggle('d-none', actionable.length <= 0);
-      }
-    } catch(e){}
+    /* === Acumular en localStorage === */
+    const prevUnread = parseInt(localStorage.getItem('notif_unread') || '0', 10);
+    const newUnread = prevUnread + actionable.length;
+    localStorage.setItem('notif_unread', String(newUnread));
+    updateBadge(newUnread);
 
-    // Mostrar SOLO la última acción
+    /* Mostrar SOLO la última acción */
     const m = actionable[actionable.length - 1];
 
     const portal = document.getElementById('toast-portal');
@@ -511,12 +523,12 @@
   }
   renderList();
 
-  // Al abrir offcanvas, consideramos "leídas" las de esta petición (se oculta burbuja)
+  // Al abrir offcanvas, se consideran "leídas": resetea contador persistido y oculta burbuja
   const offcanvasEl = document.getElementById('offcanvasNotifs');
   if (offcanvasEl) {
     offcanvasEl.addEventListener('shown.bs.offcanvas', () => {
-      const b = document.getElementById('notif-badge');
-      if (b) b.classList.add('d-none');
+      localStorage.setItem('notif_unread', '0');
+      updateBadge(0);
     });
   }
 
