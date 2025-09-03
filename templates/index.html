@@ -100,12 +100,18 @@
     <div class="alert alert-danger mt-2">{{ error }}</div>
   {% endif %}
 
-  <form method="POST" enctype="multipart/form-data" class="mt-3">
+  <form id="mainForm" method="POST" enctype="multipart/form-data" class="mt-3">
     <!-- Alta manual -->
     <div class="row g-3 mb-3">
       <div class="col-lg-5">
-        <input type="text" class="form-control" name="ip"
-               placeholder="IP, red CIDR (1.2.3.0/24), rango (1.2.3.4-1.2.3.20) o IP + máscara (1.2.3.0 255.255.255.0)">
+        <input
+          id="ipInput"
+          type="text"
+          class="form-control"
+          name="ip"
+          autocomplete="off"
+          placeholder="IP, red CIDR (1.2.3.0/24), rango (1.2.3.4-1.2.3.20) o IP + máscara (1.2.3.0 255.255.255.0)">
+        <div id="ipFeedback" class="invalid-feedback"></div>
       </div>
       <div class="col-lg-3">
         <select class="form-select" name="ttl">
@@ -359,76 +365,43 @@
     }
   });
 
-  /* ----------------- Datos de notificaciones del backend ----------------- */
+  /* ----------------- Datos de notificaciones (inyectados) ----------------- */
   const serverMessages = [
     {% for category, message in (messages or []) %}
       {"category": "{{category}}", "message": {{ message|tojson }} }{% if not loop.last %},{% endif %}
     {% endfor %}
   ];
-  /* Flashes SOLO de esta petición (si el backend los envía por separado) */
-  const requestActions = [
-    {% for category, message in (request_actions or []) %}
-      {"category": "{{category}}", "message": {{ message|tojson }} }{% if not loop.last %},{% endif %}
-    {% endfor %}
-  ];
 
-  /* ---------- helpers burbuja ---------- */
-  function setBadgeCount(count){
-    const b = document.getElementById('notif-badge');
-    if (!b) return;
-    const n = Math.max(0, parseInt(count || 0) || 0);
-    if (n > 0) {
-      b.textContent = n > 99 ? '99+' : String(n);
-      b.classList.remove('d-none');
-    } else {
-      b.textContent = '0';
-      b.classList.add('d-none');
-    }
-  }
-  function getStoredUnread(){
-    const raw = localStorage.getItem('notif_unread');
-    const n = parseInt(raw || '0');
-    return isNaN(n) ? 0 : Math.max(0, n);
-  }
-  function storeUnread(n){
-    localStorage.setItem('notif_unread', String(Math.max(0, parseInt(n||0) || 0)));
-  }
-
-  // Mostrar la burbuja con el valor persistido al cargar
-  document.addEventListener('DOMContentLoaded', () => {
-    setBadgeCount(getStoredUnread());
-  });
-
-  /* -------------- TOAST: última acción de ESTA petición (+ fallback) --------------
-     - Usa requestActions si existe; si no, filtra serverMessages excluyendo historial.
-     - 10s para success/warning; 20s para danger/accion_no_permitida
-     - La burbuja ACUMULA usando localStorage y se resetea al abrir el offcanvas.
+  /* ----------------- TOAST: SOLO la última acción de ESTA petición -----------------
+     - Aparece bajo el botón (arriba-dcha)
+     - 10s para success/warning/danger; 20s para accion_no_permitida
+     - Ignora el historial (mensajes que empiezan con fecha ISO)
   --------------------------------------------------------------------------- */
   (function showLatestActionToast(){
-    const isHistory = (txt) => /^\d{4}-\d{2}-\d{2}/.test((txt||"").trim());
     const actionKeywords = [
       "añadida","añadidas","eliminada","eliminadas",
       "rechazada","rechazadas","Acción no permitida","IP duplicada",
       "IP rechazada","Nada que añadir"
     ];
+    const isHistory = (txt) => /^\d{4}-\d{2}-\d{2}/.test((txt||"").trim());
 
-    let actions = (requestActions || []);
-    if (!actions.length) {
-      const currentOnly = (serverMessages || []).filter(m => !isHistory(m.message||""));
-      actions = currentOnly.filter(m =>
-        actionKeywords.some(k => (m.message||"").includes(k))
-      );
-    }
-    if (!actions.length) return;
+    const currentOnly = (serverMessages || []).filter(m => !isHistory(m.message||""));
+    const actionable = currentOnly.filter(m =>
+      actionKeywords.some(k => (m.message||"").includes(k))
+    );
+    if (!actionable.length) return;
 
-    /* >>> ACUMULACIÓN PERSISTENTE DE LA BURBUJA <<< */
-    const prev = getStoredUnread();
-    const next = prev + actions.length;
-    storeUnread(next);
-    setBadgeCount(next);
+    // Badge = cuántas acciones ocurrieron en esta petición
+    try {
+      const b = document.getElementById('notif-badge');
+      if (b) {
+        b.textContent = actionable.length;
+        b.classList.toggle('d-none', actionable.length <= 0);
+      }
+    } catch(e){}
 
     // Mostrar SOLO la última acción
-    const m = actions[actions.length - 1];
+    const m = actionable[actionable.length - 1];
 
     const portal = document.getElementById('toast-portal');
     const el = document.createElement('div');
@@ -441,8 +414,7 @@
       </div>`;
     portal.appendChild(el);
 
-    const longCats = new Set(['danger','accion_no_permitida']);
-    const delay = longCats.has(m.category) ? 20000 : 10000;  // 20s vs 10s
+    const delay = (m.category === 'accion_no_permitida') ? 20000 : 10000;
     new bootstrap.Toast(el, { autohide: true, delay }).show();
   })();
 
@@ -544,16 +516,16 @@
   }
   renderList();
 
-  // Al abrir offcanvas, marcamos como leídas y reseteamos burbuja acumulada
+  // Al abrir offcanvas, consideramos "leídas" las de esta petición (se oculta burbuja)
   const offcanvasEl = document.getElementById('offcanvasNotifs');
   if (offcanvasEl) {
     offcanvasEl.addEventListener('shown.bs.offcanvas', () => {
-      storeUnread(0);
-      setBadgeCount(0);
+      const b = document.getElementById('notif-badge');
+      if (b) b.classList.add('d-none');
     });
   }
 
-  /* ----------- Preview para eliminar por patrón ----------- */
+  /* ----------- Preview coincidencias eliminación por patrón ----------- */
   (function initDeletePreview() {
     const input = document.getElementById('delete_net_input');
     const preview = document.getElementById('previewResult');
@@ -591,6 +563,99 @@
     });
   })();
 
+  /* ---------- Validación instantánea alta manual ---------- */
+
+  (function initInstantValidate(){
+    const input = document.getElementById('ipInput');
+    const feedback = document.getElementById('ipFeedback');
+    const form = document.getElementById('mainForm');
+
+    if(!input || !feedback || !form) return;
+
+    const ipv4Part = '(25[0-5]|2[0-4]\\d|1?\\d?\\d)'; // 0-255
+    const ipv4Re = new RegExp(`^${ipv4Part}(\\.${ipv4Part}){3}$`);
+    const cidrRe = new RegExp(`^${ipv4Part}(\\.${ipv4Part}){3}\\/(?:[0-9]|[12][0-9]|3[0-2])$`);
+    const rangeRe = new RegExp(`^${ipv4Part}(\\.${ipv4Part}){3}\\s*\\-\\s*${ipv4Part}(\\.${ipv4Part}){3}$`);
+    const ipMaskRe = new RegExp(`^${ipv4Part}(\\.${ipv4Part}){3}\\s+${ipv4Part}(\\.${ipv4Part}){3}$`);
+
+    const validMasks = new Set([
+      '255.255.255.255','255.255.255.254','255.255.255.252','255.255.255.248',
+      '255.255.255.240','255.255.255.224','255.255.255.192','255.255.255.128',
+      '255.255.255.0','255.255.254.0','255.255.252.0','255.255.248.0',
+      '255.255.240.0','255.255.224.0','255.255.192.0','255.255.128.0',
+      '255.255.0.0','255.254.0.0','255.252.0.0','255.248.0.0','255.240.0.0',
+      '255.224.0.0','255.192.0.0','255.128.0.0','255.0.0.0',
+      '254.0.0.0','252.0.0.0','248.0.0.0','240.0.0.0','224.0.0.0',
+      '192.0.0.0','128.0.0.0','0.0.0.0'
+    ]);
+
+    function isForbiddenZero(val){
+      const v = val.trim();
+      if (v === '0.0.0.0') return true;
+      if (v.startsWith('0.0.0.0/')) return true;
+      if (v.startsWith('0.0.0.0 ')) return true;
+      if (/^\s*0\.0\.0\.0\s*\-\s*/.test(v)) return true;
+      return false;
+    }
+
+    function validate(val){
+      if(!val || !val.trim()){
+        return { ok:false, msg:'Introduce una IP, CIDR, rango o IP con máscara.' };
+      }
+      if(isForbiddenZero(val)) {
+        return { ok:false, msg:'Acción no permitida: bloqueo de absolutamente todo (0.0.0.0).' };
+      }
+      if (ipv4Re.test(val)) return { ok:true };
+      if (cidrRe.test(val)) return { ok:true };
+      if (rangeRe.test(val)) {
+        // validación simple: extremo izquierdo <= derecho la hará el backend; aquí aceptamos formato
+        return { ok:true };
+      }
+      if (ipMaskRe.test(val)) {
+        const mask = val.trim().split(/\s+/)[1];
+        if (validMasks.has(mask)) return { ok:true };
+        return { ok:false, msg:'Máscara inválida. Usa máscara de red contigua (p.ej. 255.255.255.0).' };
+      }
+      return { ok:false, msg:'Formato inválido. Ejemplos: 1.2.3.4 · 1.2.3.0/24 · 1.2.3.4-1.2.3.20 · 1.2.3.0 255.255.255.0' };
+    }
+
+    function setState(state){
+      if(state.ok){
+        input.classList.remove('is-invalid');
+        input.classList.add('is-valid');
+        feedback.textContent = '';
+      }else{
+        input.classList.remove('is-valid');
+        input.classList.add('is-invalid');
+        feedback.textContent = state.msg || 'Formato inválido';
+      }
+    }
+
+    input.addEventListener('input', () => {
+      const state = validate(input.value);
+      // No molestamos si está vacío, quitamos estilos
+      if(!input.value.trim()){
+        input.classList.remove('is-valid','is-invalid');
+        feedback.textContent = '';
+        return;
+      }
+      setState(state);
+    });
+
+    form.addEventListener('submit', (e) => {
+      // Sólo validar cuando envías alta manual (prioridad si hay valor en ipInput)
+      if (input.value.trim()){
+        const state = validate(input.value);
+        if(!state.ok){
+          e.preventDefault();
+          e.stopPropagation();
+          setState(state);
+          input.focus();
+        }
+      }
+    });
+  })();
+
   /* ---------- utils compartidas ---------- */
   function mapToastColor(cat) {
     if (cat === 'success') return 'success';
@@ -601,6 +666,7 @@
   function escapeHtml(str) {
     return (str || '').replace(/[&<>"']/g, s => ({'&':'&amp;','<':'&lt;','>':'&gt;','"':'&quot;',"'":'&#39;'}[s]));
   }
+
   function confirmDeletePattern() {
     const val = document.getElementById('delete_net_input').value.trim();
     return confirm(`Vas a eliminar todas las IPs que coincidan con:\n\n${val}\n\n¿Confirmas?`);
