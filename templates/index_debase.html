@@ -372,43 +372,60 @@
     {% endfor %}
   ];
 
+  /* ---------- helpers burbuja ---------- */
+  function setBadgeCount(count){
+    const b = document.getElementById('notif-badge');
+    if (!b) return;
+    const n = Math.max(0, parseInt(count || 0) || 0);
+    if (n > 0) {
+      b.textContent = n > 99 ? '99+' : String(n);
+      b.classList.remove('d-none');
+    } else {
+      b.textContent = '0';
+      b.classList.add('d-none');
+    }
+  }
+  function getStoredUnread(){
+    const raw = localStorage.getItem('notif_unread');
+    const n = parseInt(raw || '0');
+    return isNaN(n) ? 0 : Math.max(0, n);
+  }
+  function storeUnread(n){
+    localStorage.setItem('notif_unread', String(Math.max(0, parseInt(n||0) || 0)));
+  }
+
+  // Mostrar la burbuja con el valor persistido al cargar
+  document.addEventListener('DOMContentLoaded', () => {
+    setBadgeCount(getStoredUnread());
+  });
+
   /* -------------- TOAST: última acción de ESTA petición (+ fallback) --------------
      - Usa requestActions si existe; si no, filtra serverMessages excluyendo historial.
      - 10s para success/warning; 20s para danger/accion_no_permitida
-     - La burbuja muestra cuántas acciones hubo en esta petición y se oculta al abrir el offcanvas.
+     - La burbuja ACUMULA usando localStorage y se resetea al abrir el offcanvas.
   --------------------------------------------------------------------------- */
   (function showLatestActionToast(){
-    // Función que detecta si un mensaje es de historial (empieza por fecha)
     const isHistory = (txt) => /^\d{4}-\d{2}-\d{2}/.test((txt||"").trim());
-
-    // Conjunto de keywords para considerar "acción"
     const actionKeywords = [
       "añadida","añadidas","eliminada","eliminadas",
       "rechazada","rechazadas","Acción no permitida","IP duplicada",
       "IP rechazada","Nada que añadir"
     ];
 
-    // Fuente primaria: requestActions (si viene del backend)
     let actions = (requestActions || []);
-
-    // Fallback: si no viene, derivamos de serverMessages sin historial
     if (!actions.length) {
       const currentOnly = (serverMessages || []).filter(m => !isHistory(m.message||""));
       actions = currentOnly.filter(m =>
         actionKeywords.some(k => (m.message||"").includes(k))
       );
     }
-
     if (!actions.length) return;
 
-    // Burbuja = nº de acciones de ESTA petición
-    try {
-      const b = document.getElementById('notif-badge');
-      if (b) {
-        b.textContent = actions.length;
-        b.classList.toggle('d-none', actions.length <= 0);
-      }
-    } catch(e){}
+    /* >>> ACUMULACIÓN PERSISTENTE DE LA BURBUJA <<< */
+    const prev = getStoredUnread();
+    const next = prev + actions.length;
+    storeUnread(next);
+    setBadgeCount(next);
 
     // Mostrar SOLO la última acción
     const m = actions[actions.length - 1];
@@ -527,16 +544,16 @@
   }
   renderList();
 
-  // Al abrir offcanvas, consideramos "leídas" las de esta petición (se oculta la burbuja)
+  // Al abrir offcanvas, marcamos como leídas y reseteamos burbuja acumulada
   const offcanvasEl = document.getElementById('offcanvasNotifs');
   if (offcanvasEl) {
     offcanvasEl.addEventListener('shown.bs.offcanvas', () => {
-      const b = document.getElementById('notif-badge');
-      if (b) b.classList.add('d-none');
+      storeUnread(0);
+      setBadgeCount(0);
     });
   }
 
-  /* ----------- Preview para eliminar por patrón (RESTABLECIDO) ----------- */
+  /* ----------- Preview para eliminar por patrón ----------- */
   (function initDeletePreview() {
     const input = document.getElementById('delete_net_input');
     const preview = document.getElementById('previewResult');
@@ -567,7 +584,7 @@
           }
         })
         .catch(err => {
-      if (err.name === 'AbortError') return;
+          if (err.name === 'AbortError') return;
           preview.textContent = "❌ Error al consultar coincidencias.";
           preview.className = 'mt-2 small text-danger';
         });
