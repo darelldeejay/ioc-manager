@@ -221,9 +221,9 @@ def eliminar_ips_vencidas():
         with open(FEED_FILE, "r", encoding="utf-8") as f:
             for linea in f:
                 partes = linea.strip().split("|")
-                if len(partes) < 3:
+                if len(partes) != 3:
                     continue
-                ip, fecha_str, ttl_str = partes[:3]
+                ip, fecha_str, ttl_str = partes
                 try:
                     fecha = datetime.strptime(fecha_str, "%Y-%m-%d")
                     ttl = int(ttl_str)
@@ -260,11 +260,7 @@ def log(accion, ip):
 # =========================
 #  Alta de IPs (helper)
 # =========================
-def add_ips_validated(lines, existentes, iterable_ips, ttl_val, contador_ruta=None, source="manual"):
-    """
-    Añade IPs válidas. Ahora se añade una 4ª columna 'source' (manual/csv).
-    Las líneas antiguas con 3 columnas siguen funcionando.
-    """
+def add_ips_validated(lines, existentes, iterable_ips, ttl_val, contador_ruta=None):
     añadidas = 0
     rechazadas = 0
     for ip_str in iterable_ips:
@@ -286,19 +282,24 @@ def add_ips_validated(lines, existentes, iterable_ips, ttl_val, contador_ruta=No
             continue
 
         fecha = datetime.now().strftime("%Y-%m-%d")
-        # NUEVO: guardamos 4ª columna con el origen
-        lines.append(f"{ip_str}|{fecha}|{ttl_val}|{source}")
+        # IMPORTANTE: mantener formato de 3 columnas para Fortinet
+        lines.append(f"{ip_str}|{fecha}|{ttl_val}")
         existentes.add(ip_str)
+
+        # Notificación/log de alta
         log("Añadida", ip_str)
         guardar_notif("success", f"IP añadida: {ip_str}")
-        # (Contador de ficheros sigue existiendo, pero ya no lo usamos para mostrar en la UI)
+
+        # Contador opcional
         if contador_ruta:
             try:
                 val = read_counter(contador_ruta)
                 write_counter(contador_ruta, val + 1)
             except Exception:
                 pass
+
         añadidas += 1
+
     return añadidas, rechazadas
 
 
@@ -362,6 +363,7 @@ def index():
             ip_to_delete = request.form.get("delete_ip")
             new_lines = [l for l in lines if not l.startswith(ip_to_delete + "|")]
             save_lines(new_lines)
+            log("Eliminada", ip_to_delete)
             guardar_notif("warning", f"IP eliminada: {ip_to_delete}")
             flash(f"IP eliminada: {ip_to_delete}", "warning")
             return redirect(url_for("index"))
@@ -372,10 +374,12 @@ def index():
             try:
                 new_lines, removed = filter_lines_delete_pattern(lines, patron)
                 save_lines(new_lines)
+                log("Eliminadas por patrón", patron)
                 guardar_notif("warning", f"Eliminadas por patrón {patron}: {removed}")
                 flash(f"Eliminadas por patrón {patron}: {removed}", "warning")
             except Exception as e:
                 flash(str(e), "danger")
+                guardar_notif("danger", f"Error al eliminar por patrón: {str(e)}")
             return redirect(url_for("index"))
 
         # Subida CSV/TXT
@@ -403,7 +407,7 @@ def index():
                         continue
 
                 add_ok, add_bad = add_ips_validated(
-                    lines, existentes, expanded, ttl_val="0", contador_ruta=COUNTER_CSV, source="csv"
+                    lines, existentes, expanded, ttl_val="0", contador_ruta=COUNTER_CSV
                 )
                 valid_ips_total += add_ok
                 rejected_total += add_bad
@@ -445,7 +449,7 @@ def index():
                             pre_notified = True
 
                 add_ok, add_bad = add_ips_validated(
-                    lines, existentes, expanded, ttl_val=ttl_val, contador_ruta=COUNTER_MANUAL, source="manual"
+                    lines, existentes, expanded, ttl_val=ttl_val, contador_ruta=COUNTER_MANUAL
                 )
                 if add_ok > 0:
                     save_lines(lines)
@@ -456,10 +460,12 @@ def index():
                         guardar_notif("success", f"{add_ok} IPs añadidas")
                         flash(f"{add_ok} IP(s) añadida(s) correctamente", "success")
                 else:
+                    # Si no hubo altas y tampoco notificamos un caso de rechazo/duplicado detallado:
                     if not (single_input and pre_notified):
                         msg = "Nada que añadir (todas inválidas/privadas/duplicadas/no permitidas)"
                         flash(msg, "danger")
                         guardar_notif("danger", msg)
+
                 if add_bad > 0 and not (single_input and pre_notified):
                     msg = f"{add_bad} entradas rechazadas (inválidas/privadas/duplicadas/no permitidas)"
                     flash(msg, "danger")
@@ -489,35 +495,21 @@ def index():
     try:
         for n in get_notifs(limit=200):
             cat = str(n.get("category", "secondary"))
-            # Prefijamos fecha al mensaje para que el front lo identifique como historial
             msg = f"{n.get('time','')} {n.get('message','')}".strip()
             messages.append((cat, msg))
     except Exception:
         pass
 
-    # ========= Contadores "reales" desde el feed =========
-    # total_ips: len(lines)
-    # contador_manual/csv: contamos por 4ª columna si existe; si no, tratamos como 'manual'
-    manual_count = 0
-    csv_count = 0
-    for l in lines:
-        parts = l.split("|")
-        if len(parts) >= 4:
-            src = (parts[3] or "").strip().lower()
-            if src == "csv":
-                csv_count += 1
-            else:
-                manual_count += 1
-        else:
-            # Línea antigua (3 columnas): la contamos como manual por defecto
-            manual_count += 1
+    # Contadores reales (manual/CSV) para cabecera
+    contador_manual_val = read_counter(COUNTER_MANUAL)
+    contador_csv_val = read_counter(COUNTER_CSV)
 
     return render_template("index.html",
                            ips=lines,
                            error=error,
                            total_ips=len(lines),
-                           contador_manual=manual_count,
-                           contador_csv=csv_count,
+                           contador_manual=contador_manual_val,
+                           contador_csv=contador_csv_val,
                            messages=messages)
 
 
@@ -560,4 +552,5 @@ def preview_delete():
 #  Main
 # =========================
 if __name__ == "__main__":
+    # Para desarrollo local. En despliegue usa gunicorn (app:app)
     app.run(debug=True, host="0.0.0.0", port=5050)
