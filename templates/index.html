@@ -32,7 +32,8 @@
     /* TOASTS arriba-derecha bajo el botón */
     #toast-portal{
       position:fixed; top:64px; right:16px; left:auto; transform:none; z-index:1060;
-      display:flex; flex-direction:column; gap:8px; max-width:min(90vw,560px); pointer-events:none; align-items:flex-end;
+      display:flex; flex-direction:column; gap:8px; max-width:min(90vw,560px);
+      pointer-events:none; align-items:flex-end;
     }
     .toast{ pointer-events:auto; border:none!important; box-shadow:0 6px 18px rgba(0,0,0,.25); }
 
@@ -335,17 +336,24 @@
     {% endfor %}
   ];
 
-  /* -------- TOAST de esta petición (sin cachear texto) -------- */
+  /* -------- TOAST de esta petición (evita duplicados pegados) -------- */
   (function showLatestActionToast(){
     const isHistory = (txt) => /^\d{4}-\d{2}-\d{2}/.test((txt||"").trim());
-    // Solo mensajes SIN fecha (flashes actuales)
     const currentOnly = (serverMessages || []).filter(m => !isHistory(m.message||""));
     if (!currentOnly.length) return;
 
-    // Tomamos el ÚLTIMO flash de esta petición
+    // ÚLTIMO flash de esta petición
     const m = currentOnly[currentOnly.length - 1];
+    const sig = (m.category || '') + '|' + (m.message || '');
 
-    // Aumentamos contador de no leídas en localStorage
+    // Evitar repetir exactamente el mismo toast en esta pestaña
+    try{
+      const lastSig = sessionStorage.getItem('last_toast_sig') || '';
+      if (lastSig === sig) return;               // <- clave del arreglo
+      sessionStorage.setItem('last_toast_sig', sig);
+    }catch(e){}
+
+    // Sumar no leídas acumuladas (burbuja)
     try{
       const key = 'notif_unread';
       const prev = parseInt(localStorage.getItem(key) || '0', 10) || 0;
@@ -356,7 +364,7 @@
       if (b){ b.textContent = next; b.classList.toggle('d-none', next<=0); }
     }catch(e){}
 
-    // Mostrar toast con tiempos: success/warning -> 10s; danger/accion_no_permitida -> 20s
+    // Mostrar toast (10s altas/eliminaciones; 20s rechazos/errores/bloqueo)
     const portal = document.getElementById('toast-portal');
     const el = document.createElement('div');
     el.className = 'toast align-items-center text-bg-' + mapToastColor(m.category) + ' border-0';
@@ -482,7 +490,7 @@
     });
   }
 
-  // Al cargar la página, pintar el contador acumulado (si había pendiente)
+  // Al cargar, pintar contador acumulado
   (function initUnreadBadge(){
     try{
       const b = document.getElementById('notif-badge');
