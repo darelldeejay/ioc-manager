@@ -221,9 +221,9 @@ def eliminar_ips_vencidas():
         with open(FEED_FILE, "r", encoding="utf-8") as f:
             for linea in f:
                 partes = linea.strip().split("|")
-                if len(partes) != 3:
+                if len(partes) < 3:
                     continue
-                ip, fecha_str, ttl_str = partes
+                ip, fecha_str, ttl_str = partes[:3]
                 try:
                     fecha = datetime.strptime(fecha_str, "%Y-%m-%d")
                     ttl = int(ttl_str)
@@ -260,7 +260,11 @@ def log(accion, ip):
 # =========================
 #  Alta de IPs (helper)
 # =========================
-def add_ips_validated(lines, existentes, iterable_ips, ttl_val, contador_ruta=None):
+def add_ips_validated(lines, existentes, iterable_ips, ttl_val, contador_ruta=None, source="manual"):
+    """
+    Añade IPs válidas. Ahora se añade una 4ª columna 'source' (manual/csv).
+    Las líneas antiguas con 3 columnas siguen funcionando.
+    """
     añadidas = 0
     rechazadas = 0
     for ip_str in iterable_ips:
@@ -282,11 +286,12 @@ def add_ips_validated(lines, existentes, iterable_ips, ttl_val, contador_ruta=No
             continue
 
         fecha = datetime.now().strftime("%Y-%m-%d")
-        lines.append(f"{ip_str}|{fecha}|{ttl_val}")
+        # NUEVO: guardamos 4ª columna con el origen
+        lines.append(f"{ip_str}|{fecha}|{ttl_val}|{source}")
         existentes.add(ip_str)
         log("Añadida", ip_str)
         guardar_notif("success", f"IP añadida: {ip_str}")
-        # Contador opcional
+        # (Contador de ficheros sigue existiendo, pero ya no lo usamos para mostrar en la UI)
         if contador_ruta:
             try:
                 val = read_counter(contador_ruta)
@@ -398,7 +403,7 @@ def index():
                         continue
 
                 add_ok, add_bad = add_ips_validated(
-                    lines, existentes, expanded, ttl_val="0", contador_ruta=COUNTER_CSV
+                    lines, existentes, expanded, ttl_val="0", contador_ruta=COUNTER_CSV, source="csv"
                 )
                 valid_ips_total += add_ok
                 rejected_total += add_bad
@@ -440,7 +445,7 @@ def index():
                             pre_notified = True
 
                 add_ok, add_bad = add_ips_validated(
-                    lines, existentes, expanded, ttl_val=ttl_val, contador_ruta=COUNTER_MANUAL
+                    lines, existentes, expanded, ttl_val=ttl_val, contador_ruta=COUNTER_MANUAL, source="manual"
                 )
                 if add_ok > 0:
                     save_lines(lines)
@@ -452,11 +457,13 @@ def index():
                         flash(f"{add_ok} IP(s) añadida(s) correctamente", "success")
                 else:
                     if not (single_input and pre_notified):
-                        flash("Nada que añadir (todas inválidas/privadas/duplicadas/no permitidas)", "danger")
-                        guardar_notif("danger", "Nada que añadir (todas inválidas/privadas/duplicadas/no permitidas)")
+                        msg = "Nada que añadir (todas inválidas/privadas/duplicadas/no permitidas)"
+                        flash(msg, "danger")
+                        guardar_notif("danger", msg)
                 if add_bad > 0 and not (single_input and pre_notified):
-                    flash(f"{add_bad} entradas rechazadas (inválidas/privadas/duplicadas/no permitidas)", "danger")
-                    guardar_notif("danger", f"{add_bad} entradas rechazadas (manual)")
+                    msg = f"{add_bad} entradas rechazadas (inválidas/privadas/duplicadas/no permitidas)"
+                    flash(msg, "danger")
+                    guardar_notif("danger", msg)
 
             except ValueError as e:
                 if str(e) == "accion_no_permitida":
@@ -474,31 +481,43 @@ def index():
             error = "Debes introducir una IP, red CIDR, rango A-B o IP con máscara"
 
     # ========= Construcción segura de 'messages' para la plantilla =========
-    # 1) Flashes de la petición actual (sin fecha al inicio) -> TOAST
+    # 1) Flashes de la petición actual (sin fecha al inicio) -> se usan para TOAST
     raw_flashes = get_flashed_messages(with_categories=True)
     messages = coerce_message_pairs(raw_flashes)
 
-    # 2) Historial persistente (SIEMPRE con fecha al inicio)
+    # 2) Historial persistente -> se añade con fecha al inicio del mensaje
     try:
         for n in get_notifs(limit=200):
             cat = str(n.get("category", "secondary"))
-            # --- Arreglo: si falta 'time', lo rellenamos para forzar el prefijo de fecha ---
-            t = n.get("time") or datetime.now().strftime("%Y-%m-%d %H:%M:%S")
-            msg = f"{t} {n.get('message','')}".strip()
+            # Prefijamos fecha al mensaje para que el front lo identifique como historial
+            msg = f"{n.get('time','')} {n.get('message','')}".strip()
             messages.append((cat, msg))
     except Exception:
         pass
 
-    # Contadores reales (manual/CSV) para cabecera
-    contador_manual_val = read_counter(COUNTER_MANUAL)
-    contador_csv_val = read_counter(COUNTER_CSV)
+    # ========= Contadores "reales" desde el feed =========
+    # total_ips: len(lines)
+    # contador_manual/csv: contamos por 4ª columna si existe; si no, tratamos como 'manual'
+    manual_count = 0
+    csv_count = 0
+    for l in lines:
+        parts = l.split("|")
+        if len(parts) >= 4:
+            src = (parts[3] or "").strip().lower()
+            if src == "csv":
+                csv_count += 1
+            else:
+                manual_count += 1
+        else:
+            # Línea antigua (3 columnas): la contamos como manual por defecto
+            manual_count += 1
 
     return render_template("index.html",
                            ips=lines,
                            error=error,
                            total_ips=len(lines),
-                           contador_manual=contador_manual_val,
-                           contador_csv=contador_csv_val,
+                           contador_manual=manual_count,
+                           contador_csv=csv_count,
                            messages=messages)
 
 
