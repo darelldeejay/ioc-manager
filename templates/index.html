@@ -15,6 +15,7 @@
   <style>
     /* ---------- UI refinements ---------- */
 
+    /* Hints legibles también en modo oscuro */
     .hint-box {
       font-size: .9rem;
       border: 1px dashed #ced4da;
@@ -23,26 +24,48 @@
       background: #f8f9fa;
       color: #212529;
     }
-    .bg-dark .hint-box { border-color:#495057; background:#1f1f1f; color:#e9ecef; }
-
-    .bg-dark ::placeholder { color:#adb5bd !important; opacity:1; }
-    .bg-dark .form-control, .bg-dark .form-select { background-color:#1f1f1f; color:#e9ecef; border-color:#495057; }
-    .bg-dark .table { color:#e9ecef; }
-
-    /* TOASTS arriba-derecha bajo el botón */
-    #toast-portal{
-      position:fixed; top:64px; right:16px; left:auto; transform:none; z-index:1060;
-      display:flex; flex-direction:column; gap:8px; max-width:min(90vw,560px);
-      pointer-events:none; align-items:flex-end;
+    .bg-dark .hint-box {
+      border-color: #495057;
+      background: #1f1f1f;
+      color: #e9ecef;
     }
-    .toast{ pointer-events:auto; border:none!important; box-shadow:0 6px 18px rgba(0,0,0,.25); }
 
-    /* Botón notificaciones */
+    /* Placeholders visibles en oscuro */
+    .bg-dark ::placeholder { color: #adb5bd !important; opacity: 1; }
+    .bg-dark .form-control, .bg-dark .form-select {
+      background-color: #1f1f1f; color: #e9ecef; border-color: #495057;
+    }
+    .bg-dark .table { color: #e9ecef; }
+
+    /* TOASTS: arriba a la derecha, bajo el botón de notificaciones */
+    #toast-portal{
+      position: fixed;
+      top: 64px;        /* Ajusta si tu cabecera es más alta/baja */
+      right: 16px;
+      left: auto;
+      transform: none;
+      z-index: 1060;
+      display: flex;
+      flex-direction: column;
+      gap: 8px;
+      max-width: min(90vw, 560px);
+      pointer-events: none;     /* no bloquean la UI */
+      align-items: flex-end;
+    }
+    .toast{
+      pointer-events: auto;     /* permite cerrar */
+      border: none !important;
+      box-shadow: 0 6px 18px rgba(0,0,0,.25);
+    }
+
+    /* Botón Notificaciones (en cabecera) con burbuja */
     #notif-btn{ position:relative; }
     #notif-badge{ position:absolute; top:-6px; right:-8px; }
 
-    /* Logo esquina (abajo derecha, SIN TOCAR) */
-    #corner-logo{ position:fixed; bottom:16px; right:16px; width:96px; height:auto; opacity:.85; z-index:1040; }
+    /* Logo esquina (SIN TOCAR, abajo derecha) */
+    #corner-logo{
+      position:fixed; bottom:16px; right:16px; width:96px; height:auto; opacity:.85; z-index:1040;
+    }
     @media (max-width:576px){ #corner-logo{ width:68px; } }
   </style>
 </head>
@@ -53,7 +76,7 @@
     <button class="btn btn-outline-secondary btn-sm" onclick="toggleTheme()">🌙 Modo Oscuro</button>
 
     <div class="d-flex align-items-center gap-2">
-      <!-- Botón Notificaciones -->
+      <!-- Botón Notificaciones (arriba derecha) -->
       <button id="notif-btn" class="btn btn-outline-primary btn-sm"
               type="button" data-bs-toggle="offcanvas"
               data-bs-target="#offcanvasNotifs" aria-controls="offcanvasNotifs">
@@ -72,6 +95,7 @@
     ℹ️ Añadidas: Manual (<strong>{{ contador_manual }}</strong>) · CSV (<strong>{{ contador_csv }}</strong>)
   </div>
 
+  <!-- Solo errores graves si el backend los envía en 'error' -->
   {% if error %}
     <div class="alert alert-danger mt-2">{{ error }}</div>
   {% endif %}
@@ -164,7 +188,7 @@
     </div>
   </div>
 
-  <!-- Modal Eliminar por Patrón -->
+  <!-- Modal Eliminar por Patrón (con previsualización) -->
   <div class="modal fade" id="modalDeleteNet" tabindex="-1" aria-hidden="true">
     <div class="modal-dialog">
       <form method="POST" class="modal-content" onsubmit="return confirmDeletePattern();">
@@ -178,6 +202,7 @@
                  placeholder="Ej: 203.0.113.0/24 · 203.0.113.10-203.0.113.50 · 203.0.113.0 255.255.255.0 · 203.0.113.5"
                  required>
 
+          <!-- Resultado de previsualización -->
           <div id="previewResult" class="mt-2 small text-muted">
             Escribe un patrón para ver cuántas IPs coinciden.
           </div>
@@ -204,6 +229,7 @@
   <hr>
   <h4>IPs bloqueadas</h4>
 
+  <!-- Buscador de IPs -->
   <div class="mb-3">
     <input type="text" id="buscadorIp" class="form-control" placeholder="Buscar IP...">
   </div>
@@ -227,6 +253,7 @@
           <td>
             <button class="btn btn-sm btn-outline-danger" data-bs-toggle="modal" data-bs-target="#confirmDelete{{ loop.index }}">Eliminar</button>
 
+            <!-- Modal Confirmar eliminación individual -->
             <div class="modal fade" id="confirmDelete{{ loop.index }}" tabindex="-1" aria-hidden="true">
               <div class="modal-dialog modal-dialog-centered">
                 <div class="modal-content">
@@ -259,16 +286,17 @@
   </div>
 </div>
 
-<!-- Logo fijo -->
+<!-- Logo DPB fijo (abajo derecha, SIN TOCAR) -->
 <img id="corner-logo" src="{{ url_for('static', filename='img/logo-dpb.svg') }}" alt="Logo DPB">
 
-<!-- Offcanvas Notificaciones -->
+<!-- Offcanvas de Notificaciones -->
 <div class="offcanvas offcanvas-end" tabindex="-1" id="offcanvasNotifs" aria-labelledby="offcanvasNotifsLabel">
   <div class="offcanvas-header">
     <h5 id="offcanvasNotifsLabel">Notificaciones</h5>
     <button type="button" class="btn-close" data-bs-dismiss="offcanvas" aria-label="Cerrar"></button>
   </div>
   <div class="offcanvas-body d-flex flex-column" style="gap:.75rem;">
+    <!-- Filtros -->
     <div class="d-flex flex-wrap align-items-center gap-2 mb-2">
       <select id="filterType" class="form-select form-select-sm" style="max-width:180px">
         <option value="">Todos los tipos</option>
@@ -283,8 +311,10 @@
       <span class="ms-auto small text-muted" id="notifCountInfo"></span>
     </div>
 
+    <!-- Lista -->
     <div id="notifList" class="d-flex flex-column" style="gap:.5rem;"></div>
 
+    <!-- Paginación (10 por página) -->
     <nav class="mt-2">
       <ul id="notifPagination" class="pagination pagination-sm mb-0"></ul>
     </nav>
@@ -336,48 +366,46 @@
     {% endfor %}
   ];
 
-  /* -------- TOAST de esta petición (evita duplicados pegados) -------- */
+  /* ----------------- TOAST: SOLO la última acción de ESTA petición -----------------
+     - Aparece bajo el botón (arriba-dcha)
+     - 10s para success/warning; 20s para danger/accion_no_permitida
+     - Ignora el historial (mensajes que empiezan con fecha ISO)
+     - La burbuja acumula en localStorage y solo se pone a 0 al abrir el offcanvas
+  --------------------------------------------------------------------------- */
   (function showLatestActionToast(){
     const isHistory = (txt) => /^\d{4}-\d{2}-\d{2}/.test((txt||"").trim());
     const currentOnly = (serverMessages || []).filter(m => !isHistory(m.message||""));
-    if (!currentOnly.length) return;
 
-    // ÚLTIMO flash de esta petición
+    if (!currentOnly.length) {
+      initUnreadBadge(); // al menos pinta lo acumulado
+      return;
+    }
+
+    // Tomamos el ÚLTIMO flash de la petición (el backend añade el historial DESPUÉS)
     const m = currentOnly[currentOnly.length - 1];
-    const sig = (m.category || '') + '|' + (m.message || '');
 
-    // Evitar repetir exactamente el mismo toast en esta pestaña
-    try{
-      const lastSig = sessionStorage.getItem('last_toast_sig') || '';
-      if (lastSig === sig) return;               // <- clave del arreglo
-      sessionStorage.setItem('last_toast_sig', sig);
-    }catch(e){}
+    // Aumentar contador no leído
+    const inc = 1; // una acción = un toast mostrado
+    const key = 'notif_unread';
+    const prev = parseInt(localStorage.getItem(key) || '0', 10) || 0;
+    const next = prev + inc;
+    localStorage.setItem(key, String(next));
+    paintBadge(next);
 
-    // Sumar no leídas acumuladas (burbuja)
-    try{
-      const key = 'notif_unread';
-      const prev = parseInt(localStorage.getItem(key) || '0', 10) || 0;
-      const inc = currentOnly.length;
-      const next = prev + inc;
-      localStorage.setItem(key, String(next));
-      const b = document.getElementById('notif-badge');
-      if (b){ b.textContent = next; b.classList.toggle('d-none', next<=0); }
-    }catch(e){}
-
-    // Mostrar toast (10s altas/eliminaciones; 20s rechazos/errores/bloqueo)
+    // Toast
     const portal = document.getElementById('toast-portal');
     const el = document.createElement('div');
     el.className = 'toast align-items-center text-bg-' + mapToastColor(m.category) + ' border-0';
     el.innerHTML = `
       <div class="d-flex">
         <div class="toast-body">${escapeHtml(m.message || '')}</div>
-        <button type="button" class="btn-close btn-close-white me-2 m-auto" data-bs-dismiss="toast" aria-label="Close"></button>
+        <button type="button" class="btn-close btn-close-white me-2 m-auto"
+                data-bs-dismiss="toast" aria-label="Close"></button>
       </div>`;
     portal.appendChild(el);
 
-    const longCats = (m.category === 'danger' || m.category === 'accion_no_permitida');
-    const delay = longCats ? 20000 : 10000;
-    new bootstrap.Toast(el, { autohide: true, delay }).show();
+    const longDelay = (m.category === 'danger' || m.category === 'accion_no_permitida') ? 20000 : 10000;
+    new bootstrap.Toast(el, { autohide: true, delay: longDelay }).show();
   })();
 
   /* ----------------- Offcanvas: filtros + paginación ----------------- */
@@ -478,28 +506,16 @@
   }
   renderList();
 
-  // Al abrir el offcanvas: marcar "leídas" (contador a 0)
+  // Al abrir offcanvas, consideramos "leídas": contador a 0 y ocultar burbuja
   const offcanvasEl = document.getElementById('offcanvasNotifs');
   if (offcanvasEl) {
     offcanvasEl.addEventListener('shown.bs.offcanvas', () => {
-      try{
-        localStorage.setItem('notif_unread','0');
-        const b = document.getElementById('notif-badge');
-        if (b){ b.textContent = '0'; b.classList.add('d-none'); }
-      }catch(e){}
+      localStorage.setItem('notif_unread', '0');
+      paintBadge(0);
     });
   }
 
-  // Al cargar, pintar contador acumulado
-  (function initUnreadBadge(){
-    try{
-      const b = document.getElementById('notif-badge');
-      const cnt = parseInt(localStorage.getItem('notif_unread') || '0', 10) || 0;
-      if (b){ b.textContent = cnt; b.classList.toggle('d-none', cnt<=0); }
-    }catch(e){}
-  })();
-
-  /* ---------- utils ---------- */
+  /* ---------- utils compartidas ---------- */
   function mapToastColor(cat) {
     if (cat === 'success') return 'success';
     if (cat === 'warning') return 'warning';
@@ -509,10 +525,24 @@
   function escapeHtml(str) {
     return (str || '').replace(/[&<>"']/g, s => ({'&':'&amp;','<':'&lt;','>':'&gt;','"':'&quot;',"'":'&#39;'}[s]));
   }
+  function paintBadge(val){
+    const b = document.getElementById('notif-badge');
+    if (!b) return;
+    b.textContent = String(val);
+    b.classList.toggle('d-none', val <= 0);
+  }
+  function initUnreadBadge(){
+    const val = parseInt(localStorage.getItem('notif_unread') || '0', 10) || 0;
+    paintBadge(val);
+  }
+
   function confirmDeletePattern() {
     const val = document.getElementById('delete_net_input').value.trim();
     return confirm(`Vas a eliminar todas las IPs que coincidan con:\n\n${val}\n\n¿Confirmas?`);
   }
+
+  // Pinta la burbuja con lo acumulado (por si no hubo action toast en esta carga)
+  initUnreadBadge();
 </script>
 
 </body>
