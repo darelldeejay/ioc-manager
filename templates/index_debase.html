@@ -359,40 +359,73 @@
     }
   });
 
-  /* ----------------- Datos de notificaciones (inyectados) ----------------- */
+  /* ----------------- Datos de notificaciones del backend ----------------- */
   const serverMessages = [
     {% for category, message in (messages or []) %}
       {"category": "{{category}}", "message": {{ message|tojson }} }{% if not loop.last %},{% endif %}
     {% endfor %}
   ];
-  const lastAction = {{ last_action|tojson|safe if last_action else 'null' }};
+  /* Flashes SOLO de esta petición (si el backend los envía por separado) */
+  const requestActions = [
+    {% for category, message in (request_actions or []) %}
+      {"category": "{{category}}", "message": {{ message|tojson }} }{% if not loop.last %},{% endif %}
+    {% endfor %}
+  ];
 
-  /* ----------------- TOAST: SOLO la última acción de ESTA petición -----------------
-     - Aparece bajo el botón (arriba-dcha)
+  /* -------------- TOAST: última acción de ESTA petición (+ fallback) --------------
+     - Usa requestActions si existe; si no, filtra serverMessages excluyendo historial.
      - 10s para success/warning; 20s para danger/accion_no_permitida
-     - Ignora el historial por completo (no lo mira)
+     - La burbuja muestra cuántas acciones hubo en esta petición y se oculta al abrir el offcanvas.
   --------------------------------------------------------------------------- */
   (function showLatestActionToast(){
-    if (!lastAction) { initUnreadBadge(); return; }
+    // Función que detecta si un mensaje es de historial (empieza por fecha)
+    const isHistory = (txt) => /^\d{4}-\d{2}-\d{2}/.test((txt||"").trim());
 
-    // acumular burbuja de no leídas
-    const key = 'notif_unread';
-    const prev = parseInt(localStorage.getItem(key) || '0', 10) || 0;
-    const next = prev + 1;
-    localStorage.setItem(key, String(next));
-    paintBadge(next);
+    // Conjunto de keywords para considerar "acción"
+    const actionKeywords = [
+      "añadida","añadidas","eliminada","eliminadas",
+      "rechazada","rechazadas","Acción no permitida","IP duplicada",
+      "IP rechazada","Nada que añadir"
+    ];
+
+    // Fuente primaria: requestActions (si viene del backend)
+    let actions = (requestActions || []);
+
+    // Fallback: si no viene, derivamos de serverMessages sin historial
+    if (!actions.length) {
+      const currentOnly = (serverMessages || []).filter(m => !isHistory(m.message||""));
+      actions = currentOnly.filter(m =>
+        actionKeywords.some(k => (m.message||"").includes(k))
+      );
+    }
+
+    if (!actions.length) return;
+
+    // Burbuja = nº de acciones de ESTA petición
+    try {
+      const b = document.getElementById('notif-badge');
+      if (b) {
+        b.textContent = actions.length;
+        b.classList.toggle('d-none', actions.length <= 0);
+      }
+    } catch(e){}
+
+    // Mostrar SOLO la última acción
+    const m = actions[actions.length - 1];
 
     const portal = document.getElementById('toast-portal');
     const el = document.createElement('div');
-    el.className = 'toast align-items-center text-bg-' + mapToastColor(lastAction.category) + ' border-0';
+    el.className = 'toast align-items-center text-bg-' + mapToastColor(m.category) + ' border-0';
     el.innerHTML = `
       <div class="d-flex">
-        <div class="toast-body">${escapeHtml(lastAction.message || '')}</div>
+        <div class="toast-body">${escapeHtml(m.message || '')}</div>
         <button type="button" class="btn-close btn-close-white me-2 m-auto"
                 data-bs-dismiss="toast" aria-label="Close"></button>
       </div>`;
     portal.appendChild(el);
-    const delay = (lastAction.category === 'danger' || lastAction.category === 'accion_no_permitida') ? 20000 : 10000;
+
+    const longCats = new Set(['danger','accion_no_permitida']);
+    const delay = longCats.has(m.category) ? 20000 : 10000;  // 20s vs 10s
     new bootstrap.Toast(el, { autohide: true, delay }).show();
   })();
 
@@ -494,16 +527,16 @@
   }
   renderList();
 
-  // Al abrir offcanvas, consideramos "leídas" y ocultamos burbuja
+  // Al abrir offcanvas, consideramos "leídas" las de esta petición (se oculta la burbuja)
   const offcanvasEl = document.getElementById('offcanvasNotifs');
   if (offcanvasEl) {
     offcanvasEl.addEventListener('shown.bs.offcanvas', () => {
-      localStorage.setItem('notif_unread', '0');
-      paintBadge(0);
+      const b = document.getElementById('notif-badge');
+      if (b) b.classList.add('d-none');
     });
   }
 
-  /* ----------- Preview coincidencias eliminación por patrón ----------- */
+  /* ----------- Preview para eliminar por patrón (RESTABLECIDO) ----------- */
   (function initDeletePreview() {
     const input = document.getElementById('delete_net_input');
     const preview = document.getElementById('previewResult');
@@ -534,7 +567,7 @@
           }
         })
         .catch(err => {
-          if (err.name === 'AbortError') return;
+      if (err.name === 'AbortError') return;
           preview.textContent = "❌ Error al consultar coincidencias.";
           preview.className = 'mt-2 small text-danger';
         });
@@ -551,24 +584,10 @@
   function escapeHtml(str) {
     return (str || '').replace(/[&<>"']/g, s => ({'&':'&amp;','<':'&lt;','>':'&gt;','"':'&quot;',"'":'&#39;'}[s]));
   }
-  function paintBadge(val){
-    const b = document.getElementById('notif-badge');
-    if (!b) return;
-    b.textContent = String(val);
-    b.classList.toggle('d-none', val <= 0);
-  }
-  function initUnreadBadge(){
-    const val = parseInt(localStorage.getItem('notif_unread') || '0', 10) || 0;
-    paintBadge(val);
-  }
-
   function confirmDeletePattern() {
     const val = document.getElementById('delete_net_input').value.trim();
     return confirm(`Vas a eliminar todas las IPs que coincidan con:\n\n${val}\n\n¿Confirmas?`);
   }
-
-  // Iniciar burbuja si no hubo acción
-  initUnreadBadge();
 </script>
 
 </body>
