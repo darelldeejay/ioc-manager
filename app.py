@@ -15,8 +15,13 @@ BASE_DIR = os.path.dirname(os.path.realpath(__file__))
 FEED_FILE = os.path.join(BASE_DIR, 'ioc-feed.txt')
 LOG_FILE = os.path.join(BASE_DIR, 'ioc-log.txt')
 NOTIF_FILE = os.path.join(BASE_DIR, 'notif-log.json')
+
+# Counters históricos (los dejo por compatibilidad, pero los totales visibles se calculan con meta vivo)
 COUNTER_MANUAL = os.path.join(BASE_DIR, 'contador_manual.txt')
 COUNTER_CSV = os.path.join(BASE_DIR, 'contador_csv.txt')
+
+# Nuevo: meta lateral (no toca el feed de Fortinet)
+META_FILE = os.path.join(BASE_DIR, 'ioc-meta.json')
 
 MAX_EXPAND = 4096
 
@@ -43,12 +48,72 @@ def write_counter(path, value):
         pass
 
 
-def set_toast(category, message):
-    """Guarda la notificación para TOAST (one-shot) en sesión."""
+# -------- Meta lateral (origen por IP) --------
+def load_meta():
+    """Devuelve dict {'by_ip': {'1.2.3.4':'manual'|'csv', ...}}"""
+    if not os.path.exists(META_FILE):
+        return {"by_ip": {}}
     try:
-        session["_toast"] = {"category": str(category), "message": str(message)}
+        with open(META_FILE, "r", encoding="utf-8") as f:
+            data = json.load(f)
+            if not isinstance(data, dict) or "by_ip" not in data or not isinstance(data["by_ip"], dict):
+                return {"by_ip": {}}
+            return {"by_ip": dict(data["by_ip"])}
+    except Exception:
+        return {"by_ip": {}}
+
+
+def save_meta(meta):
+    try:
+        with open(META_FILE, "w", encoding="utf-8") as f:
+            json.dump(meta, f, ensure_ascii=False, indent=2)
     except Exception:
         pass
+
+
+def meta_set_origin(ip_str, origin):
+    meta = load_meta()
+    meta["by_ip"][ip_str] = origin  # 'manual' | 'csv'
+    save_meta(meta)
+
+
+def meta_del_ip(ip_str):
+    meta = load_meta()
+    if ip_str in meta["by_ip"]:
+        del meta["by_ip"][ip_str]
+        save_meta(meta)
+
+
+def meta_bulk_del(ips):
+    if not ips:
+        return
+    meta = load_meta()
+    changed = False
+    for ip in ips:
+        if ip in meta["by_ip"]:
+            del meta["by_ip"][ip]
+            changed = True
+    if changed:
+        save_meta(meta)
+
+
+def compute_live_counters(active_lines):
+    """
+    Calcula Manual/CSV actuales cruzando el feed activo con el meta.
+    active_lines: lista de 'ip|fecha|ttl'
+    """
+    meta = load_meta()["by_ip"]
+    manual = 0
+    csv = 0
+    for line in active_lines:
+        ip_txt = line.split("|", 1)[0].strip()
+        origin = meta.get(ip_txt)
+        if origin == "manual":
+            manual += 1
+        elif origin == "csv":
+            csv += 1
+        # si no hay origen, no lo contamos (no falseamos nada)
+    return manual, csv
 
 
 # =========================
@@ -166,6 +231,7 @@ def parse_delete_pattern(raw):
 def filter_lines_delete_pattern(lines, pattern):
     kind, obj = parse_delete_pattern(pattern)
     kept, removed = [], 0
+    removed_ips = []
     for line in lines:
         ip_txt = line.split("|", 1)[0].strip()
         try:
@@ -185,10 +251,11 @@ def filter_lines_delete_pattern(lines, pattern):
 
         if match:
             removed += 1
+            removed_ips.append(ip_txt)
         else:
             kept.append(line)
 
-    return kept, removed
+    return kept, removed, removed_ips
 
 
 # =========================
@@ -223,8 +290,13 @@ def get_notifs(limit=200):
 #  Helpers almacenamiento
 # =========================
 def eliminar_ips_vencidas():
+    """
+    Reescribe FEED_FILE eliminando expiradas.
+    Devuelve lista de IPs que fueron eliminadas por vencimiento.
+    """
     now = datetime.now()
     nuevas = []
+    vencidas = []
     try:
         with open(FEED_FILE, "r", encoding="utf-8") as f:
             for linea in f:
@@ -240,11 +312,14 @@ def eliminar_ips_vencidas():
                     continue
                 if ttl == 0 or (now - fecha).days < ttl:
                     nuevas.append(linea.strip())
+                else:
+                    vencidas.append(ip.strip())
         with open(FEED_FILE, "w", encoding="utf-8") as f:
             for l in nuevas:
                 f.write(l + "\n")
     except FileNotFoundError:
         pass
+    return vencidas
 
 
 def load_lines():
@@ -268,7 +343,10 @@ def log(accion, ip):
 # =========================
 #  Alta de IPs (helper)
 # =========================
-def add_ips_validated(lines, existentes, iterable_ips, ttl_val, contador_ruta=None):
+def add_ips_validated(lines, existentes, iterable_ips, ttl_val, origin=None, contador_ruta=None):
+    """
+    origin: 'manual' | 'csv' | None
+    """
     añadidas = 0
     rechazadas = 0
     for ip_str in iterable_ips:
@@ -294,12 +372,19 @@ def add_ips_validated(lines, existentes, iterable_ips, ttl_val, contador_ruta=No
         existentes.add(ip_str)
         log("Añadida", ip_str)
         guardar_notif("success", f"IP añadida: {ip_str}")
+
+        # Origen vivo
+        if origin in ("manual", "csv"):
+            meta_set_origin(ip_str, origin)
+
+        # Contador histórico (opcional, compat)
         if contador_ruta:
             try:
                 val = read_counter(contador_ruta)
                 write_counter(contador_ruta, val + 1)
             except Exception:
                 pass
+
         añadidas += 1
     return añadidas, rechazadas
 
@@ -308,6 +393,10 @@ def add_ips_validated(lines, existentes, iterable_ips, ttl_val, contador_ruta=No
 #  Flashes seguros para plantillas
 # =========================
 def coerce_message_pairs(raw_flashes):
+    """
+    Asegura lista de pares (category, message) para la plantilla.
+    Evita 500 si algún flash vino sin categoría.
+    """
     pairs = []
     for item in raw_flashes:
         if isinstance(item, (list, tuple)) and len(item) >= 2:
@@ -327,8 +416,6 @@ def login():
             session["username"] = "admin"
             return redirect(url_for("index"))
         flash("Credenciales incorrectas", "danger")
-        set_toast("danger", "Credenciales incorrectas")
-        return redirect(url_for("login"))
     return render_template("login.html")
 
 
@@ -343,7 +430,11 @@ def index():
     if "username" not in session:
         return redirect(url_for("login"))
 
-    eliminar_ips_vencidas()
+    # Expirar y limpiar meta acorde
+    vencidas = eliminar_ips_vencidas()
+    if vencidas:
+        meta_bulk_del(vencidas)
+
     error = None
     lines = load_lines()
     existentes = {l.split("|", 1)[0] for l in lines}
@@ -351,11 +442,15 @@ def index():
     if request.method == "POST":
         # Eliminar todas
         if "delete-all" in request.form:
+            # recolectar IPs antes
+            all_ips = [l.split("|", 1)[0].strip() for l in lines]
             save_lines([])
+            # limpiar meta
+            meta_bulk_del(all_ips)
+
             log("Eliminadas", "todas las IPs")
             guardar_notif("warning", "Se eliminaron todas las IPs")
             flash("Se eliminaron todas las IPs", "warning")
-            set_toast("warning", "Se eliminaron todas las IPs")
             return redirect(url_for("index"))
 
         # Eliminar individual
@@ -363,24 +458,25 @@ def index():
             ip_to_delete = request.form.get("delete_ip")
             new_lines = [l for l in lines if not l.startswith(ip_to_delete + "|")]
             save_lines(new_lines)
+            meta_del_ip(ip_to_delete)
+
             guardar_notif("warning", f"IP eliminada: {ip_to_delete}")
             flash(f"IP eliminada: {ip_to_delete}", "warning")
-            set_toast("warning", f"IP eliminada: {ip_to_delete}")
             return redirect(url_for("index"))
 
         # Eliminar por patrón
         if "delete-net" in request.form:
             patron = request.form.get("delete_net_input", "").strip()
             try:
-                new_lines, removed = filter_lines_delete_pattern(lines, patron)
+                new_lines, removed, removed_ips = filter_lines_delete_pattern(lines, patron)
                 save_lines(new_lines)
-                msg = f"Eliminadas por patrón {patron}: {removed}"
-                guardar_notif("warning", msg)
-                flash(msg, "warning")
-                set_toast("warning", msg)
+                if removed_ips:
+                    meta_bulk_del(removed_ips)
+
+                guardar_notif("warning", f"Eliminadas por patrón {patron}: {removed}")
+                flash(f"Eliminadas por patrón {patron}: {removed}", "warning")
             except Exception as e:
                 flash(str(e), "danger")
-                set_toast("danger", str(e))
             return redirect(url_for("index"))
 
         # Subida CSV/TXT
@@ -400,32 +496,27 @@ def index():
                     expanded = expand_input_to_ips(raw)
                 except ValueError as e:
                     if str(e) == "accion_no_permitida":
-                        msg = "⚠️ Acción no permitida: bloqueo de absolutamente todo"
-                        flash(msg, "accion_no_permitida")
+                        flash("⚠️ Acción no permitida: bloqueo de absolutamente todo", "accion_no_permitida")
                         guardar_notif("accion_no_permitida", "Intento de bloqueo global (CSV)")
-                        set_toast("accion_no_permitida", "Acción no permitida: bloqueo global (0.0.0.0)")
                         continue
                     else:
                         rejected_total += 1
                         continue
 
                 add_ok, add_bad = add_ips_validated(
-                    lines, existentes, expanded, ttl_val="0", contador_ruta=COUNTER_CSV
+                    lines, existentes, expanded, ttl_val="0",
+                    origin="csv", contador_ruta=COUNTER_CSV
                 )
                 valid_ips_total += add_ok
                 rejected_total += add_bad
 
             save_lines(lines)
             if valid_ips_total:
-                msg = f"{valid_ips_total} IP(s) añadida(s) correctamente (CSV)"
                 guardar_notif("success", f"{valid_ips_total} IPs añadidas (CSV)")
-                flash(msg, "success")
-                set_toast("success", msg)
-            elif rejected_total:
-                msg = f"{rejected_total} entradas rechazadas (inválidas/privadas/duplicadas/no permitidas)"
+                flash(f"{valid_ips_total} IP(s) añadida(s) correctamente (CSV)", "success")
+            if rejected_total:
                 guardar_notif("danger", f"{rejected_total} entradas rechazadas (CSV)")
-                flash(msg, "danger")
-                set_toast("danger", msg)
+                flash(f"{rejected_total} entradas rechazadas (inválidas/privadas/duplicadas/no permitidas)", "danger")
             return redirect(url_for("index"))
 
         # Alta manual (IP / CIDR / Rango / IP+máscara)
@@ -437,7 +528,7 @@ def index():
             try:
                 expanded = expand_input_to_ips(raw_input)
 
-                # Única IP: notificar motivo de rechazo/duplicado
+                # Si es una única IP, damos motivo detallado en caso de rechazo/duplicado
                 single_input = len(expanded) == 1
                 single_ip = expanded[0] if single_input else None
                 pre_notified = False
@@ -446,7 +537,6 @@ def index():
                         msg = f"IP duplicada: {single_ip}"
                         flash(msg, "danger")
                         guardar_notif("danger", msg)
-                        set_toast("danger", msg)
                         pre_notified = True
                     else:
                         reason = ip_block_reason(single_ip)
@@ -454,64 +544,49 @@ def index():
                             msg = f"IP rechazada: {single_ip} — {reason}"
                             flash(msg, "danger")
                             guardar_notif("danger", msg)
-                            set_toast("danger", msg)
                             pre_notified = True
 
                 add_ok, add_bad = add_ips_validated(
-                    lines, existentes, expanded, ttl_val=ttl_val, contador_ruta=COUNTER_MANUAL
+                    lines, existentes, expanded, ttl_val=ttl_val,
+                    origin="manual", contador_ruta=COUNTER_MANUAL
                 )
                 if add_ok > 0:
                     save_lines(lines)
                     if single_input:
-                        msg = f"IP añadida: {single_ip}"
-                        guardar_notif("success", msg)
-                        flash(msg, "success")
-                        set_toast("success", msg)
+                        guardar_notif("success", f"IP añadida: {single_ip}")
+                        flash(f"IP añadida: {single_ip}", "success")
                     else:
-                        msg = f"{add_ok} IP(s) añadida(s) correctamente"
                         guardar_notif("success", f"{add_ok} IPs añadidas")
-                        flash(msg, "success")
-                        set_toast("success", msg)
+                        flash(f"{add_ok} IP(s) añadida(s) correctamente", "success")
                 else:
                     if not (single_input and pre_notified):
-                        msg = "Nada que añadir (todas inválidas/privadas/duplicadas/no permitidas)"
-                        flash(msg, "danger")
-                        guardar_notif("danger", msg)
-                        set_toast("danger", msg)
+                        flash("Nada que añadir (todas inválidas/privadas/duplicadas/no permitidas)", "danger")
+                        guardar_notif("danger", "Nada que añadir (todas inválidas/privadas/duplicadas/no permitidas)")
                 if add_bad > 0 and not (single_input and pre_notified):
-                    msg2 = f"{add_bad} entradas rechazadas (inválidas/privadas/duplicadas/no permitidas)"
-                    flash(msg2, "danger")
+                    flash(f"{add_bad} entradas rechazadas (inválidas/privadas/duplicadas/no permitidas)", "danger")
                     guardar_notif("danger", f"{add_bad} entradas rechazadas (manual)")
-                    set_toast("danger", msg2)
 
             except ValueError as e:
                 if str(e) == "accion_no_permitida":
-                    msg = "Acción no permitida: bloqueo de absolutamente todo"
-                    flash("⚠️ " + msg, "accion_no_permitida")
+                    flash("⚠️ Acción no permitida: bloqueo de absolutamente todo", "accion_no_permitida")
                     guardar_notif("accion_no_permitida", "Intento de bloqueo global (manual)")
-                    set_toast("accion_no_permitida", "Acción no permitida: bloqueo global (0.0.0.0)")
                 else:
                     flash(str(e), "danger")
                     guardar_notif("danger", str(e))
-                    set_toast("danger", str(e))
             except Exception as e:
-                msg = f"Error inesperado: {str(e)}"
-                flash(msg, "danger")
-                guardar_notif("danger", msg)
-                set_toast("danger", msg)
+                flash(f"Error inesperado: {str(e)}", "danger")
+                guardar_notif("danger", f"Error inesperado: {str(e)}")
 
             return redirect(url_for("index"))
         else:
             error = "Debes introducir una IP, red CIDR, rango A-B o IP con máscara"
 
-    # ========= Flashes + historial para la plantilla =========
+    # ========= Construcción segura de 'messages' para la plantilla =========
+    # 1) Flashes de la petición actual (sin fecha al inicio) -> se usan para TOAST
     raw_flashes = get_flashed_messages(with_categories=True)
     messages = coerce_message_pairs(raw_flashes)
 
-    # ONE-SHOT: último toast enviado en la petición anterior
-    last_action = session.pop("_toast", None)
-
-    # Historial persistente para el offcanvas
+    # 2) Historial persistente -> se añade con fecha al inicio del mensaje
     try:
         for n in get_notifs(limit=200):
             cat = str(n.get("category", "secondary"))
@@ -520,18 +595,17 @@ def index():
     except Exception:
         pass
 
-    # Contadores reales (manual/CSV)
-    contador_manual_val = read_counter(COUNTER_MANUAL)
-    contador_csv_val = read_counter(COUNTER_CSV)
+    # Totales VIVOS (manual/csv) cruzando feed + meta (no alteramos feed)
+    lines = load_lines()  # recargo por si hubo cambios en POST arriba
+    live_manual, live_csv = compute_live_counters(lines)
 
     return render_template("index.html",
                            ips=lines,
                            error=error,
                            total_ips=len(lines),
-                           contador_manual=contador_manual_val,
-                           contador_csv=contador_csv_val,
-                           messages=messages,
-                           last_action=last_action)
+                           contador_manual=live_manual,
+                           contador_csv=live_csv,
+                           messages=messages)
 
 
 @app.route("/feed/ioc-feed.txt")
@@ -553,6 +627,9 @@ def feed():
     return resp
 
 
+# =========================
+#  Nueva ruta: preview-delete
+# =========================
 @app.route("/preview-delete")
 def preview_delete():
     pattern = request.args.get("pattern", "").strip()
@@ -560,11 +637,14 @@ def preview_delete():
         return jsonify({"error": "Patrón vacío"}), 400
     try:
         lines = load_lines()
-        _, removed = filter_lines_delete_pattern(lines, pattern)
+        _, removed, _removed_ips = filter_lines_delete_pattern(lines, pattern)
         return jsonify({"count": removed})
     except Exception as e:
         return jsonify({"error": str(e)}), 400
 
 
+# =========================
+#  Main
+# =========================
 if __name__ == "__main__":
     app.run(debug=True, host="0.0.0.0", port=5050)
