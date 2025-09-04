@@ -372,13 +372,7 @@
     {% endfor %}
   ];
 
-  /* ----------------- TOAST: combinar acciones de ESTA petición -----------------
-     - Ignora historial (mensajes que empiezan con fecha ISO)
-     - Combina success/warning/danger/accion_no_permitida en UN solo toast
-     - Color por severidad: accion_no_permitida|danger > warning > success
-     - Duración: altas/eliminaciones 10s; rechazos/errores/bloqueo 20s
-     - Burbuja acumulativa persistente (localStorage: notif_unread)
-  --------------------------------------------------------------------------- */
+  /* ----------------- TOAST: combinar acciones de ESTA petición ----------------- */
   (function showCombinedActionToast(){
     const actionKeywords = [
       "añadida","añadidas","eliminada","eliminadas",
@@ -397,11 +391,8 @@
     const getUnread = () => parseInt(localStorage.getItem('notif_unread')||'0', 10);
     const setUnread = (v) => localStorage.setItem('notif_unread', String(Math.max(0, v|0)));
 
-    // Sumar acciones NUEVAS de esta petición
-    if (actionable.length > 0) {
-      setUnread(getUnread() + actionable.length);
-    }
-    // Pintar burbuja con el total persistido
+    if (actionable.length > 0) setUnread(getUnread() + actionable.length);
+
     const unreadTotal = getUnread();
     if (badge) {
       badge.textContent = unreadTotal;
@@ -410,7 +401,6 @@
 
     if (!actionable.length) return;
 
-    // ---- Combinar mensajes (p.ej. CSV: añadidas + rechazadas) ----
     const byCat = { success: [], warning: [], danger: [], accion_no_permitida: [] };
     actionable.forEach(m => {
       const c = (m.category === 'accion_no_permitida') ? 'accion_no_permitida' :
@@ -419,12 +409,9 @@
       byCat[c].push(m.message || '');
     });
 
-    // Preferimos sintetizar conteos si existen varios mensajes similares
     function summarize(list, keyword){
       if (!list.length) return '';
-      // si hay un único mensaje, úsalo tal cual
       if (list.length === 1) return list[0];
-      // si hay varios tipo "N IP(s) añadida(s)..." o "M entradas rechazadas...", intenta unificarlos
       const nums = list.map(t => {
         const m = t.match(/(^|\s)(\d+)\s/);
         return m ? parseInt(m[2],10) : null;
@@ -433,7 +420,6 @@
         const total = nums.reduce((a,b)=>a+b,0);
         return `${total} ${keyword}`;
       }
-      // fallback: une con " · "
       return list.join(' · ');
     }
 
@@ -442,7 +428,6 @@
     const msgDanger  = summarize(byCat.danger, 'entradas rechazadas');
     const msgBlock   = summarize(byCat.accion_no_permitida, 'Acción no permitida');
 
-    // Construye línea combinada en orden lógico
     const parts = [];
     if (msgSuccess) parts.push(msgSuccess);
     if (msgWarn)    parts.push(msgWarn);
@@ -450,13 +435,11 @@
     if (msgBlock)   parts.push(msgBlock);
     const combinedText = parts.join(' — ');
 
-    // Determinar severidad / duración
     const hasBlockOrDanger = byCat.accion_no_permitida.length > 0 || byCat.danger.length > 0;
     const hasWarning = byCat.warning.length > 0;
     const color = hasBlockOrDanger ? 'danger' : (hasWarning ? 'warning' : 'success');
     const delay = hasBlockOrDanger ? 20000 : 10000;
 
-    // Render único toast
     const portal = document.getElementById('toast-portal');
     const el = document.createElement('div');
     el.className = 'toast align-items-center text-bg-' + color + ' border-0';
@@ -469,7 +452,6 @@
     portal.appendChild(el);
     new bootstrap.Toast(el, { autohide: true, delay }).show();
 
-    // Al abrir el offcanvas, marcar como leído (resetea burbuja)
     const offcanvasEl = document.getElementById('offcanvasNotifs');
     if (offcanvasEl) {
       offcanvasEl.addEventListener('shown.bs.offcanvas', () => {
@@ -486,9 +468,23 @@
   const PAGE_SIZE = 10;
   let notifData = (serverMessages || []).map((m, i) => {
     let dt = null, txt = m.message || '';
+    // 1) Si viene con fecha al inicio => parsear YYYY-MM-DD HH:MM:SS (HH:MM:SS opcional)
     const mdt = txt.match(/^(\d{4}-\d{2}-\d{2})(?:\s+(\d{2}:\d{2}:\d{2}))?/);
-    if (mdt) { dt = new Date((mdt[1] + (mdt[2] ? 'T' + mdt[2] : 'T00:00:00'))); }
+    if (mdt) {
+      dt = new Date((mdt[1] + (mdt[2] ? 'T' + mdt[2] : 'T00:00:00')));
+    } else {
+      // 2) Mensajes de la petición actual (sin fecha): dales "ahora" para orden correcto
+      dt = new Date();
+    }
     return { id: i+1, category: m.category, message: txt, date: dt };
+  });
+
+  // >>> ORDENAR por fecha DESC (más recientes primero). Si hay empate, por id DESC.
+  notifData.sort((a,b) => {
+    const ta = a.date ? a.date.getTime() : 0;
+    const tb = b.date ? b.date.getTime() : 0;
+    if (tb !== ta) return tb - ta;
+    return b.id - a.id;
   });
 
   const listEl = document.getElementById('notifList');
