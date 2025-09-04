@@ -40,7 +40,7 @@
     /* TOASTS: arriba a la derecha, bajo el botón de notificaciones */
     #toast-portal{
       position: fixed;
-      top: 64px;
+      top: 64px;        /* Ajusta si tu cabecera es más alta/baja */
       right: 16px;
       left: auto;
       transform: none;
@@ -49,11 +49,11 @@
       flex-direction: column;
       gap: 8px;
       max-width: min(90vw, 560px);
-      pointer-events: none;
+      pointer-events: none;     /* no bloquean la UI */
       align-items: flex-end;
     }
     .toast{
-      pointer-events: auto;
+      pointer-events: auto;     /* permite cerrar */
       border: none !important;
       box-shadow: 0 6px 18px rgba(0,0,0,.25);
     }
@@ -95,6 +95,7 @@
     ℹ️ Añadidas: Manual (<strong>{{ contador_manual }}</strong>) · CSV (<strong>{{ contador_csv }}</strong>)
   </div>
 
+  <!-- Solo errores graves si el backend los envía en 'error' -->
   {% if error %}
     <div class="alert alert-danger mt-2">{{ error }}</div>
   {% endif %}
@@ -234,6 +235,7 @@
   <hr>
   <h4>IPs bloqueadas</h4>
 
+  <!-- Buscador de IPs -->
   <div class="mb-3">
     <input type="text" id="buscadorIp" class="form-control" placeholder="Buscar IP...">
   </div>
@@ -370,16 +372,18 @@
     {% endfor %}
   ];
 
-  /* ----------------- TOAST: SOLO la última acción de ESTA petición -----------------
-     - success/warning -> 10s | danger/accion_no_permitida -> 20s
-     - Ignora el historial (mensajes que empiezan con fecha ISO)
+  /* ----------------- TOAST: combinar acciones de ESTA petición -----------------
+     - Ignora historial (mensajes que empiezan con fecha ISO)
+     - Combina success/warning/danger/accion_no_permitida en UN solo toast
+     - Color por severidad: accion_no_permitida|danger > warning > success
+     - Duración: altas/eliminaciones 10s; rechazos/errores/bloqueo 20s
      - Burbuja acumulativa persistente (localStorage: notif_unread)
   --------------------------------------------------------------------------- */
-  (function showLatestActionToast(){
+  (function showCombinedActionToast(){
     const actionKeywords = [
       "añadida","añadidas","eliminada","eliminadas",
       "rechazada","rechazadas","Acción no permitida","IP duplicada",
-      "IP rechazada","Nada que añadir"
+      "IP rechazada","Nada que añadir","entradas rechazadas"
     ];
     const isHistory = (txt) => /^\d{4}-\d{2}-\d{2}/.test((txt||"").trim());
 
@@ -393,8 +397,11 @@
     const getUnread = () => parseInt(localStorage.getItem('notif_unread')||'0', 10);
     const setUnread = (v) => localStorage.setItem('notif_unread', String(Math.max(0, v|0)));
 
-    if (actionable.length > 0) setUnread(getUnread() + actionable.length);
-
+    // Sumar acciones NUEVAS de esta petición
+    if (actionable.length > 0) {
+      setUnread(getUnread() + actionable.length);
+    }
+    // Pintar burbuja con el total persistido
     const unreadTotal = getUnread();
     if (badge) {
       badge.textContent = unreadTotal;
@@ -402,22 +409,67 @@
     }
 
     if (!actionable.length) return;
-    const m = actionable[actionable.length - 1];
 
+    // ---- Combinar mensajes (p.ej. CSV: añadidas + rechazadas) ----
+    const byCat = { success: [], warning: [], danger: [], accion_no_permitida: [] };
+    actionable.forEach(m => {
+      const c = (m.category === 'accion_no_permitida') ? 'accion_no_permitida' :
+                (m.category === 'warning') ? 'warning' :
+                (m.category === 'success') ? 'success' : 'danger';
+      byCat[c].push(m.message || '');
+    });
+
+    // Preferimos sintetizar conteos si existen varios mensajes similares
+    function summarize(list, keyword){
+      if (!list.length) return '';
+      // si hay un único mensaje, úsalo tal cual
+      if (list.length === 1) return list[0];
+      // si hay varios tipo "N IP(s) añadida(s)..." o "M entradas rechazadas...", intenta unificarlos
+      const nums = list.map(t => {
+        const m = t.match(/(^|\s)(\d+)\s/);
+        return m ? parseInt(m[2],10) : null;
+      }).filter(x => x!==null);
+      if (nums.length === list.length) {
+        const total = nums.reduce((a,b)=>a+b,0);
+        return `${total} ${keyword}`;
+      }
+      // fallback: une con " · "
+      return list.join(' · ');
+    }
+
+    const msgSuccess = summarize(byCat.success, 'IP(s) añadida(s)');
+    const msgWarn    = summarize(byCat.warning, 'IP(s) eliminada(s)');
+    const msgDanger  = summarize(byCat.danger, 'entradas rechazadas');
+    const msgBlock   = summarize(byCat.accion_no_permitida, 'Acción no permitida');
+
+    // Construye línea combinada en orden lógico
+    const parts = [];
+    if (msgSuccess) parts.push(msgSuccess);
+    if (msgWarn)    parts.push(msgWarn);
+    if (msgDanger)  parts.push(msgDanger);
+    if (msgBlock)   parts.push(msgBlock);
+    const combinedText = parts.join(' — ');
+
+    // Determinar severidad / duración
+    const hasBlockOrDanger = byCat.accion_no_permitida.length > 0 || byCat.danger.length > 0;
+    const hasWarning = byCat.warning.length > 0;
+    const color = hasBlockOrDanger ? 'danger' : (hasWarning ? 'warning' : 'success');
+    const delay = hasBlockOrDanger ? 20000 : 10000;
+
+    // Render único toast
     const portal = document.getElementById('toast-portal');
     const el = document.createElement('div');
-    el.className = 'toast align-items-center text-bg-' + mapToastColor(m.category) + ' border-0';
+    el.className = 'toast align-items-center text-bg-' + color + ' border-0';
     el.innerHTML = `
       <div class="d-flex">
-        <div class="toast-body">${escapeHtml(m.message || '')}</div>
+        <div class="toast-body">${escapeHtml(combinedText)}</div>
         <button type="button" class="btn-close btn-close-white me-2 m-auto"
                 data-bs-dismiss="toast" aria-label="Close"></button>
       </div>`;
     portal.appendChild(el);
-
-    const delay = (m.category === 'success' || m.category === 'warning') ? 10000 : 20000;
     new bootstrap.Toast(el, { autohide: true, delay }).show();
 
+    // Al abrir el offcanvas, marcar como leído (resetea burbuja)
     const offcanvasEl = document.getElementById('offcanvasNotifs');
     if (offcanvasEl) {
       offcanvasEl.addEventListener('shown.bs.offcanvas', () => {
@@ -432,24 +484,12 @@
 
   /* ----------------- Offcanvas: filtros + paginación ----------------- */
   const PAGE_SIZE = 10;
-
-  // ***** CAMBIO CLAVE: construir notifData con fecha y ORDENAR por fecha desc
-  let seq = 0;
-  const nowBase = Date.now();
   let notifData = (serverMessages || []).map((m, i) => {
     let dt = null, txt = m.message || '';
-    // Intenta parsear "YYYY-MM-DD HH:MM:SS" al inicio
     const mdt = txt.match(/^(\d{4}-\d{2}-\d{2})(?:\s+(\d{2}:\d{2}:\d{2}))?/);
-    if (mdt) {
-      dt = new Date((mdt[1] + (mdt[2] ? 'T' + mdt[2] : 'T00:00:00')));
-    } else {
-      // Acciones de esta petición (sin fecha): fecha = ahora + secuencia
-      dt = new Date(nowBase + (seq++));
-    }
+    if (mdt) { dt = new Date((mdt[1] + (mdt[2] ? 'T' + mdt[2] : 'T00:00:00'))); }
     return { id: i+1, category: m.category, message: txt, date: dt };
-  })
-  // Orden descendente por fecha: más recientes primero
-  .sort((a,b) => b.date - a.date);
+  });
 
   const listEl = document.getElementById('notifList');
   const pagEl = document.getElementById('notifPagination');
@@ -479,7 +519,7 @@
       if (filterDate) {
         const d = n.date;
         if (!d) return false;
-        const ymd = new Date(d.getTime() - d.getTimezoneOffset()*60000).toISOString().slice(0,10);
+        const ymd = d.toISOString().slice(0,10);
         if (ymd !== filterDate) return false;
       }
       return true;
@@ -586,7 +626,7 @@
 
     if(!input || !feedback || !form) return;
 
-    const ipv4Part = '(25[0-5]|2[0-4]\\d|1?\\d?\\d)';
+    const ipv4Part = '(25[0-5]|2[0-4]\\d|1?\\d?\\d)'; // 0-255
     const ipv4Re = new RegExp(`^${ipv4Part}(\\.${ipv4Part}){3}$`);
     const cidrRe = new RegExp(`^${ipv4Part}(\\.${ipv4Part}){3}\\/(?:[0-9]|[12][0-9]|3[0-2])$`);
     const rangeRe = new RegExp(`^${ipv4Part}(\\.${ipv4Part}){3}\\s*\\-\\s*${ipv4Part}(\\.${ipv4Part}){3}$`);
