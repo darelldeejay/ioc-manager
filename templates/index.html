@@ -371,45 +371,38 @@
       {"category": "{{category}}", "message": {{ message|tojson }} }{% if not loop.last %},{% endif %}
     {% endfor %}
   ];
+  /* SOLO acciones de esta petición (para TOAST) */
+  const requestActions = [
+    {% for category, message in (request_actions or []) %}
+      {"category": "{{category}}", "message": {{ message|tojson }} }{% if not loop.last %},{% endif %}
+    {% endfor %}
+  ];
 
   /* ----------------- TOAST: SOLO la última acción de ESTA petición -----------------
      - Aparece bajo el botón (arriba-dcha)
      - success/warning -> 10s | danger/accion_no_permitida -> 20s
-     - Ignora el historial (mensajes que empiezan con fecha ISO)
+     - NO usa historial; usa requestActions que viene del backend
      - Burbuja acumulativa persistente (localStorage: notif_unread)
   --------------------------------------------------------------------------- */
   (function showLatestActionToast(){
-    const actionKeywords = [
-      "añadida","añadidas","eliminada","eliminadas",
-      "rechazada","rechazadas","Acción no permitida","IP duplicada",
-      "IP rechazada","Nada que añadir"
-    ];
-    const isHistory = (txt) => /^\d{4}-\d{2}-\d{2}/.test((txt||"").trim());
-
-    const currentOnly = (serverMessages || []).filter(m => !isHistory(m.message||""));
-    const actionable = currentOnly.filter(m =>
-      actionKeywords.some(k => (m.message||"").includes(k))
-    );
-
-    // ---- Burbuja acumulativa (persistente) ----
     const badge = document.getElementById('notif-badge');
     const getUnread = () => parseInt(localStorage.getItem('notif_unread')||'0', 10);
     const setUnread = (v) => localStorage.setItem('notif_unread', String(Math.max(0, v|0)));
 
-    // 1) Al cargar, sumar las acciones NUEVAS de esta petición
-    if (actionable.length > 0) {
-      setUnread(getUnread() + actionable.length);
-    }
-    // 2) Pintar burbuja con el total persistido
+    // 1) Sumar acciones NUEVAS (esta petición)
+    const newCount = (requestActions || []).length;
+    if (newCount > 0) setUnread(getUnread() + newCount);
+
+    // 2) Pintar burbuja
     const unreadTotal = getUnread();
     if (badge) {
       badge.textContent = unreadTotal;
       badge.classList.toggle('d-none', unreadTotal <= 0);
     }
 
-    // 3) Mostrar SOLO la última acción en toast
-    if (!actionable.length) return;
-    const m = actionable[actionable.length - 1];
+    // 3) Toast solo con la ÚLTIMA acción de esta petición
+    if (!newCount) return;
+    const m = requestActions[newCount - 1];  // la última
 
     const portal = document.getElementById('toast-portal');
     const el = document.createElement('div');
@@ -425,7 +418,7 @@
     const delay = (m.category === 'success' || m.category === 'warning') ? 10000 : 20000;
     new bootstrap.Toast(el, { autohide: true, delay }).show();
 
-    // 4) Al abrir el offcanvas, marcar como leído (resetea burbuja)
+    // 4) Reset burbuja al abrir el offcanvas
     const offcanvasEl = document.getElementById('offcanvasNotifs');
     if (offcanvasEl) {
       offcanvasEl.addEventListener('shown.bs.offcanvas', () => {
