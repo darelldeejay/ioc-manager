@@ -40,7 +40,7 @@
     /* TOASTS: arriba a la derecha, bajo el botón de notificaciones */
     #toast-portal{
       position: fixed;
-      top: 64px;        /* Ajusta si tu cabecera es más alta/baja */
+      top: 64px;
       right: 16px;
       left: auto;
       transform: none;
@@ -49,11 +49,11 @@
       flex-direction: column;
       gap: 8px;
       max-width: min(90vw, 560px);
-      pointer-events: none;     /* no bloquean la UI */
+      pointer-events: none;
       align-items: flex-end;
     }
     .toast{
-      pointer-events: auto;     /* permite cerrar */
+      pointer-events: auto;
       border: none !important;
       box-shadow: 0 6px 18px rgba(0,0,0,.25);
     }
@@ -95,7 +95,6 @@
     ℹ️ Añadidas: Manual (<strong>{{ contador_manual }}</strong>) · CSV (<strong>{{ contador_csv }}</strong>)
   </div>
 
-  <!-- Solo errores graves si el backend los envía en 'error' -->
   {% if error %}
     <div class="alert alert-danger mt-2">{{ error }}</div>
   {% endif %}
@@ -235,7 +234,6 @@
   <hr>
   <h4>IPs bloqueadas</h4>
 
-  <!-- Buscador de IPs -->
   <div class="mb-3">
     <input type="text" id="buscadorIp" class="form-control" placeholder="Buscar IP...">
   </div>
@@ -371,38 +369,40 @@
       {"category": "{{category}}", "message": {{ message|tojson }} }{% if not loop.last %},{% endif %}
     {% endfor %}
   ];
-  /* SOLO acciones de esta petición (para TOAST) */
-  const requestActions = [
-    {% for category, message in (request_actions or []) %}
-      {"category": "{{category}}", "message": {{ message|tojson }} }{% if not loop.last %},{% endif %}
-    {% endfor %}
-  ];
 
   /* ----------------- TOAST: SOLO la última acción de ESTA petición -----------------
-     - Aparece bajo el botón (arriba-dcha)
      - success/warning -> 10s | danger/accion_no_permitida -> 20s
-     - NO usa historial; usa requestActions que viene del backend
+     - Ignora el historial (mensajes que empiezan con fecha ISO)
      - Burbuja acumulativa persistente (localStorage: notif_unread)
   --------------------------------------------------------------------------- */
   (function showLatestActionToast(){
+    const actionKeywords = [
+      "añadida","añadidas","eliminada","eliminadas",
+      "rechazada","rechazadas","Acción no permitida","IP duplicada",
+      "IP rechazada","Nada que añadir"
+    ];
+    const isHistory = (txt) => /^\d{4}-\d{2}-\d{2}/.test((txt||"").trim());
+
+    const currentOnly = (serverMessages || []).filter(m => !isHistory(m.message||""));
+    const actionable = currentOnly.filter(m =>
+      actionKeywords.some(k => (m.message||"").includes(k))
+    );
+
+    // ---- Burbuja acumulativa (persistente) ----
     const badge = document.getElementById('notif-badge');
     const getUnread = () => parseInt(localStorage.getItem('notif_unread')||'0', 10);
     const setUnread = (v) => localStorage.setItem('notif_unread', String(Math.max(0, v|0)));
 
-    // 1) Sumar acciones NUEVAS (esta petición)
-    const newCount = (requestActions || []).length;
-    if (newCount > 0) setUnread(getUnread() + newCount);
+    if (actionable.length > 0) setUnread(getUnread() + actionable.length);
 
-    // 2) Pintar burbuja
     const unreadTotal = getUnread();
     if (badge) {
       badge.textContent = unreadTotal;
       badge.classList.toggle('d-none', unreadTotal <= 0);
     }
 
-    // 3) Toast solo con la ÚLTIMA acción de esta petición
-    if (!newCount) return;
-    const m = requestActions[newCount - 1];  // la última
+    if (!actionable.length) return;
+    const m = actionable[actionable.length - 1];
 
     const portal = document.getElementById('toast-portal');
     const el = document.createElement('div');
@@ -418,7 +418,6 @@
     const delay = (m.category === 'success' || m.category === 'warning') ? 10000 : 20000;
     new bootstrap.Toast(el, { autohide: true, delay }).show();
 
-    // 4) Reset burbuja al abrir el offcanvas
     const offcanvasEl = document.getElementById('offcanvasNotifs');
     if (offcanvasEl) {
       offcanvasEl.addEventListener('shown.bs.offcanvas', () => {
@@ -433,12 +432,24 @@
 
   /* ----------------- Offcanvas: filtros + paginación ----------------- */
   const PAGE_SIZE = 10;
+
+  // ***** CAMBIO CLAVE: construir notifData con fecha y ORDENAR por fecha desc
+  let seq = 0;
+  const nowBase = Date.now();
   let notifData = (serverMessages || []).map((m, i) => {
     let dt = null, txt = m.message || '';
+    // Intenta parsear "YYYY-MM-DD HH:MM:SS" al inicio
     const mdt = txt.match(/^(\d{4}-\d{2}-\d{2})(?:\s+(\d{2}:\d{2}:\d{2}))?/);
-    if (mdt) { dt = new Date((mdt[1] + (mdt[2] ? 'T' + mdt[2] : 'T00:00:00'))); }
+    if (mdt) {
+      dt = new Date((mdt[1] + (mdt[2] ? 'T' + mdt[2] : 'T00:00:00')));
+    } else {
+      // Acciones de esta petición (sin fecha): fecha = ahora + secuencia
+      dt = new Date(nowBase + (seq++));
+    }
     return { id: i+1, category: m.category, message: txt, date: dt };
-  });
+  })
+  // Orden descendente por fecha: más recientes primero
+  .sort((a,b) => b.date - a.date);
 
   const listEl = document.getElementById('notifList');
   const pagEl = document.getElementById('notifPagination');
@@ -468,7 +479,7 @@
       if (filterDate) {
         const d = n.date;
         if (!d) return false;
-        const ymd = d.toISOString().slice(0,10);
+        const ymd = new Date(d.getTime() - d.getTimezoneOffset()*60000).toISOString().slice(0,10);
         if (ymd !== filterDate) return false;
       }
       return true;
@@ -575,7 +586,7 @@
 
     if(!input || !feedback || !form) return;
 
-    const ipv4Part = '(25[0-5]|2[0-4]\\d|1?\\d?\\d)'; // 0-255
+    const ipv4Part = '(25[0-5]|2[0-4]\\d|1?\\d?\\d)';
     const ipv4Re = new RegExp(`^${ipv4Part}(\\.${ipv4Part}){3}$`);
     const cidrRe = new RegExp(`^${ipv4Part}(\\.${ipv4Part}){3}\\/(?:[0-9]|[12][0-9]|3[0-2])$`);
     const rangeRe = new RegExp(`^${ipv4Part}(\\.${ipv4Part}){3}\\s*\\-\\s*${ipv4Part}(\\.${ipv4Part}){3}$`);
