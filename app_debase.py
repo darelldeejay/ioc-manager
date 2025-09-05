@@ -3,11 +3,12 @@ from flask import (
     session, flash, make_response, jsonify, get_flashed_messages,
     send_file, abort
 )
-from datetime import datetime
+from datetime import datetime, timedelta
 import ipaddress
 import os
 import re
 import json
+from functools import wraps
 
 app = Flask(__name__)
 app.secret_key = 'clave-secreta'
@@ -29,6 +30,37 @@ BACKUP_DIR = os.path.join(BASE_DIR, "backups")
 LAST_BACKUP_MARK = os.path.join(BACKUP_DIR, ".last_done")
 
 MAX_EXPAND = 4096
+
+# === Config de servidor (paginación/undo) ===
+DEFAULT_PAGE_SIZE = 50
+MAX_PAGE_SIZE = 200
+UNDO_TTL_SECONDS = 600  # 10 minutos
+
+
+# =========================
+#  Decoradores/utilidades web
+# =========================
+def login_required(fn):
+    @wraps(fn)
+    def wrapper(*args, **kwargs):
+        if "username" not in session:
+            return redirect(url_for("login"))
+        return fn(*args, **kwargs)
+    return wrapper
+
+
+def json_response_ok(notices=None, extra=None):
+    payload = {"ok": True, "notices": notices or []}
+    if extra:
+        payload.update(extra)
+    return jsonify(payload)
+
+
+def json_response_error(message, code=400, notices=None, extra=None):
+    payload = {"ok": False, "error": str(message), "notices": notices or []}
+    if extra:
+        payload.update(extra)
+    return jsonify(payload), code
 
 
 # =========================
@@ -225,6 +257,7 @@ def filter_lines_delete_pattern(lines, pattern):
     kind, obj = parse_delete_pattern(pattern)
     kept, removed = [], 0
     removed_ips = []
+    removed_lines = []  # guardamos las líneas exactas para UNDO
     for line in lines:
         ip_txt = line.split("|", 1)[0].strip()
         try:
@@ -245,10 +278,11 @@ def filter_lines_delete_pattern(lines, pattern):
         if match:
             removed += 1
             removed_ips.append(ip_txt)
+            removed_lines.append(line)
         else:
             kept.append(line)
 
-    return kept, removed, removed_ips
+    return kept, removed, removed_ips, removed_lines
 
 
 # =========================
@@ -335,6 +369,7 @@ def log(accion, ip):
 def add_ips_validated(lines, existentes, iterable_ips, ttl_val, origin=None, contador_ruta=None):
     añadidas = 0
     rechazadas = 0
+    added_lines = []  # para UNDO
     for ip_str in iterable_ips:
         if not is_allowed_ip(ip_str):
             rechazadas += 1
@@ -352,7 +387,8 @@ def add_ips_validated(lines, existentes, iterable_ips, ttl_val, origin=None, con
             continue
 
         fecha = datetime.now().strftime("%Y-%m-%d")
-        lines.append(f"{ip_str}|{fecha}|{ttl_val}")
+        line_txt = f"{ip_str}|{fecha}|{ttl_val}"
+        lines.append(line_txt)
         existentes.add(ip_str)
         log("Añadida", ip_str)
         guardar_notif("success", f"IP añadida: {ip_str}")
@@ -368,7 +404,8 @@ def add_ips_validated(lines, existentes, iterable_ips, ttl_val, origin=None, con
                 pass
 
         añadidas += 1
-    return añadidas, rechazadas
+        added_lines.append(line_txt)
+    return añadidas, rechazadas, added_lines
 
 
 # =========================
@@ -480,8 +517,220 @@ def perform_daily_backup(keep_days=14):
 
 
 # =========================
+#  Helpers de listado/paginación/ordenación
+# =========================
+def _feed_to_records(lines):
+    """Convierte lines ['IP|YYYY-MM-DD|TTL'] en lista de dicts con campos derivados."""
+    meta = load_meta()["by_ip"]
+    records = []
+    for l in lines:
+        parts = l.split("|")
+        if len(parts) != 3:
+            continue
+        ip_txt = parts[0].strip()
+        fecha_txt = parts[1].strip()
+        ttl_txt = parts[2].strip()
+        try:
+            fecha_dt = datetime.strptime(fecha_txt, "%Y-%m-%d")
+        except Exception:
+            fecha_dt = None
+        try:
+            ttl_int = int(ttl_txt)
+        except Exception:
+            ttl_int = 0
+        exp_dt = None if ttl_int == 0 or fecha_dt is None else (fecha_dt + timedelta(days=ttl_int))
+        try:
+            ip_num = int(ipaddress.ip_address(ip_txt))
+        except Exception:
+            ip_num = 0
+        records.append({
+            "ip": ip_txt,
+            "fecha": fecha_txt,
+            "fecha_dt": fecha_dt,
+            "ttl": ttl_int,
+            "expira_dt": exp_dt,
+            "origen": meta.get(ip_txt)
+        })
+    return records
+
+
+def _apply_filters(records, q=None, date_param=None):
+    res = records
+    if q:
+        ql = q.strip()
+        res = [r for r in res if ql in r["ip"]]
+    if date_param:
+        dp = date_param.strip()
+        if "," in dp:
+            a_txt, b_txt = [p.strip() for p in dp.split(",", 1)]
+            a_dt = datetime.strptime(a_txt, "%Y-%m-%d") if a_txt else None
+            b_dt = datetime.strptime(b_txt, "%Y-%m-%d") if b_txt else None
+            tmp = []
+            for r in res:
+                fd = r["fecha_dt"]
+                if fd is None:
+                    continue
+                if a_dt and fd < a_dt:
+                    continue
+                if b_dt and fd > b_dt:
+                    continue
+                tmp.append(r)
+            res = tmp
+        else:
+            try:
+                d = datetime.strptime(dp, "%Y-%m-%d").date()
+                res = [r for r in res if (r["fecha_dt"] and r["fecha_dt"].date() == d)]
+            except Exception:
+                pass
+    return res
+
+
+def _apply_sort(records, sort_key="fecha", order="desc"):
+    reverse = (order or "desc").lower() == "desc"
+    key = (sort_key or "fecha").lower()
+    if key == "ip":
+        return sorted(records, key=lambda r: int(ipaddress.ip_address(r["ip"])), reverse=reverse)
+    if key == "ttl":
+        # Ordenar por fecha de expiración (None al final)
+        return sorted(records, key=lambda r: (r["expira_dt"] is None, r["expira_dt"]), reverse=reverse)
+    # default: fecha alta
+    return sorted(records, key=lambda r: (r["fecha_dt"] is None, r["fecha_dt"]), reverse=reverse)
+
+
+def _paginate(records, page=1, page_size=DEFAULT_PAGE_SIZE):
+    try:
+        p = max(1, int(page))
+    except Exception:
+        p = 1
+    try:
+        ps = min(MAX_PAGE_SIZE, max(1, int(page_size)))
+    except Exception:
+        ps = DEFAULT_PAGE_SIZE
+    total = len(records)
+    start = (p - 1) * ps
+    end = start + ps
+    return records[start:end], p, ps, total
+
+
+# =========================
+#  Gestión de UNDO por sesión
+# =========================
+def _set_last_action(action_type, payload_items):
+    """Guarda en sesión la última acción reversible."""
+    session['last_action'] = {
+        "type": action_type,  # 'add' | 'delete' | 'delete_bulk' | 'delete_all'
+        "timestamp": datetime.utcnow().isoformat() + "Z",
+        "expires_sec": UNDO_TTL_SECONDS,
+        "payload": {"items": payload_items},  # para add: líneas completas; para delete: líneas completas eliminadas
+    }
+
+
+def _get_last_action():
+    la = session.get('last_action')
+    if not la:
+        return None, "No hay acción para deshacer"
+    try:
+        ts = la.get("timestamp")
+        expires = la.get("expires_sec", UNDO_TTL_SECONDS)
+        ts_dt = datetime.fromisoformat(ts.replace("Z", ""))
+        if (datetime.utcnow() - ts_dt).total_seconds() > expires:
+            session.pop('last_action', None)
+            return None, "La acción ya no se puede deshacer (expirada)"
+        return la, None
+    except Exception:
+        session.pop('last_action', None)
+        return None, "No se pudo leer la acción previa"
+
+
+def _undo_last_action():
+    la, err = _get_last_action()
+    if err or not la:
+        return False, err
+
+    a_type = la["type"]
+    items = la["payload"]["items"]  # lista de líneas completas 'IP|YYYY-MM-DD|TTL'
+    current = load_lines()
+    existentes = {l.split("|", 1)[0] for l in current}
+    changed = False
+
+    if a_type == "add":
+        # deshacer: quitar esas IPs si siguen presentes
+        to_keep = []
+        removed_ips = []
+        targets = {ln.split("|", 1)[0] for ln in items}
+        for l in current:
+            ip_txt = l.split("|", 1)[0]
+            if ip_txt in targets:
+                removed_ips.append(ip_txt)
+                changed = True
+                continue
+            to_keep.append(l)
+        if changed:
+            save_lines(to_keep)
+            meta_bulk_del(removed_ips)
+        mensaje = f"Deshechas {len(removed_ips)} IP(s) añadidas"
+        if removed_ips:
+            guardar_notif("warning", mensaje)
+        session.pop('last_action', None)
+        return True, mensaje
+
+    elif a_type in ("delete", "delete_bulk", "delete_all"):
+        # deshacer: reponer exactamente las líneas guardadas (evitar duplicados)
+        repuestos = 0
+        for l in items:
+            ip_txt = l.split("|", 1)[0]
+            if ip_txt not in existentes:
+                current.append(l)
+                existentes.add(ip_txt)
+                repuestos += 1
+        if repuestos:
+            save_lines(current)
+        mensaje = f"Deshechas {repuestos} IP(s) eliminadas"
+        if repuestos:
+            guardar_notif("warning", mensaje)
+        session.pop('last_action', None)
+        return True, mensaje
+
+    return False, "Tipo de acción no soportado"
+
+
+# =========================
 #  Rutas
 # =========================
+@app.after_request
+def add_security_headers(resp):
+    # Cabeceras comunes
+    resp.headers["X-Frame-Options"] = "DENY"
+    resp.headers["X-Content-Type-Options"] = "nosniff"
+    resp.headers["Referrer-Policy"] = "same-origin"
+
+    # CSP: relajada SOLO para /login (carga jQuery/Bootstrap 3 desde CDN)
+    if request.path.startswith("/login"):
+        resp.headers["Content-Security-Policy"] = (
+            "default-src 'self'; "
+            "script-src 'self' 'unsafe-inline' https://cdn.jsdelivr.net https://code.jquery.com; "
+            "style-src 'self' 'unsafe-inline' https://cdn.jsdelivr.net; "
+            "img-src 'self' data:; "
+            "font-src 'self' https://cdn.jsdelivr.net data:; "
+            "connect-src 'self'; "
+            "object-src 'none'; "
+            "frame-ancestors 'none'"
+        )
+    else:
+        # Resto de la app (Bootstrap 5 desde jsDelivr)
+        resp.headers["Content-Security-Policy"] = (
+            "default-src 'self'; "
+            "script-src 'self' 'unsafe-inline' https://cdn.jsdelivr.net; "
+            "style-src 'self' 'unsafe-inline' https://cdn.jsdelivr.net; "
+            "img-src 'self' data:; "
+            "font-src 'self' https://cdn.jsdelivr.net data:; "
+            "connect-src 'self'; "
+            "object-src 'none'; "
+            "frame-ancestors 'none'"
+        )
+    return resp
+
+
 @app.route("/login", methods=["GET", "POST"])
 def login():
     if request.method == "POST":
@@ -499,10 +748,8 @@ def logout():
 
 
 @app.route("/", methods=["GET", "POST"])
+@login_required
 def index():
-    if "username" not in session:
-        return redirect(url_for("login"))
-
     # Snapshot diario si hace falta
     perform_daily_backup(keep_days=14)
 
@@ -515,37 +762,47 @@ def index():
     lines = load_lines()
     existentes = {l.split("|", 1)[0] for l in lines}
 
+    # ----- Mutaciones (POST) -----
     if request.method == "POST":
         # Eliminar todas
         if "delete-all" in request.form:
+            all_lines = list(lines)  # guardar para UNDO
             all_ips = [l.split("|", 1)[0].strip() for l in lines]
             save_lines([])
             meta_bulk_del(all_ips)
             log("Eliminadas", "todas las IPs")
             guardar_notif("warning", "Se eliminaron todas las IPs")
             flash("Se eliminaron todas las IPs", "warning")
+            # registrar UNDO
+            _set_last_action("delete_all", all_lines)
             return redirect(url_for("index"))
 
         # Eliminar individual
         if "delete_ip" in request.form:
             ip_to_delete = request.form.get("delete_ip")
+            # capturar línea original para UNDO
+            orig_line = next((l for l in lines if l.startswith(ip_to_delete + "|")), None)
             new_lines = [l for l in lines if not l.startswith(ip_to_delete + "|")]
             save_lines(new_lines)
             meta_del_ip(ip_to_delete)
             guardar_notif("warning", f"IP eliminada: {ip_to_delete}")
             flash(f"IP eliminada: {ip_to_delete}", "warning")
+            if orig_line:
+                _set_last_action("delete", [orig_line])
             return redirect(url_for("index"))
 
         # Eliminar por patrón
         if "delete-net" in request.form:
             patron = request.form.get("delete_net_input", "").strip()
             try:
-                new_lines, removed, removed_ips = filter_lines_delete_pattern(lines, patron)
+                new_lines, removed, removed_ips, removed_lines = filter_lines_delete_pattern(lines, patron)
                 save_lines(new_lines)
                 if removed_ips:
                     meta_bulk_del(removed_ips)
                 guardar_notif("warning", f"Eliminadas por patrón {patron}: {removed}")
                 flash(f"Eliminadas por patrón {patron}: {removed}", "warning")
+                if removed_lines:
+                    _set_last_action("delete_bulk", removed_lines)
             except Exception as e:
                 flash(str(e), "danger")
             return redirect(url_for("index"))
@@ -555,6 +812,7 @@ def index():
         if file and file.filename:
             valid_ips_total = 0
             rejected_total = 0
+            added_lines_acc = []
             try:
                 content = file.read().decode("utf-8", errors="ignore").splitlines()
             except Exception:
@@ -574,17 +832,21 @@ def index():
                         rejected_total += 1
                         continue
 
-                add_ok, add_bad = add_ips_validated(
+                add_ok, add_bad, added_lines = add_ips_validated(
                     lines, existentes, expanded, ttl_val="0",
                     origin="csv", contador_ruta=COUNTER_CSV
                 )
                 valid_ips_total += add_ok
                 rejected_total += add_bad
+                added_lines_acc.extend(added_lines)
 
             save_lines(lines)
             if valid_ips_total:
                 guardar_notif("success", f"{valid_ips_total} IPs añadidas (CSV)")
                 flash(f"{valid_ips_total} IP(s) añadida(s) correctamente (CSV)", "success")
+                # UNDO para todas las líneas añadidas en esta subida
+                if added_lines_acc:
+                    _set_last_action("add", added_lines_acc)
             if rejected_total:
                 guardar_notif("danger", f"{rejected_total} entradas rechazadas (CSV)")
                 flash(f"{rejected_total} entradas rechazadas (inválidas/privadas/duplicadas/no permitidas)", "danger")
@@ -616,7 +878,7 @@ def index():
                             guardar_notif("danger", msg)
                             pre_notified = True
 
-                add_ok, add_bad = add_ips_validated(
+                add_ok, add_bad, added_lines = add_ips_validated(
                     lines, existentes, expanded, ttl_val=ttl_val,
                     origin="manual", contador_ruta=COUNTER_MANUAL
                 )
@@ -628,6 +890,9 @@ def index():
                     else:
                         guardar_notif("success", f"{add_ok} IPs añadidas")
                         flash(f"{add_ok} IP(s) añadida(s) correctamente", "success")
+                    # UNDO
+                    if added_lines:
+                        _set_last_action("add", added_lines)
                 else:
                     if not (single_input and pre_notified):
                         flash("Nada que añadir (todas inválidas/privadas/duplicadas/no permitidas)", "danger")
@@ -651,7 +916,7 @@ def index():
         else:
             error = "Debes introducir una IP, red CIDR, rango A-B o IP con máscara"
 
-    # ========= Datos para la plantilla =========
+    # ----- GET (vista HTML o JSON paginado) -----
     # 1) Flashes de esta petición (para TOASTS y burbuja)
     request_actions = coerce_message_pairs(get_flashed_messages(with_categories=True))
 
@@ -669,6 +934,48 @@ def index():
     # Totales VIVOS (manual/csv)
     lines = load_lines()
     live_manual, live_csv = compute_live_counters(lines)
+
+    # JSON mode (paginación/ordenación/filtros)
+    if request.args.get("format", "").lower() == "json":
+        records = _feed_to_records(lines)
+        q = request.args.get("q")
+        date_param = request.args.get("date")
+        sort_key = request.args.get("sort", "fecha")
+        order = request.args.get("order", "desc")
+        page = request.args.get("page", 1)
+        page_size = request.args.get("page_size", DEFAULT_PAGE_SIZE)
+
+        filtered = _apply_filters(records, q=q, date_param=date_param)
+        ordered = _apply_sort(filtered, sort_key=sort_key, order=order)
+        paged, p, ps, total = _paginate(ordered, page=page, page_size=page_size)
+
+        items = []
+        for r in paged:
+            items.append({
+                "ip": r["ip"],
+                "ttl": 0 if r["ttl"] is None else r["ttl"],
+                "origen": r.get("origen"),
+                "fecha_alta": r["fecha"] if r["fecha"] else None
+            })
+
+        notices = [{"time": datetime.utcnow().isoformat()+"Z", "category": c, "message": m} for c, m in request_actions]
+        return json_response_ok(
+            notices=notices,
+            extra={
+                "items": items,
+                "page": p,
+                "page_size": ps,
+                "total": total,
+                "sort": sort_key,
+                "order": order,
+                "filters": {"q": q, "date": date_param},
+                "counters": {
+                    "total": len(lines),
+                    "manual": live_manual,
+                    "csv": live_csv
+                }
+            }
+        )
 
     return render_template("index.html",
                            ips=lines,
@@ -700,20 +1007,37 @@ def feed():
 
 
 @app.route("/preview-delete")
+@login_required
 def preview_delete():
     pattern = request.args.get("pattern", "").strip()
     if not pattern:
         return jsonify({"error": "Patrón vacío"}), 400
     try:
         lines = load_lines()
-        _, removed, _removed_ips = filter_lines_delete_pattern(lines, pattern)
+        _, removed, _removed_ips, _removed_lines = filter_lines_delete_pattern(lines, pattern)
         return jsonify({"count": removed})
     except Exception as e:
         return jsonify({"error": str(e)}), 400
 
 
+@app.route("/undo-last", methods=["POST"])
+@login_required
+def undo_last():
+    ok, msg = _undo_last_action()
+    if ok:
+        flash(msg, "warning")
+        return json_response_ok(
+            notices=[{"time": datetime.utcnow().isoformat()+"Z", "category": "warning", "message": msg}]
+        )
+    else:
+        flash(msg, "warning")
+        return json_response_error(msg, code=400,
+                                   notices=[{"time": datetime.utcnow().isoformat()+"Z", "category": "warning", "message": msg}])
+
+
 # ========= Rutas de backup =========
 @app.route("/backup/latest.zip")
+@login_required
 def backup_latest_zip():
     """Descarga el ZIP más reciente; 404 si no hay."""
     if not os.path.isdir(BACKUP_DIR):
@@ -725,7 +1049,9 @@ def backup_latest_zip():
     latest = os.path.join(BACKUP_DIR, zips[0])
     return send_file(latest, as_attachment=True, download_name=zips[0], mimetype="application/zip")
 
+
 @app.route("/backup/now", methods=["POST"])
+@login_required
 def backup_now():
     """Fuerza un backup inmediato."""
     perform_daily_backup(keep_days=14)
@@ -733,7 +1059,9 @@ def backup_now():
     guardar_notif("success", "Backup forzado creado")
     return redirect(url_for("index"))
 
+
 @app.route("/backup/list")
+@login_required
 def backup_list():
     """Lista de backups disponibles (JSON)."""
     if not os.path.isdir(BACKUP_DIR):
@@ -744,6 +1072,36 @@ def backup_list():
             items.append(name)
     items.sort(reverse=True)
     return jsonify({"backups": items})
+
+
+# ========= Observabilidad / util =========
+@app.route("/healthz")
+def healthz():
+    try:
+        _ = os.path.exists(FEED_FILE)
+        return jsonify({"status": "ok", "time": datetime.utcnow().isoformat()+"Z"})
+    except Exception as e:
+        return jsonify({"status": "error", "error": str(e)}), 500
+
+
+@app.route("/metrics")
+@login_required
+def metrics():
+    lines = load_lines()
+    manual, csvc = compute_live_counters(lines)
+    return jsonify({
+        "total_active": len(lines),
+        "manual_active": manual,
+        "csv_active": csvc
+    })
+
+
+@app.route("/notifications/read-all", methods=["POST"])
+@login_required
+def notifications_read_all():
+    # Si en el futuro guardamos 'read' server-side, aquí lo marcaríamos.
+    # De momento, devolvemos OK para que el front pueda limpiar el badge local.
+    return json_response_ok(notices=[{"time": datetime.utcnow().isoformat()+"Z", "category": "info", "message": "Notificaciones marcadas como leídas"}])
 
 
 if __name__ == "__main__":
