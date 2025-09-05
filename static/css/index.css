@@ -205,3 +205,18 @@ body.bg-dark #notifPagination .page-item.disabled .page-link {
   border-color: #343a40;
   color: #6c757d;
 }
+/* Inputs de filtros en modo oscuro */
+body.bg-dark #offcanvasNotifs .form-select,
+body.bg-dark #offcanvasNotifs .form-control {
+  background-color: #1f1f1f;
+  border-color: #495057;
+  color: #e9ecef;
+}
+
+body.bg-dark #offcanvasNotifs .form-select:focus,
+body.bg-dark #offcanvasNotifs .form-control:focus {
+  background-color: #212529;
+  border-color: #0d6efd;
+  color: #fff;
+  box-shadow: 0 0 0 .25rem rgba(13,110,253,.25); /* efecto azul bootstrap */
+}
