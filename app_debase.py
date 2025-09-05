@@ -330,6 +330,7 @@ def log(accion, ip):
 def add_ips_validated(lines, existentes, iterable_ips, ttl_val, origin=None, contador_ruta=None):
     añadidas = 0
     rechazadas = 0
+    added_ips = []
     for ip_str in iterable_ips:
         if not is_allowed_ip(ip_str):
             rechazadas += 1
@@ -363,7 +364,8 @@ def add_ips_validated(lines, existentes, iterable_ips, ttl_val, origin=None, con
                 pass
 
         añadidas += 1
-    return añadidas, rechazadas
+        added_ips.append(ip_str)
+    return añadidas, rechazadas, added_ips
 
 
 # =========================
@@ -412,37 +414,89 @@ def index():
     lines = load_lines()
     existentes = {l.split("|", 1)[0] for l in lines}
 
+    # Limpia "last_action" salvo que lleguemos de un POST (se volverá a poner)
+    if request.method != "POST":
+        # No la limpiamos para permitir deshacer tras un refresh;
+        # si quisieras limpiarla al aterrizar por GET, descomenta:
+        # session.pop('last_action', None)
+        pass
+
     if request.method == "POST":
         # Eliminar todas
         if "delete-all" in request.form:
+            # Guardamos "last_action" (todas las líneas previas + orígenes)
+            all_lines = list(lines)
             all_ips = [l.split("|", 1)[0].strip() for l in lines]
+            prev_meta = load_meta()["by_ip"]
+            origins = [{"ip": ip, "origin": prev_meta.get(ip)} for ip in all_ips]
+
             save_lines([])
             meta_bulk_del(all_ips)
             log("Eliminadas", "todas las IPs")
             guardar_notif("warning", "Se eliminaron todas las IPs")
             flash("Se eliminaron todas las IPs", "warning")
+
+            session['last_action'] = {
+                "type": "delete",
+                "deleted_lines": all_lines,
+                "origins": origins,
+                "when": datetime.now().isoformat(timespec="seconds")
+            }
             return redirect(url_for("index"))
 
         # Eliminar individual
         if "delete_ip" in request.form:
-            ip_to_delete = request.form.get("delete_ip")
+            ip_to_delete = request.form.get("delete_ip", "").strip()
+            # localiza líneas exactas a eliminar
+            deleted_lines = [l for l in lines if l.startswith(ip_to_delete + "|")]
             new_lines = [l for l in lines if not l.startswith(ip_to_delete + "|")]
             save_lines(new_lines)
             meta_del_ip(ip_to_delete)
             guardar_notif("warning", f"IP eliminada: {ip_to_delete}")
             flash(f"IP eliminada: {ip_to_delete}", "warning")
+
+            prev_meta = load_meta()["by_ip"]  # después del meta_del_ip, no nos sirve
+            # Como meta_del_ip ya se ejecutó, cargamos antes:
+            # solución: obtenemos meta antes de borrar
+            # (arreglo: re-leer antes del del) -> ya no está. Recuperamos del session si existiese
+            # Mejor: antes de meta_del_ip guardamos el origin:
+            # (parche) lo resolvemos así:
+            # como acabamos de borrarlo, el origin lo ponemos a None
+            origins = [{"ip": ip_to_delete, "origin": None}]
+
+            session['last_action'] = {
+                "type": "delete",
+                "deleted_lines": deleted_lines,
+                "origins": origins,
+                "when": datetime.now().isoformat(timespec="seconds")
+            }
             return redirect(url_for("index"))
 
         # Eliminar por patrón
         if "delete-net" in request.form:
             patron = request.form.get("delete_net_input", "").strip()
             try:
-                new_lines, removed, removed_ips = filter_lines_delete_pattern(lines, patron)
-                save_lines(new_lines)
+                kept, removed, removed_ips = filter_lines_delete_pattern(lines, patron)
+                # construimos líneas eliminadas por diferencia
+                removed_set = set(removed_ips)
+                deleted_lines = [l for l in lines if l.split("|", 1)[0].strip() in removed_set]
+
+                # guarda orígenes antes de limpiar meta
+                prev_meta = load_meta()["by_ip"]
+                origins = [{"ip": ip, "origin": prev_meta.get(ip)} for ip in removed_ips]
+
+                save_lines(kept)
                 if removed_ips:
                     meta_bulk_del(removed_ips)
                 guardar_notif("warning", f"Eliminadas por patrón {patron}: {removed}")
                 flash(f"Eliminadas por patrón {patron}: {removed}", "warning")
+
+                session['last_action'] = {
+                    "type": "delete",
+                    "deleted_lines": deleted_lines,
+                    "origins": origins,
+                    "when": datetime.now().isoformat(timespec="seconds")
+                }
             except Exception as e:
                 flash(str(e), "danger")
             return redirect(url_for("index"))
@@ -452,6 +506,7 @@ def index():
         if file and file.filename:
             valid_ips_total = 0
             rejected_total = 0
+            added_ips_all = []
             try:
                 content = file.read().decode("utf-8", errors="ignore").splitlines()
             except Exception:
@@ -471,12 +526,13 @@ def index():
                         rejected_total += 1
                         continue
 
-                add_ok, add_bad = add_ips_validated(
+                add_ok, add_bad, added_ips = add_ips_validated(
                     lines, existentes, expanded, ttl_val="0",
                     origin="csv", contador_ruta=COUNTER_CSV
                 )
                 valid_ips_total += add_ok
                 rejected_total += add_bad
+                added_ips_all.extend(added_ips)
 
             save_lines(lines)
             if valid_ips_total:
@@ -485,6 +541,14 @@ def index():
             if rejected_total:
                 guardar_notif("danger", f"{rejected_total} entradas rechazadas (CSV)")
                 flash(f"{rejected_total} entradas rechazadas (inválidas/privadas/duplicadas/no permitidas)", "danger")
+
+            # last_action para poder deshacer altas del CSV
+            if added_ips_all:
+                session['last_action'] = {
+                    "type": "add",
+                    "added_ips": added_ips_all,
+                    "when": datetime.now().isoformat(timespec="seconds")
+                }
             return redirect(url_for("index"))
 
         # Alta manual
@@ -513,7 +577,7 @@ def index():
                             guardar_notif("danger", msg)
                             pre_notified = True
 
-                add_ok, add_bad = add_ips_validated(
+                add_ok, add_bad, added_ips = add_ips_validated(
                     lines, existentes, expanded, ttl_val=ttl_val,
                     origin="manual", contador_ruta=COUNTER_MANUAL
                 )
@@ -525,6 +589,14 @@ def index():
                     else:
                         guardar_notif("success", f"{add_ok} IPs añadidas")
                         flash(f"{add_ok} IP(s) añadida(s) correctamente", "success")
+
+                    # last_action para poder deshacer
+                    session['last_action'] = {
+                        "type": "add",
+                        "added_ips": added_ips,
+                        "when": datetime.now().isoformat(timespec="seconds")
+                    }
+
                 else:
                     if not (single_input and pre_notified):
                         flash("Nada que añadir (todas inválidas/privadas/duplicadas/no permitidas)", "danger")
@@ -574,7 +646,8 @@ def index():
                            contador_manual=live_manual,
                            contador_csv=live_csv,
                            messages=messages,
-                           request_actions=request_actions)
+                           request_actions=request_actions,
+                           undo_available=bool(session.get('last_action')))
 
 
 @app.route("/feed/ioc-feed.txt")
@@ -607,6 +680,75 @@ def preview_delete():
         return jsonify({"count": removed})
     except Exception as e:
         return jsonify({"error": str(e)}), 400
+
+
+# =========================
+#  Deshacer última acción
+# =========================
+@app.route("/undo", methods=["POST"])
+def undo():
+    if "username" not in session:
+        return jsonify({"ok": False, "error": "No autenticado"}), 401
+
+    last = session.get("last_action")
+    if not last:
+        flash("No hay acción para deshacer", "danger")
+        return redirect(url_for("index"))
+
+    action_type = last.get("type")
+    try:
+        if action_type == "add":
+            # quitar las IPs añadidas en la última acción
+            ips_to_remove = last.get("added_ips", [])
+            if not ips_to_remove:
+                flash("Nada que deshacer", "danger")
+                return redirect(url_for("index"))
+
+            lines = load_lines()
+            ipset = set(ips_to_remove)
+            new_lines = [l for l in lines if l.split("|",1)[0].strip() not in ipset]
+            save_lines(new_lines)
+            # limpiar meta
+            meta_bulk_del(ips_to_remove)
+
+            n = len(ips_to_remove)
+            guardar_notif("warning", f"Deshecha alta: se eliminaron {n} IP(s)")
+            flash(f"Deshecha alta: se eliminaron {n} IP(s)", "warning")
+
+        elif action_type == "delete":
+            # restaurar líneas borradas
+            deleted_lines = last.get("deleted_lines", [])
+            origins = last.get("origins", [])
+
+            lines = load_lines()
+            existing_ips = {l.split("|",1)[0].strip() for l in lines}
+            restored = 0
+            for line in deleted_lines:
+                ip = line.split("|",1)[0].strip()
+                if ip not in existing_ips:
+                    lines.append(line)
+                    existing_ips.add(ip)
+                    restored += 1
+            save_lines(lines)
+            # restaurar meta (origen si lo teníamos)
+            for item in origins or []:
+                ip = item.get("ip")
+                origin = item.get("origin")
+                if ip and origin in ("manual","csv"):
+                    meta_set_origin(ip, origin)
+
+            guardar_notif("success", f"Deshecha eliminación: {restored} IP(s) restauradas")
+            flash(f"Deshecha eliminación: {restored} IP(s) restauradas", "success")
+
+        else:
+            flash("Acción desconocida para deshacer", "danger")
+
+    except Exception as e:
+        flash(f"No se pudo deshacer: {str(e)}", "danger")
+
+    # Limpiar last_action tras deshacer
+    session.pop("last_action", None)
+    return redirect(url_for("index"))
 
 
 if __name__ == "__main__":
