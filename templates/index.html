@@ -37,7 +37,7 @@
     }
     .bg-dark .table { color: #e9ecef; }
 
-    /* TOASTS: arriba a la derecha, bajo el botón de notificaciones */
+    /* TOASTS: arriba a la derecha, bajo la cabecera */
     #toast-portal{
       position: fixed;
       top: 64px;        /* bajo la cabecera */
@@ -67,6 +67,19 @@
       position:fixed; bottom:16px; right:16px; width:96px; height:auto; opacity:.85; z-index:1040;
     }
     @media (max-width:576px){ #corner-logo{ width:68px; } }
+
+    /* Controles de tabla */
+    .toolbar-grid {
+      display: grid;
+      grid-template-columns: 1fr 1fr repeat(5, auto);
+      gap: .5rem;
+      align-items: end;
+    }
+    @media (max-width: 992px){
+      .toolbar-grid {
+        grid-template-columns: 1fr 1fr 1fr;
+      }
+    }
   </style>
 </head>
 <body class="bg-light">
@@ -77,12 +90,17 @@
 
     <div class="d-flex align-items-center gap-2">
       <!-- Botón Notificaciones (arriba derecha) -->
-      <button id="notif-btn" class="btn btn-outline-primary btn-sm"
-              type="button" data-bs-toggle="offcanvas"
-              data-bs-target="#offcanvasNotifs" aria-controls="offcanvasNotifs">
-        🔔 Notificaciones
-        <span id="notif-badge" class="badge text-bg-danger rounded-pill d-none">0</span>
-      </button>
+      <div class="btn-group">
+        <button id="notif-btn" class="btn btn-outline-primary btn-sm"
+                type="button" data-bs-toggle="offcanvas"
+                data-bs-target="#offcanvasNotifs" aria-controls="offcanvasNotifs">
+          🔔 Notificaciones
+          <span id="notif-badge" class="badge text-bg-danger rounded-pill d-none">0</span>
+        </button>
+        <button id="markReadBtn" class="btn btn-outline-primary btn-sm" title="Marcar como leído (sin abrir)">
+          ✔️
+        </button>
+      </div>
 
       <a href="/logout" class="btn btn-outline-danger btn-sm">Logout</a>
     </div>
@@ -91,8 +109,8 @@
   <h2 class="mb-4 text-center">Gestor de IPs Maliciosas</h2>
 
   <div class="alert alert-info text-center">
-    📊 Total de IPs activas: <strong>{{ total_ips }}</strong><br>
-    ℹ️ Añadidas: Manual (<strong>{{ contador_manual }}</strong>) · CSV (<strong>{{ contador_csv }}</strong>)
+    📊 Total de IPs activas: <strong id="totalCount">{{ total_ips }}</strong><br>
+    ℹ️ Añadidas: Manual (<strong id="manualCount">{{ contador_manual }}</strong>) · CSV (<strong id="csvCount">{{ contador_csv }}</strong>)
   </div>
 
   <!-- Botones de backup -->
@@ -190,7 +208,7 @@
           </div>
           <div class="modal-body">
             ¿Estás seguro de que deseas eliminar <strong>todas</strong> las IPs bloqueadas?<br>
-            Esta acción <strong>no se puede deshacer</strong>.
+            Esta acción se podrá <strong>deshacer durante 10 minutos</strong>.
           </div>
           <div class="modal-footer">
             <input type="hidden" name="delete-all" value="1">
@@ -243,57 +261,114 @@
   <hr>
   <h4>IPs bloqueadas</h4>
 
-  <!-- Buscador de IPs -->
-  <div class="mb-3">
+  <!-- Controles server-side (progresivo; si falla JSON, queda fallback local) -->
+  <div class="toolbar-grid mb-3" id="serverToolbar">
+    <div>
+      <label class="form-label small mb-1">Buscar IP</label>
+      <input type="text" id="qInput" class="form-control" placeholder="Ej: 203.0.113.5">
+    </div>
+    <div class="d-flex gap-2">
+      <div>
+        <label class="form-label small mb-1">Desde</label>
+        <input type="date" id="dateFrom" class="form-control">
+      </div>
+      <div>
+        <label class="form-label small mb-1">Hasta</label>
+        <input type="date" id="dateTo" class="form-control">
+      </div>
+    </div>
+    <div>
+      <label class="form-label small mb-1">Ordenar por</label>
+      <select id="sortSelect" class="form-select">
+        <option value="fecha" selected>Fecha alta</option>
+        <option value="ttl">TTL (expiración)</option>
+        <option value="ip">IP</option>
+      </select>
+    </div>
+    <div>
+      <label class="form-label small mb-1">Orden</label><br>
+      <div class="btn-group">
+        <button id="orderDesc" class="btn btn-outline-secondary btn-sm active" type="button" data-order="desc">Desc</button>
+        <button id="orderAsc" class="btn btn-outline-secondary btn-sm" type="button" data-order="asc">Asc</button>
+      </div>
+    </div>
+    <div>
+      <label class="form-label small mb-1">Tamaño pág.</label>
+      <select id="pageSize" class="form-select">
+        <option>10</option>
+        <option>25</option>
+        <option selected>50</option>
+        <option>100</option>
+      </select>
+    </div>
+    <div class="d-flex align-items-end gap-2">
+      <button id="applyTableFilters" class="btn btn-outline-primary">Aplicar</button>
+      <button id="clearTableFilters" class="btn btn-outline-secondary">Limpiar</button>
+    </div>
+  </div>
+
+  <!-- Buscador local (fallback) -->
+  <div class="mb-3 d-none" id="localSearchWrap">
     <input type="text" id="buscadorIp" class="form-control" placeholder="Buscar IP...">
   </div>
 
-  <table class="table table-striped" id="tablaIps">
-    <thead>
-      <tr>
-        <th>IP</th>
-        <th>Fecha</th>
-        <th>TTL</th>
-        <th>Acción</th>
-      </tr>
-    </thead>
-    <tbody>
-      {% for ip in ips %}
-        {% set parts = ip.split('|') %}
+  <div class="table-responsive">
+    <table class="table table-striped" id="tablaIps">
+      <thead>
         <tr>
-          <td>{{ parts[0] }}</td>
-          <td>{{ parts[1] }}</td>
-          <td>{{ '∞' if parts[2] == '0' else parts[2] }}</td>
-          <td>
-            <button class="btn btn-sm btn-outline-danger" data-bs-toggle="modal" data-bs-target="#confirmDelete{{ loop.index }}">Eliminar</button>
+          <th>IP</th>
+          <th>Fecha</th>
+          <th>TTL</th>
+          <th>Acción</th>
+        </tr>
+      </thead>
+      <tbody>
+        {% for ip in ips %}
+          {% set parts = ip.split('|') %}
+          <tr>
+            <td>{{ parts[0] }}</td>
+            <td>{{ parts[1] }}</td>
+            <td>{{ '∞' if parts[2] == '0' else parts[2] }}</td>
+            <td>
+              <button class="btn btn-sm btn-outline-danger" data-bs-toggle="modal" data-bs-target="#confirmDelete{{ loop.index }}">Eliminar</button>
 
-            <!-- Modal Confirmar eliminación individual -->
-            <div class="modal fade" id="confirmDelete{{ loop.index }}" tabindex="-1" aria-hidden="true">
-              <div class="modal-dialog modal-dialog-centered">
-                <div class="modal-content">
-                  <form method="POST">
-                    <div class="modal-header">
-                      <h5 class="modal-title">Confirmar eliminación</h5>
-                      <button type="button" class="btn-close" data-bs-dismiss="modal" aria-label="Cerrar"></button>
-                    </div>
-                    <div class="modal-body">
-                      ¿Eliminar <strong>{{ parts[0] }}</strong>?
-                    </div>
-                    <div class="modal-footer">
-                      <input type="hidden" name="delete_ip" value="{{ parts[0] }}">
-                      <button type="submit" class="btn btn-danger">Eliminar</button>
-                      <button type="button" class="btn btn-secondary" data-bs-dismiss="modal">Cancelar</button>
-                    </div>
-                  </form>
+              <!-- Modal Confirmar eliminación individual -->
+              <div class="modal fade" id="confirmDelete{{ loop.index }}" tabindex="-1" aria-hidden="true">
+                <div class="modal-dialog modal-dialog-centered">
+                  <div class="modal-content">
+                    <form method="POST">
+                      <div class="modal-header">
+                        <h5 class="modal-title">Confirmar eliminación</h5>
+                        <button type="button" class="btn-close" data-bs-dismiss="modal" aria-label="Cerrar"></button>
+                      </div>
+                      <div class="modal-body">
+                        ¿Eliminar <strong>{{ parts[0] }}</strong>?
+                      </div>
+                      <div class="modal-footer">
+                        <input type="hidden" name="delete_ip" value="{{ parts[0] }}">
+                        <button type="submit" class="btn btn-danger">Eliminar</button>
+                        <button type="button" class="btn btn-secondary" data-bs-dismiss="modal">Cancelar</button>
+                      </div>
+                    </form>
+                  </div>
                 </div>
               </div>
-            </div>
 
-          </td>
-        </tr>
-      {% endfor %}
-    </tbody>
-  </table>
+            </td>
+          </tr>
+        {% endfor %}
+      </tbody>
+    </table>
+  </div>
+
+  <!-- Paginación server-side -->
+  <div class="d-flex align-items-center justify-content-between mt-2" id="pagerBar">
+    <div class="small text-muted" id="pageInfo">Página 1</div>
+    <div class="btn-group">
+      <button id="prevPage" class="btn btn-outline-secondary btn-sm">«</button>
+      <button id="nextPage" class="btn btn-outline-secondary btn-sm">»</button>
+    </div>
+  </div>
 
   <div class="text-center mt-4">
     <p class="text-muted">Proyecto hecho por Darell Pérez · Todos los derechos reservados</p>
@@ -354,8 +429,22 @@
     if (localStorage.getItem('theme') === 'dark') toggleTheme();
   };
 
-  /* ----------------- Buscador tabla ----------------- */
-  document.addEventListener('DOMContentLoaded', function () {
+  /* ---------- Estado de tabla (server-side) ---------- */
+  const state = {
+    page: 1,
+    page_size: 50,
+    sort: 'fecha',
+    order: 'desc',
+    q: '',
+    date_from: '',
+    date_to: ''
+  };
+  let serverMode = true; // intentamos server JSON; si falla, fallback local
+
+  /* ----------------- Buscador local (fallback) ----------------- */
+  function initLocalSearchFallback(){
+    const wrap = document.getElementById('localSearchWrap');
+    wrap.classList.remove('d-none');
     const input = document.getElementById('buscadorIp');
     const table = document.getElementById('tablaIps');
     if (input && table) {
@@ -371,7 +460,7 @@
         }
       });
     }
-  });
+  }
 
   /* ----------------- Datos de notificaciones (inyectados) ----------------- */
   const serverMessages = [
@@ -380,18 +469,12 @@
     {% endfor %}
   ];
 
-  /* ----------------- TOAST: combinar acciones de ESTA petición -----------------
-     - Ignora historial (mensajes que empiezan con fecha ISO)
-     - Combina success/warning/danger/accion_no_permitida en UN solo toast
-     - Color por severidad: accion_no_permitida|danger > warning > success
-     - Duración: altas/eliminaciones 10s; rechazos/errores/bloqueo 20s
-     - Burbuja acumulativa persistente (localStorage: notif_unread)
-  --------------------------------------------------------------------------- */
+  /* ----------------- TOAST: combinar acciones de ESTA petición ----------------- */
   (function showCombinedActionToast(){
     const actionKeywords = [
       "añadida","añadidas","eliminada","eliminadas",
       "rechazada","rechazadas","Acción no permitida","IP duplicada",
-      "IP rechazada","Nada que añadir","entradas rechazadas"
+      "IP rechazada","Nada que añadir","entradas rechazadas","Backup forzado creado","Backup diario creado"
     ];
     const isHistory = (txt) => /^\d{4}-\d{2}-\d{2}/.test((txt||"").trim());
 
@@ -406,9 +489,8 @@
     const setUnread = (v) => localStorage.setItem('notif_unread', String(Math.max(0, v|0)));
 
     // Sumar acciones NUEVAS de esta petición
-    if (actionable.length > 0) {
-      setUnread(getUnread() + actionable.length);
-    }
+    if (actionable.length > 0) setUnread(getUnread() + actionable.length);
+
     // Pintar burbuja con el total persistido
     const unreadTotal = getUnread();
     if (badge) {
@@ -462,29 +544,73 @@
     const el = document.createElement('div');
     el.className = 'toast align-items-center text-bg-' + color + ' border-0';
     el.innerHTML = `
-      <div class="d-flex">
+      <div class="d-flex align-items-center">
         <div class="toast-body">${escapeHtml(combinedText)}</div>
+        <div class="d-flex align-items-center gap-2 me-2">
+          <button type="button" class="btn btn-light btn-sm" id="undoBtn">Deshacer</button>
+          <button type="button" class="btn-close btn-close-white" data-bs-dismiss="toast" aria-label="Close"></button>
+        </div>
+      </div>`;
+    portal.appendChild(el);
+    const toastObj = new bootstrap.Toast(el, { autohide: true, delay });
+    toastObj.show();
+
+    // Acción de Deshacer
+    el.querySelector('#undoBtn')?.addEventListener('click', async () => {
+      try{
+        const r = await fetch('/undo-last', { method:'POST' });
+        const data = await r.json();
+        showInlineToast(data?.ok ? 'warning' : 'danger', data?.ok ? (data?.notices?.[0]?.message || 'Acción deshecha') : (data?.error || 'No se pudo deshacer'));
+        // Recargar tabla si estamos en serverMode
+        if (serverMode) await reloadTable();
+      }catch(e){
+        showInlineToast('danger','Error al deshacer');
+      }
+    });
+
+    // Al abrir el offcanvas, marcar como leído (resetea burbuja)
+    const offcanvasEl = document.getElementById('offcanvasNotifs');
+    if (offcanvasEl) {
+      offcanvasEl.addEventListener('shown.bs.offcanvas', () => markAllRead(), { once: true });
+    }
+  })();
+
+  /* ---------- Mini util toast rápido ---------- */
+  function showInlineToast(kind, text, delay=6000){
+    const portal = document.getElementById('toast-portal');
+    const el = document.createElement('div');
+    el.className = 'toast align-items-center text-bg-' + mapToastColor(kind) + ' border-0';
+    el.innerHTML = `
+      <div class="d-flex">
+        <div class="toast-body">${escapeHtml(text||'')}</div>
         <button type="button" class="btn-close btn-close-white me-2 m-auto"
                 data-bs-dismiss="toast" aria-label="Close"></button>
       </div>`;
     portal.appendChild(el);
     new bootstrap.Toast(el, { autohide: true, delay }).show();
+  }
 
-    // Al abrir el offcanvas, marcar como leído (resetea burbuja)
-    const offcanvasEl = document.getElementById('offcanvasNotifs');
-    if (offcanvasEl) {
-      offcanvasEl.addEventListener('shown.bs.offcanvas', () => {
-        setUnread(0);
-        if (badge) {
-          badge.textContent = '0';
-          badge.classList.add('d-none');
-        }
-      }, { once: true });
+  /* ---------- Marcar como leído sin abrir offcanvas ---------- */
+  document.getElementById('markReadBtn').addEventListener('click', async () => {
+    try{
+      await fetch('/notifications/read-all', { method:'POST' });
+      markAllRead();
+      showInlineToast('success','Notificaciones marcadas como leídas');
+    }catch(e){
+      markAllRead();
     }
-  })();
+  });
+  function markAllRead(){
+    const badge = document.getElementById('notif-badge');
+    localStorage.setItem('notif_unread', '0');
+    if (badge){
+      badge.textContent = '0';
+      badge.classList.add('d-none');
+    }
+  }
 
   /* ----------------- Offcanvas: filtros + paginación ----------------- */
-  const PAGE_SIZE = 10;
+  const PAGE_SIZE_NOTIF = 10;
 
   // Construir estructura: detecta si el mensaje empieza con fecha y extrae Date
   let notifData = (serverMessages || []).map((m, i) => {
@@ -545,11 +671,11 @@
 
   function renderList() {
     const data = filtered();
-    const totalPages = Math.max(1, Math.ceil(data.length / PAGE_SIZE));
+    const totalPages = Math.max(1, Math.ceil(data.length / PAGE_SIZE_NOTIF));
     if (currentPage > totalPages) currentPage = totalPages;
 
-    const start = (currentPage - 1) * PAGE_SIZE;
-    const pageItems = data.slice(start, start + PAGE_SIZE);
+    const start = (currentPage - 1) * PAGE_SIZE_NOTIF;
+    const pageItems = data.slice(start, start + PAGE_SIZE_NOTIF);
 
     infoEl.textContent = `Mostrando ${pageItems.length} de ${data.length} notificaciones`;
 
@@ -590,7 +716,7 @@
       li.appendChild(a);
       return li;
     };
-    const pages = Math.max(1, Math.ceil(data.length / PAGE_SIZE));
+    const pages = Math.max(1, Math.ceil(data.length / PAGE_SIZE_NOTIF));
     pagEl.appendChild(mkPage(Math.max(1, currentPage-1), '«', currentPage === 1, false));
     for (let p = 1; p <= pages; p++) pagEl.appendChild(mkPage(p, String(p), false, p === currentPage));
     pagEl.appendChild(mkPage(Math.min(pages, currentPage+1), '»', currentPage >= pages, false));
@@ -737,6 +863,118 @@
     const val = document.getElementById('delete_net_input').value.trim();
     return confirm(`Vas a eliminar todas las IPs que coincidan con:\n\n${val}\n\n¿Confirmas?`);
   }
+
+  /* ================== Server-side tabla: fetch + render ================== */
+  const tbody = document.querySelector('#tablaIps tbody');
+  const pageInfo = document.getElementById('pageInfo');
+  const prevBtn = document.getElementById('prevPage');
+  const nextBtn = document.getElementById('nextPage');
+
+  const qInput = document.getElementById('qInput');
+  const dateFrom = document.getElementById('dateFrom');
+  const dateTo = document.getElementById('dateTo');
+  const sortSelect = document.getElementById('sortSelect');
+  const orderDesc = document.getElementById('orderDesc');
+  const orderAsc  = document.getElementById('orderAsc');
+  const pageSizeSel = document.getElementById('pageSize');
+  const applyBtn = document.getElementById('applyTableFilters');
+  const clearBtn = document.getElementById('clearTableFilters');
+
+  orderDesc.addEventListener('click', () => { state.order='desc'; orderDesc.classList.add('active'); orderAsc.classList.remove('active'); reloadTable(true); });
+  orderAsc .addEventListener('click', () => { state.order='asc';  orderAsc.classList.add('active');  orderDesc.classList.remove('active'); reloadTable(true); });
+  sortSelect.addEventListener('change', () => { state.sort = sortSelect.value; reloadTable(true); });
+  pageSizeSel.addEventListener('change', () => { state.page_size = parseInt(pageSizeSel.value,10)||50; state.page = 1; reloadTable(true); });
+
+  applyBtn.addEventListener('click', () => {
+    state.q = qInput.value.trim();
+    state.date_from = dateFrom.value || '';
+    state.date_to = dateTo.value || '';
+    state.page = 1;
+    reloadTable(true);
+  });
+
+  clearBtn.addEventListener('click', () => {
+    qInput.value = ''; dateFrom.value=''; dateTo.value='';
+    sortSelect.value='fecha'; state.sort='fecha';
+    state.order='desc'; orderDesc.classList.add('active'); orderAsc.classList.remove('active');
+    pageSizeSel.value = '50'; state.page_size=50; state.page=1;
+    reloadTable(true);
+  });
+
+  prevBtn.addEventListener('click', () => { if (state.page>1){ state.page--; reloadTable(false);} });
+  nextBtn.addEventListener('click', () => { state.page++; reloadTable(false); });
+
+  async function reloadTable(resetIfEmpty){
+    try{
+      const params = new URLSearchParams();
+      params.set('format','json');
+      params.set('page', String(state.page));
+      params.set('page_size', String(state.page_size));
+      params.set('sort', state.sort);
+      params.set('order', state.order);
+      if (state.q) params.set('q', state.q);
+      const hasRange = (state.date_from || state.date_to);
+      if (hasRange){
+        const val = `${state.date_from||''}${state.date_from||state.date_to ? ',' : ''}${state.date_to||''}`;
+        params.set('date', val);
+      }
+      const r = await fetch(`/?${params.toString()}`, { headers: { 'Accept':'application/json' } });
+      if (!r.ok) throw new Error('HTTP '+r.status);
+      const data = await r.json();
+      renderRows(data.items || []);
+      updateCounters(data.counters);
+      updatePager(data.page, data.page_size, data.total);
+      serverMode = true;
+      // Si venimos de fallback, oculta buscador local
+      document.getElementById('localSearchWrap').classList.add('d-none');
+    }catch(e){
+      serverMode = false;
+      // Habilitar buscador local
+      initLocalSearchFallback();
+    }
+  }
+
+  function renderRows(items){
+    tbody.innerHTML = '';
+    items.forEach((row) => {
+      const tr = document.createElement('tr');
+      const ttlText = (row.ttl === 0 || row.ttl === '0') ? '∞' : String(row.ttl);
+      tr.innerHTML = `
+        <td>${escapeHtml(row.ip)}</td>
+        <td>${escapeHtml(row.fecha_alta || '')}</td>
+        <td>${escapeHtml(ttlText)}</td>
+        <td>
+          <form method="POST" onsubmit="return confirm('¿Eliminar ${escapeHtml(row.ip)}?');">
+            <input type="hidden" name="delete_ip" value="${escapeHtml(row.ip)}">
+            <button type="submit" class="btn btn-sm btn-outline-danger">Eliminar</button>
+          </form>
+        </td>
+      `;
+      tbody.appendChild(tr);
+    });
+  }
+
+  function updatePager(page, pageSize, total){
+    const pages = Math.max(1, Math.ceil((total||0) / (pageSize||50)));
+    state.page = Math.min(Math.max(1, parseInt(page||1,10)), pages);
+    pageInfo.textContent = `Página ${state.page} de ${pages} — ${total||0} IPs`;
+    prevBtn.disabled = (state.page <= 1);
+    nextBtn.disabled = (state.page >= pages);
+  }
+
+  function updateCounters(counters){
+    if (!counters) return;
+    const t = document.getElementById('totalCount');
+    const m = document.getElementById('manualCount');
+    const c = document.getElementById('csvCount');
+    if (t) t.textContent = counters.total ?? t.textContent;
+    if (m) m.textContent = counters.manual ?? m.textContent;
+    if (c) c.textContent = counters.csv ?? c.textContent;
+  }
+
+  // Primera carga de tabla server-side (si falla => fallback local)
+  reloadTable(true);
+
 </script>
 
 </body>
