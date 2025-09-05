@@ -1,4 +1,6 @@
-/* Logo de esquina para el dashboard */
+/* =========================
+   Logo de esquina (dashboard)
+   ========================= */
 #corner-logo {
   width: 110px;
   height: 110px;
@@ -16,12 +18,8 @@
 @media (max-width: 576px) {
   #corner-logo { width: 72px; height: 72px; }
 }
-/* Ajuste de color para los placeholders en modo oscuro */
-body.bg-dark ::placeholder {
-  color: #bbb !important;   /* gris claro más visible */
-  opacity: 1;               /* asegura visibilidad */
-}
-/* Logo más pequeño en móviles */
+
+/* Duplicado específico muy pequeño */
 @media (max-width: 576px) {
   #corner-logo {
     width: 60px;
@@ -30,7 +28,35 @@ body.bg-dark ::placeholder {
     right: 10px;
   }
 }
-/* ----- Tabla en modo oscuro (Bootstrap 5) ----- */
+
+
+/* =========================
+   Modo oscuro: inputs y placeholders
+   ========================= */
+body.bg-dark ::placeholder {
+  color: #bbb !important;   /* gris claro más visible */
+  opacity: 1;               /* asegura visibilidad */
+}
+
+body.bg-dark .form-control,
+body.bg-dark .form-select {
+  background-color: #1f1f1f;
+  color: #e9ecef;
+  border-color: #495057;
+}
+
+body.bg-dark .form-control:focus,
+body.bg-dark .form-select:focus {
+  background-color: #1c1c1c;
+  color: #fff;
+  border-color: #6ea8fe;
+  box-shadow: 0 0 0 .25rem rgba(110,168,254,.25);
+}
+
+
+/* =========================
+   Tabla en modo oscuro (Bootstrap 5)
+   ========================= */
 body.bg-dark .table,
 body.bg-dark .table th,
 body.bg-dark .table td {
@@ -55,7 +81,7 @@ body.bg-dark .table-hover > tbody > tr:hover > * {
   background-color: rgba(255,255,255,0.06) !important;
 }
 
-/* Botones "Eliminar" dentro de tabla oscura */
+/* Botones "Eliminar" dentro de filas oscuras */
 body.bg-dark .table .btn-outline-danger {
   border-color: #ff6b6b;
   color: #ff6b6b;
@@ -65,7 +91,10 @@ body.bg-dark .table .btn-outline-danger:hover {
   color: #121212;
 }
 
-/* Modales en tema oscuro */
+
+/* =========================
+   Modales y Offcanvas en oscuro
+   ========================= */
 body.bg-dark .modal-content {
   background-color: #1f1f1f;
   color: #e9ecef;
@@ -76,8 +105,46 @@ body.bg-dark .modal-footer {
   border-color: #2b2b2b;
 }
 
-/* Offcanvas oscuro */
 body.bg-dark .offcanvas {
   background-color: #1f1f1f;
+  color: #e9ecef;
+}
+
+body.bg-dark .offcanvas .list-group-item {
+  background-color: transparent;
+  color: #e9ecef;
+  border-color: #2b2b2b;
+}
+
+
+/* =========================
+   Botón Notificaciones + badge
+   ========================= */
+body.bg-dark #notif-btn.btn-outline-primary {
+  border-color: #66b2ff;
+  color: #66b2ff;
+}
+body.bg-dark #notif-btn.btn-outline-primary:hover {
+  background-color: #66b2ff;
+  color: #121212;
+}
+
+/* Burbuja roja visible en ambos temas */
+#notif-badge {
+  /* Bootstrap ya pone estilos; reforzamos contraste si hiciera falta */
+}
+body.bg-dark #notif-badge {
+  background-color: #ff6b6b !important;
+  color: #fff !important;
+}
+
+
+/* =========================
+   Hints / cajas informativas en oscuro
+   (por si no están inline en el HTML)
+   ========================= */
+body.bg-dark .hint-box {
+  border-color: #495057;
+  background: #1f1f1f;
   color: #e9ecef;
 }
