@@ -181,3 +181,27 @@ body.bg-dark #notifList .border {
 body.bg-dark #notifList .small.text-muted {
   color: #adb5bd !important;             /* texto secundario más visible */
 }
+/* Paginación de notificaciones en modo oscuro */
+body.bg-dark #notifPagination .page-link {
+  background-color: #1f1f1f;
+  border-color: #343a40;
+  color: #e9ecef;
+}
+
+body.bg-dark #notifPagination .page-link:hover {
+  background-color: #343a40;
+  border-color: #495057;
+  color: #fff;
+}
+
+body.bg-dark #notifPagination .page-item.active .page-link {
+  background-color: #0d6efd;  /* azul Bootstrap */
+  border-color: #0d6efd;
+  color: #fff;
+}
+
+body.bg-dark #notifPagination .page-item.disabled .page-link {
+  background-color: #212529;
+  border-color: #343a40;
+  color: #6c757d;
+}
