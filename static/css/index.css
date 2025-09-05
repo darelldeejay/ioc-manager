@@ -242,3 +242,18 @@ body.bg-dark #offcanvasNotifs .btn-outline-secondary:hover {
   background-color: #666;
   color: #fff;
 }
+/* Inputs y selects dentro del offcanvas en modo oscuro */
+body.bg-dark #offcanvasNotifs .form-control,
+body.bg-dark #offcanvasNotifs .form-select {
+  background-color: #1f1f1f;
+  color: #e9ecef;
+  border-color: #495057;
+}
+
+body.bg-dark #offcanvasNotifs .form-control:focus,
+body.bg-dark #offcanvasNotifs .form-select:focus {
+  background-color: #2a2a2a;
+  border-color: #66b2ff;
+  color: #fff;
+  box-shadow: none;
+}
