@@ -33,7 +33,7 @@
         <div class="boxy-form-inner rotateFirst3d">
 
           <!-- Tapa izquierda -->
-<span class="end-cap left">
+          <span class="end-cap left">
             <span class="glyphicon glyphicon-user" data-toggle="tooltip" title="Haz click y Entra en mi Mundo"></span>
           </span>
 
@@ -41,7 +41,8 @@
           <span class="side front">
             <span class="glyphicon glyphicon-user" data-toggle="tooltip" title="usuario"></span>
             <input id="boxy-input" type="text" name="username" class="rotate" placeholder="Usuario" required>
-            <button class="boxy-button next-field" data-step="0"></button>
+            <!-- IMPORTANTE: que NO envíe el form -->
+            <button type="button" class="boxy-button next-field" data-step="0"></button>
           </span>
 
           <!-- Contraseña -->
@@ -68,7 +69,46 @@
 <!-- jQuery + Bootstrap 3 -->
 <script src="https://code.jquery.com/jquery-3.7.1.min.js"></script>
 <script src="https://cdn.jsdelivr.net/npm/bootstrap@3.4.1/dist/js/bootstrap.min.js"></script>
-<!-- Lógica 3D -->
+
+<!-- Parche mínimo de robustez (no altera tu 3D) -->
+<script>
+  (function(){
+    // Tooltips
+    $(function(){ $('[data-toggle="tooltip"]').tooltip(); });
+
+    // Enter en contraseña => submit
+    $('#boxy-password').on('keydown', function(e){
+      if (e.key === 'Enter') {
+        e.preventDefault();
+        const form = document.getElementById('boxy-login-form');
+        if (form && !form.dataset.submitted) {
+          form.dataset.submitted = '1';
+          form.submit();
+        }
+      }
+    });
+
+    // Si algún script intercepta el click del botón final, forzamos submit
+    $('.boxy-final-button').on('click', function(){
+      const form = document.getElementById('boxy-login-form');
+      setTimeout(function(){
+        if (form && !form.dataset.submitted) {
+          form.dataset.submitted = '1';
+          form.submit();
+        }
+      }, 50);
+    });
+
+    // Evitar doble envío
+    $('#boxy-login-form').on('submit', function(){
+      const form = this;
+      if (form.dataset.submitted) { return; }
+      form.dataset.submitted = '1';
+    });
+  })();
+</script>
+
+<!-- Lógica 3D original -->
 <script src="{{ url_for('static', filename='js/login.js') }}"></script>
 
 </body>
