@@ -160,3 +160,14 @@ body.bg-dark .hint-box {
   background: #1f1f1f;
   color: #e9ecef;
 }
+/* Ajuste botón Notificaciones en modo oscuro */
+body.bg-dark #notif-btn.btn-primary {
+  background-color: #0d6efd;   /* azul Bootstrap */
+  border-color: #0d6efd;
+  color: #fff;
+}
+
+body.bg-dark #notif-btn.btn-primary:hover {
+  background-color: #0b5ed7;
+  border-color: #0a58ca;
+}
