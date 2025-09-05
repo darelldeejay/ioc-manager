@@ -682,9 +682,6 @@ def _undo_last_action():
             if ip_txt not in existentes:
                 current.append(l)
                 existentes.add(ip_txt)
-                # restaurar origen si existía en la línea? El origen está en meta; no viene en línea
-                # No sabemos origen exacto aquí; no lo persistimos (el feed no lo contiene)
-                # Como mejora, podríamos haber guardado origen en payload; mantenemos simple
                 repuestos += 1
         if repuestos:
             save_lines(current)
@@ -702,12 +699,35 @@ def _undo_last_action():
 # =========================
 @app.after_request
 def add_security_headers(resp):
-    # Cabeceras básicas de seguridad (ajustables si usas Nginx al frente)
+    # Cabeceras comunes
     resp.headers["X-Frame-Options"] = "DENY"
     resp.headers["X-Content-Type-Options"] = "nosniff"
     resp.headers["Referrer-Policy"] = "same-origin"
-    # CSP permisiva (ajusta según tu HTML/JS inline)
-    resp.headers.setdefault("Content-Security-Policy", "default-src 'self'; img-src 'self' data:; style-src 'self' 'unsafe-inline'; script-src 'self' 'unsafe-inline'")
+
+    # CSP: relajada SOLO para /login (carga jQuery/Bootstrap 3 desde CDN)
+    if request.path.startswith("/login"):
+        resp.headers["Content-Security-Policy"] = (
+            "default-src 'self'; "
+            "script-src 'self' 'unsafe-inline' https://cdn.jsdelivr.net https://code.jquery.com; "
+            "style-src 'self' 'unsafe-inline' https://cdn.jsdelivr.net; "
+            "img-src 'self' data:; "
+            "font-src 'self' https://cdn.jsdelivr.net data:; "
+            "connect-src 'self'; "
+            "object-src 'none'; "
+            "frame-ancestors 'none'"
+        )
+    else:
+        # Resto de la app (Bootstrap 5 desde jsDelivr)
+        resp.headers["Content-Security-Policy"] = (
+            "default-src 'self'; "
+            "script-src 'self' 'unsafe-inline' https://cdn.jsdelivr.net; "
+            "style-src 'self' 'unsafe-inline' https://cdn.jsdelivr.net; "
+            "img-src 'self' data:; "
+            "font-src 'self' https://cdn.jsdelivr.net data:; "
+            "connect-src 'self'; "
+            "object-src 'none'; "
+            "frame-ancestors 'none'"
+        )
     return resp
 
 
@@ -1058,7 +1078,6 @@ def backup_list():
 @app.route("/healthz")
 def healthz():
     try:
-        # check básicos
         _ = os.path.exists(FEED_FILE)
         return jsonify({"status": "ok", "time": datetime.utcnow().isoformat()+"Z"})
     except Exception as e:
