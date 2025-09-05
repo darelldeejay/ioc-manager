@@ -2,18 +2,17 @@
 html, body { height: 100%; }
 body {
   margin: 0;
-  background: url("https://s3-us-west-2.amazonaws.com/s.cdpn.io/1251/stardust.png") repeat;
+  background: url("../img/stardust.png") repeat;  /* ← local */
   font-family: "Helvetica Neue", Helvetica, Arial, sans-serif;
 }
 @media (-webkit-min-device-pixel-ratio: 2), (min-resolution: 192dpi) {
-  body { background: url("https://s3-us-west-2.amazonaws.com/s.cdpn.io/1251/stardust_@2X.png") repeat; }
+  body { background: url("../img/stardust_@2X.png") repeat; } /* ← local */
 }
 
-/* Logo decorativo opcional */
+/* Logo decorativo (usa el <img src=".../logo-dpb.svg"> del HTML) */
 #r8-logo-coin {
   width: 110px; height: 110px; display: block;
   position: absolute; bottom: 15px; right: 15px; margin: 15px;
-  background: url('https://s3-us-west-2.amazonaws.com/s.cdpn.io/1251/R8-launcher-icon-dark.svg') no-repeat center / contain;
   user-select: none;
 }
 
