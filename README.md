@@ -1,6 +1,6 @@
 # 🛡️ IOC Manager
 
-IOC Manager es una aplicación web ligera en **Flask** para gestionar listas dinámicas de IPs maliciosas (Indicators of Compromise) usadas en **Fortinet FortiGate** mediante conectores externos.
+IOC Manager es una aplicación web ligera en **Flask** para gestionar listas dinámicas de IPs maliciosas (Indicators of Compromise) usado para el ejemplo con el fabricante **Fortinet en un FortiGate** mediante conectores externos.
 
 ## ✨ Funcionalidades principales
 
