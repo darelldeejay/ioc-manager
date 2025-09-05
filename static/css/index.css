@@ -121,18 +121,31 @@ body.bg-dark .offcanvas .list-group-item {
    Botón Notificaciones + badge
    ========================= */
 body.bg-dark #notif-btn.btn-outline-primary {
-  border-color: #66b2ff;
-  color: #66b2ff;
+  /* Sobrescribe variables internas del botón (Bootstrap 5.3) */
+  --bs-btn-color: #66b2ff;
+  --bs-btn-border-color: #66b2ff;
+  --bs-btn-hover-color: #121212;
+  --bs-btn-hover-bg: #66b2ff;
+  --bs-btn-hover-border-color: #66b2ff;
+  --bs-btn-active-color: #121212;
+  --bs-btn-active-bg: #66b2ff;
+  --bs-btn-active-border-color: #66b2ff;
+  --bs-btn-focus-shadow-rgb: 102,178,255;
+
+  /* Fallback directo */
+  border-color: #66b2ff !important;
+  color: #66b2ff !important;
 }
-body.bg-dark #notif-btn.btn-outline-primary:hover {
-  background-color: #66b2ff;
-  color: #121212;
+
+body.bg-dark #notif-btn.btn-outline-primary:hover,
+body.bg-dark #notif-btn.btn-outline-primary:focus,
+body.bg-dark #notif-btn.btn-outline-primary:active {
+  background-color: #66b2ff !important;
+  border-color: #66b2ff !important;
+  color: #121212 !important;
 }
 
 /* Burbuja roja visible en ambos temas */
-#notif-badge {
-  /* Bootstrap ya pone estilos; reforzamos contraste si hiciera falta */
-}
 body.bg-dark #notif-badge {
   background-color: #ff6b6b !important;
   color: #fff !important;
@@ -141,7 +154,6 @@ body.bg-dark #notif-badge {
 
 /* =========================
    Hints / cajas informativas en oscuro
-   (por si no están inline en el HTML)
    ========================= */
 body.bg-dark .hint-box {
   border-color: #495057;
