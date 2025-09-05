@@ -1,7 +1,6 @@
 from flask import (
     Flask, render_template, request, redirect, url_for,
-    session, flash, make_response, jsonify, get_flashed_messages,
-    send_file, abort
+    session, flash, make_response, jsonify, get_flashed_messages
 )
 from datetime import datetime
 import ipaddress
@@ -17,18 +16,15 @@ FEED_FILE = os.path.join(BASE_DIR, 'ioc-feed.txt')
 LOG_FILE = os.path.join(BASE_DIR, 'ioc-log.txt')
 NOTIF_FILE = os.path.join(BASE_DIR, 'notif-log.json')
 
-# Counters históricos (compat), los totales vivos se calculan con meta
+# Contadores históricos (compat), los totales vivos se calculan con meta
 COUNTER_MANUAL = os.path.join(BASE_DIR, 'contador_manual.txt')
-COUNTER_CSV = os.path.join(BASE_DIR, 'contador_csv.txt')
+COUNTER_CSV    = os.path.join(BASE_DIR, 'contador_csv.txt')
 
-# Nuevo: meta lateral para origen por IP (no afecta al feed)
+# Meta lateral (origen por IP) -> no afecta al feed (lo usa el contador vivo por origen)
 META_FILE = os.path.join(BASE_DIR, 'ioc-meta.json')
 
-# === Copias de seguridad ===
-BACKUP_DIR = os.path.join(BASE_DIR, "backups")
-LAST_BACKUP_MARK = os.path.join(BACKUP_DIR, ".last_done")
-
 MAX_EXPAND = 4096
+PAGE_SIZE  = 50  # paginación por defecto
 
 
 # =========================
@@ -52,16 +48,19 @@ def write_counter(path, value):
         pass
 
 
-# -------- Meta lateral (origen por IP) --------
+# ---- Meta lateral (origen por IP) ----
 def load_meta():
     if not os.path.exists(META_FILE):
         return {"by_ip": {}}
     try:
         with open(META_FILE, "r", encoding="utf-8") as f:
             data = json.load(f)
-            if not isinstance(data, dict) or "by_ip" not in data or not isinstance(data["by_ip"], dict):
+            if not isinstance(data, dict):
                 return {"by_ip": {}}
-            return {"by_ip": dict(data["by_ip"])}
+            by_ip = data.get("by_ip", {})
+            if not isinstance(by_ip, dict):
+                by_ip = {}
+            return {"by_ip": by_ip}
     except Exception:
         return {"by_ip": {}}
 
@@ -118,7 +117,7 @@ def compute_live_counters(active_lines):
 #  Utilidades de red
 # =========================
 def dotted_netmask_to_prefix(mask):
-    return ipaddress.IPv4Network("0.0.0.0/{0}".format(mask)).prefixlen
+    return ipaddress.IPv4Network(f"0.0.0.0/{mask}").prefixlen
 
 
 def ip_block_reason(ip_str):
@@ -129,7 +128,7 @@ def ip_block_reason(ip_str):
 
     if isinstance(obj, ipaddress.IPv6Address):
         return "IPv6 no soportado"
-    if obj.is_unspecified:
+    if obj.is_unspecified:      # 0.0.0.0
         return "bloqueo de absolutamente todo"
     if obj.is_private:
         return "IP privada (RFC1918)"
@@ -149,6 +148,10 @@ def is_allowed_ip(ip_str):
 
 
 def expand_input_to_ips(text, max_expand=MAX_EXPAND):
+    """
+    Acepta IP / CIDR / Rango A-B / IP + máscara.
+    Bloquea explícitamente 0.0.0.0 y derivados (acción no permitida).
+    """
     if not text:
         raise ValueError("Entrada vacía")
 
@@ -180,19 +183,20 @@ def expand_input_to_ips(text, max_expand=MAX_EXPAND):
     # CIDR
     if "/" in raw:
         net = ipaddress.ip_network(raw, strict=False)
+        # tamaño aproximado (sin network/broadcast para prefijos <31)
         size = net.num_addresses if net.prefixlen >= 31 else max(net.num_addresses - 2, 0)
         if size > max_expand:
             raise ValueError("La red expande demasiado")
         return [str(h) for h in net.hosts()]
 
-    # IP + máscara punteada
+    # IP + máscara
     if " " in raw and "." in raw:
         base, mask = raw.split(" ", 1)
         prefix = dotted_netmask_to_prefix(mask.strip())
-        return expand_input_to_ips("{}/{}".format(base, prefix), max_expand)
+        return expand_input_to_ips(f"{base}/{prefix}", max_expand)
 
     # IP suelta
-    ipaddress.ip_address(raw)
+    ipaddress.ip_address(raw)  # valida
     return [raw]
 
 
@@ -205,7 +209,7 @@ def parse_delete_pattern(raw):
     if " " in s and "." in s and "/" not in s:
         base, mask = s.split(" ", 1)
         pfx = dotted_netmask_to_prefix(mask.strip())
-        return ("cidr", ipaddress.ip_network("{}/{}".format(base, pfx), strict=False))
+        return ("cidr", ipaddress.ip_network(f"{base}/{pfx}", strict=False))
 
     if "/" in s:
         return ("cidr", ipaddress.ip_network(s, strict=False))
@@ -385,98 +389,66 @@ def coerce_message_pairs(raw_flashes):
 
 
 # =========================
-#  Backup utils
+#  Paginación, búsqueda y orden
 # =========================
-def _ensure_dir(p):
-    os.makedirs(p, exist_ok=True)
-
-def _safe_copy(src, dst_dir):
-    """Copia src dentro de dst_dir conservando el nombre de archivo (si existe)."""
-    if not os.path.exists(src):
-        return None
-    _ensure_dir(dst_dir)
-    basename = os.path.basename(src)
-    dst = os.path.join(dst_dir, basename)
-    tmp = dst + ".tmp"
-    with open(src, "rb") as fsrc, open(tmp, "wb") as fdst:
-        fdst.write(fsrc.read())
-    os.replace(tmp, dst)
-    return dst
-
-def _zip_backup(day_dir, zip_path):
-    import zipfile
-    with zipfile.ZipFile(zip_path, "w", compression=zipfile.ZIP_DEFLATED) as z:
-        for name in os.listdir(day_dir):
-            fp = os.path.join(day_dir, name)
-            if os.path.isfile(fp):
-                z.write(fp, arcname=name)
-
-def _rotate_backups(keep_days=14):
-    """Mantén solo 'keep_days' últimos backups (por fecha YYYY-MM-DD)."""
-    if not os.path.isdir(BACKUP_DIR):
-        return
-    entries = []
-    for name in os.listdir(BACKUP_DIR):
-        if re.fullmatch(r"\d{4}-\d{2}-\d{2}", name):
-            entries.append(name)
-        elif re.fullmatch(r"\d{4}-\d{2}-\d{2}\.zip", name):
-            entries.append(name.split(".zip")[0])
-    days = sorted(set(entries))
-    if len(days) <= keep_days:
-        return
-    to_delete = days[0:len(days)-keep_days]
-    for d in to_delete:
-        day_dir = os.path.join(BACKUP_DIR, d)
-        zipf = os.path.join(BACKUP_DIR, f"{d}.zip")
-        if os.path.isdir(day_dir):
-            for fname in os.listdir(day_dir):
-                try:
-                    os.remove(os.path.join(day_dir, fname))
-                except Exception:
-                    pass
-            try:
-                os.rmdir(day_dir)
-            except Exception:
-                pass
-        try:
-            if os.path.exists(zipf):
-                os.remove(zipf)
-        except Exception:
-            pass
-
-def perform_daily_backup(keep_days=14):
-    """
-    Si el backup de HOY no existe, crea:
-      - backups/YYYY-MM-DD/ con copias de FEED_FILE, META_FILE (si existe), NOTIF_FILE (si existe)
-      - backups/YYYY-MM-DD.zip con todo lo anterior
-    Luego rota backups antiguos.
-    """
+def parse_date_safe(dtxt):
     try:
-        today = datetime.now().strftime("%Y-%m-%d")
-        _ensure_dir(BACKUP_DIR)
-        day_dir = os.path.join(BACKUP_DIR, today)
-        zip_path = os.path.join(BACKUP_DIR, f"{today}.zip")
+        return datetime.strptime(dtxt, "%Y-%m-%d")
+    except Exception:
+        return None
 
-        if os.path.exists(zip_path):
-            return
 
-        _ensure_dir(day_dir)
-        _safe_copy(FEED_FILE, day_dir)
-        if META_FILE and os.path.exists(META_FILE):
-            _safe_copy(META_FILE, day_dir)
-        if NOTIF_FILE and os.path.exists(NOTIF_FILE):
-            _safe_copy(NOTIF_FILE, day_dir)
+def sort_key(parts, key):
+    ip_txt, date_txt, ttl_txt = parts
+    if key == "ip":
+        try:
+            return int(ipaddress.ip_address(ip_txt))
+        except Exception:
+            return 0
+    if key == "ttl":
+        try:
+            # 0 = infinito -> lo consideramos "mayor" para orden ascendente
+            ttl = int(ttl_txt)
+            return 10**9 if ttl == 0 else ttl
+        except Exception:
+            return 10**9
+    # default date
+    dt = parse_date_safe(date_txt)
+    return dt or datetime.min
 
-        _zip_backup(day_dir, zip_path)
 
-        with open(LAST_BACKUP_MARK, "w", encoding="utf-8") as f:
-            f.write(today)
+def apply_filters_sorts(lines, q, date_filter, sort, order):
+    # lines: list[str] "ip|fecha|ttl"
+    rows = []
+    for l in lines:
+        parts = l.split("|")
+        if len(parts) != 3:
+            continue
+        ip_txt, date_txt, ttl_txt = parts[0].strip(), parts[1].strip(), parts[2].strip()
 
-        _rotate_backups(keep_days=keep_days)
+        if q and q.strip() and q.strip() not in ip_txt:
+            continue
+        if date_filter and date_filter.strip() and date_txt != date_filter.strip():
+            continue
 
-        guardar_notif("info", f"Backup diario creado: {today}")
-    except Exception as e:
-        guardar_notif("danger", f"Error en backup diario: {str(e)}")
+        rows.append((ip_txt, date_txt, ttl_txt))
+
+    sort_field = sort if sort in ("ip", "ttl", "date") else "date"
+    reverse = (order != "asc")
+
+    rows.sort(key=lambda p: sort_key(p, sort_field), reverse=reverse)
+
+    # reconstruir a "ip|fecha|ttl"
+    result = [f"{ip}|{d}|{t}" for (ip, d, t) in rows]
+    return result
+
+
+def paginate(items, page, page_size):
+    page = max(1, int(page or 1))
+    total = len(items)
+    start = (page - 1) * page_size
+    end = start + page_size
+    return items[start:end], page, max(1, (total + page_size - 1) // page_size)
 
 
 # =========================
@@ -503,9 +475,6 @@ def index():
     if "username" not in session:
         return redirect(url_for("login"))
 
-    # Snapshot diario si hace falta
-    perform_daily_backup(keep_days=14)
-
     # Expirar y sincronizar meta
     vencidas = eliminar_ips_vencidas()
     if vencidas:
@@ -515,6 +484,7 @@ def index():
     lines = load_lines()
     existentes = {l.split("|", 1)[0] for l in lines}
 
+    # ---------------- POST acciones ----------------
     if request.method == "POST":
         # Eliminar todas
         if "delete-all" in request.form:
@@ -651,11 +621,26 @@ def index():
         else:
             error = "Debes introducir una IP, red CIDR, rango A-B o IP con máscara"
 
-    # ========= Datos para la plantilla =========
+    # ---------------- GET: filtros, orden, paginación ----------------
+    # Capturar filtros desde la query
+    q           = request.args.get("q", "", type=str)
+    date_filter = request.args.get("date", "", type=str)
+    sort        = request.args.get("sort", "date", type=str)
+    order       = request.args.get("order", "desc", type=str)
+    page        = request.args.get("page", 1, type=int)
+
+    # Aplicar filtros+orden a todas las líneas (no recorta total_ips)
+    all_lines = load_lines()
+    filtered_sorted = apply_filters_sorts(all_lines, q, date_filter, sort, order)
+
+    # Paginación
+    page_items, page, total_pages = paginate(filtered_sorted, page, PAGE_SIZE)
+
+    # ========= Mensajes para plantilla =========
     # 1) Flashes de esta petición (para TOASTS y burbuja)
     request_actions = coerce_message_pairs(get_flashed_messages(with_categories=True))
 
-    # 2) Historial persistente añadido al final (con fecha delante)
+    # 2) Historial persistente al final (con fecha delante -> el front lo detecta como historial)
     messages = []
     messages.extend(request_actions)
     try:
@@ -666,18 +651,24 @@ def index():
     except Exception:
         pass
 
-    # Totales VIVOS (manual/csv)
-    lines = load_lines()
-    live_manual, live_csv = compute_live_counters(lines)
+    # Totales VIVOS (manual/csv) y total de IPs activas para la cabecera (sin filtros)
+    live_manual, live_csv = compute_live_counters(all_lines)
 
     return render_template("index.html",
-                           ips=lines,
+                           ips=page_items,
                            error=error,
-                           total_ips=len(lines),
+                           total_ips=len(all_lines),
                            contador_manual=live_manual,
                            contador_csv=live_csv,
                            messages=messages,
-                           request_actions=request_actions)
+                           request_actions=request_actions,
+                           # filtros/paginación para la UI
+                           q=q,
+                           date_filter=date_filter,
+                           sort=sort,
+                           order=order,
+                           page=page,
+                           total_pages=total_pages)
 
 
 @app.route("/feed/ioc-feed.txt")
@@ -712,39 +703,6 @@ def preview_delete():
         return jsonify({"error": str(e)}), 400
 
 
-# ========= Rutas de backup =========
-@app.route("/backup/latest.zip")
-def backup_latest_zip():
-    """Descarga el ZIP más reciente; 404 si no hay."""
-    if not os.path.isdir(BACKUP_DIR):
-        abort(404)
-    zips = [f for f in os.listdir(BACKUP_DIR) if re.fullmatch(r"\d{4}-\d{2}-\d{2}\.zip", f)]
-    if not zips:
-        abort(404)
-    zips.sort(reverse=True)
-    latest = os.path.join(BACKUP_DIR, zips[0])
-    return send_file(latest, as_attachment=True, download_name=zips[0], mimetype="application/zip")
-
-@app.route("/backup/now", methods=["POST"])
-def backup_now():
-    """Fuerza un backup inmediato."""
-    perform_daily_backup(keep_days=14)
-    flash("Backup forzado creado", "success")
-    guardar_notif("success", "Backup forzado creado")
-    return redirect(url_for("index"))
-
-@app.route("/backup/list")
-def backup_list():
-    """Lista de backups disponibles (JSON)."""
-    if not os.path.isdir(BACKUP_DIR):
-        return jsonify({"backups": []})
-    items = []
-    for name in os.listdir(BACKUP_DIR):
-        if re.fullmatch(r"\d{4}-\d{2}-\d{2}\.zip", name):
-            items.append(name)
-    items.sort(reverse=True)
-    return jsonify({"backups": items})
-
-
 if __name__ == "__main__":
+    # Para desarrollo local
     app.run(debug=True, host="0.0.0.0", port=5050)
