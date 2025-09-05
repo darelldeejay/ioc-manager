@@ -257,3 +257,8 @@ body.bg-dark #offcanvasNotifs .form-select:focus {
   color: #fff;
   box-shadow: none;
 }
+/* Respaldo: si el HTML viene marcado como dark desde el head, asegura colores base */
+html[data-theme="dark"] body {
+  background-color: #121212;
+  color: #e9ecef;
+}
