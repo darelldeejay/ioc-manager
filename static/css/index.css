@@ -224,3 +224,21 @@ body.bg-dark #offcanvasNotifs .form-control:focus {
 body.bg-dark #notifCountInfo {
   color: #adb5bd !important;  /* gris claro */
 }
+/* Botones en el offcanvas de notificaciones (modo oscuro) */
+body.bg-dark #offcanvasNotifs .btn-outline-primary {
+  color: #66b2ff;
+  border-color: #3399ff;
+}
+body.bg-dark #offcanvasNotifs .btn-outline-primary:hover {
+  background-color: #3399ff;
+  color: #fff;
+}
+
+body.bg-dark #offcanvasNotifs .btn-outline-secondary {
+  color: #ccc;
+  border-color: #666;
+}
+body.bg-dark #offcanvasNotifs .btn-outline-secondary:hover {
+  background-color: #666;
+  color: #fff;
+}
