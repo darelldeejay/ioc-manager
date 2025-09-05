@@ -30,3 +30,54 @@ body.bg-dark ::placeholder {
     right: 10px;
   }
 }
+/* ----- Tabla en modo oscuro (Bootstrap 5) ----- */
+body.bg-dark .table,
+body.bg-dark .table th,
+body.bg-dark .table td {
+  background-color: #121212 !important;
+  color: #e9ecef !important;
+  border-color: #2b2b2b !important;
+}
+
+/* Cabecera de tabla */
+body.bg-dark table thead th {
+  background-color: #1a1a1a !important;
+  color: #e9ecef !important;
+}
+
+/* Rayado (striped) sutil en oscuro */
+body.bg-dark .table-striped > tbody > tr:nth-of-type(odd) > * {
+  background-color: rgba(255,255,255,0.03) !important;
+}
+
+/* Hover sutil en oscuro */
+body.bg-dark .table-hover > tbody > tr:hover > * {
+  background-color: rgba(255,255,255,0.06) !important;
+}
+
+/* Botones "Eliminar" dentro de tabla oscura */
+body.bg-dark .table .btn-outline-danger {
+  border-color: #ff6b6b;
+  color: #ff6b6b;
+}
+body.bg-dark .table .btn-outline-danger:hover {
+  background-color: #ff6b6b;
+  color: #121212;
+}
+
+/* Modales en tema oscuro */
+body.bg-dark .modal-content {
+  background-color: #1f1f1f;
+  color: #e9ecef;
+  border-color: #2b2b2b;
+}
+body.bg-dark .modal-header,
+body.bg-dark .modal-footer {
+  border-color: #2b2b2b;
+}
+
+/* Offcanvas oscuro */
+body.bg-dark .offcanvas {
+  background-color: #1f1f1f;
+  color: #e9ecef;
+}
