@@ -40,7 +40,7 @@
     /* TOASTS: arriba a la derecha, bajo el botón de notificaciones */
     #toast-portal{
       position: fixed;
-      top: 64px;        /* Ajusta si tu cabecera es más alta/baja */
+      top: 64px;
       right: 16px;
       left: auto;
       transform: none;
@@ -49,24 +49,29 @@
       flex-direction: column;
       gap: 8px;
       max-width: min(90vw, 560px);
-      pointer-events: none;     /* no bloquean la UI */
+      pointer-events: none;
       align-items: flex-end;
     }
     .toast{
-      pointer-events: auto;     /* permite cerrar */
+      pointer-events: auto;
       border: none !important;
       box-shadow: 0 6px 18px rgba(0,0,0,.25);
     }
 
-    /* Botón Notificaciones (en cabecera) con burbuja */
+    /* Botón Notificaciones */
     #notif-btn{ position:relative; }
     #notif-badge{ position:absolute; top:-6px; right:-8px; }
 
-    /* Logo esquina (SIN TOCAR, abajo derecha) */
+    /* Logo esquina */
     #corner-logo{
       position:fixed; bottom:16px; right:16px; width:96px; height:auto; opacity:.85; z-index:1040;
     }
     @media (max-width:576px){ #corner-logo{ width:68px; } }
+
+    /* Botón Deshacer dentro del toast */
+    .toast-actions {
+      display:flex; gap:.5rem; align-items:center; margin-right:.25rem;
+    }
   </style>
 </head>
 <body class="bg-light">
@@ -76,7 +81,7 @@
     <button class="btn btn-outline-secondary btn-sm" onclick="toggleTheme()">🌙 Modo Oscuro</button>
 
     <div class="d-flex align-items-center gap-2">
-      <!-- Botón Notificaciones (arriba derecha) -->
+      <!-- Botón Notificaciones -->
       <button id="notif-btn" class="btn btn-outline-primary btn-sm"
               type="button" data-bs-toggle="offcanvas"
               data-bs-target="#offcanvasNotifs" aria-controls="offcanvasNotifs">
@@ -95,7 +100,6 @@
     ℹ️ Añadidas: Manual (<strong>{{ contador_manual }}</strong>) · CSV (<strong>{{ contador_csv }}</strong>)
   </div>
 
-  <!-- Solo errores graves si el backend los envía en 'error' -->
   {% if error %}
     <div class="alert alert-danger mt-2">{{ error }}</div>
   {% endif %}
@@ -208,7 +212,6 @@
                  placeholder="Ej: 203.0.113.0/24 · 203.0.113.10-203.0.113.50 · 203.0.113.0 255.255.255.0 · 203.0.113.5"
                  required>
 
-          <!-- Resultado de previsualización -->
           <div id="previewResult" class="mt-2 small text-muted">
             Escribe un patrón para ver cuántas IPs coinciden.
           </div>
@@ -235,7 +238,6 @@
   <hr>
   <h4>IPs bloqueadas</h4>
 
-  <!-- Buscador de IPs -->
   <div class="mb-3">
     <input type="text" id="buscadorIp" class="form-control" placeholder="Buscar IP...">
   </div>
@@ -259,7 +261,6 @@
           <td>
             <button class="btn btn-sm btn-outline-danger" data-bs-toggle="modal" data-bs-target="#confirmDelete{{ loop.index }}">Eliminar</button>
 
-            <!-- Modal Confirmar eliminación individual -->
             <div class="modal fade" id="confirmDelete{{ loop.index }}" tabindex="-1" aria-hidden="true">
               <div class="modal-dialog modal-dialog-centered">
                 <div class="modal-content">
@@ -292,7 +293,6 @@
   </div>
 </div>
 
-<!-- Logo DPB fijo (abajo derecha, SIN TOCAR) -->
 <img id="corner-logo" src="{{ url_for('static', filename='img/logo-dpb.svg') }}" alt="Logo DPB">
 
 <!-- Offcanvas de Notificaciones -->
@@ -302,7 +302,6 @@
     <button type="button" class="btn-close" data-bs-dismiss="offcanvas" aria-label="Cerrar"></button>
   </div>
   <div class="offcanvas-body d-flex flex-column" style="gap:.75rem;">
-    <!-- Filtros -->
     <div class="d-flex flex-wrap align-items-center gap-2 mb-2">
       <select id="filterType" class="form-select form-select-sm" style="max-width:180px">
         <option value="">Todos los tipos</option>
@@ -317,10 +316,8 @@
       <span class="ms-auto small text-muted" id="notifCountInfo"></span>
     </div>
 
-    <!-- Lista -->
     <div id="notifList" class="d-flex flex-column" style="gap:.5rem;"></div>
 
-    <!-- Paginación (10 por página) -->
     <nav class="mt-2">
       <ul id="notifPagination" class="pagination pagination-sm mb-0"></ul>
     </nav>
@@ -371,8 +368,16 @@
       {"category": "{{category}}", "message": {{ message|tojson }} }{% if not loop.last %},{% endif %}
     {% endfor %}
   ];
+  const UNDO_AVAILABLE = {{ 'true' if undo_available else 'false' }};
 
-  /* ----------------- TOAST: combinar acciones de ESTA petición ----------------- */
+  /* ----------------- TOAST: combinar acciones de ESTA petición -----------------
+     - Ignora historial (mensajes que empiezan con fecha ISO)
+     - Combina success/warning/danger/accion_no_permitida en UN solo toast
+     - Color por severidad: accion_no_permitida|danger > warning > success
+     - Duración: altas/eliminaciones 10s; rechazos/errores/bloqueo 20s
+     - Burbuja acumulativa persistente (localStorage: notif_unread)
+     - Botón "Deshacer" si procede (alta/eliminación y hay last_action)
+  --------------------------------------------------------------------------- */
   (function showCombinedActionToast(){
     const actionKeywords = [
       "añadida","añadidas","eliminada","eliminadas",
@@ -443,15 +448,40 @@
     const portal = document.getElementById('toast-portal');
     const el = document.createElement('div');
     el.className = 'toast align-items-center text-bg-' + color + ' border-0';
-    el.innerHTML = `
-      <div class="d-flex">
-        <div class="toast-body">${escapeHtml(combinedText)}</div>
-        <button type="button" class="btn-close btn-close-white me-2 m-auto"
-                data-bs-dismiss="toast" aria-label="Close"></button>
-      </div>`;
-    portal.appendChild(el);
-    new bootstrap.Toast(el, { autohide: true, delay }).show();
 
+    // Botón DESHACER: solo si hay last_action y el evento es de alta/eliminación
+    const canUndo = UNDO_AVAILABLE && (byCat.success.length > 0 || byCat.warning.length > 0);
+
+    el.innerHTML = `
+      <div class="d-flex w-100">
+        <div class="toast-body flex-grow-1">${escapeHtml(combinedText)}</div>
+        <div class="toast-actions me-2 my-auto">
+          ${canUndo ? `<button id="undoBtn" class="btn btn-sm btn-light">Deshacer</button>` : ``}
+          <button type="button" class="btn-close btn-close-white ms-1 my-auto" data-bs-dismiss="toast" aria-label="Close"></button>
+        </div>
+      </div>`;
+
+    portal.appendChild(el);
+    const toastObj = new bootstrap.Toast(el, { autohide: true, delay });
+    toastObj.show();
+
+    if (canUndo) {
+      const undoBtn = el.querySelector('#undoBtn');
+      if (undoBtn) {
+        undoBtn.addEventListener('click', async () => {
+          try {
+            undoBtn.disabled = true;
+            const res = await fetch('/undo', { method: 'POST' });
+            // tras deshacer, recarga para reflejar cambios y regenerar toasts/contador
+            location.reload();
+          } catch(e) {
+            undoBtn.disabled = false;
+          }
+        });
+      }
+    }
+
+    // Al abrir el offcanvas, marcar como leído (resetea burbuja)
     const offcanvasEl = document.getElementById('offcanvasNotifs');
     if (offcanvasEl) {
       offcanvasEl.addEventListener('shown.bs.offcanvas', () => {
@@ -468,23 +498,9 @@
   const PAGE_SIZE = 10;
   let notifData = (serverMessages || []).map((m, i) => {
     let dt = null, txt = m.message || '';
-    // 1) Si viene con fecha al inicio => parsear YYYY-MM-DD HH:MM:SS (HH:MM:SS opcional)
     const mdt = txt.match(/^(\d{4}-\d{2}-\d{2})(?:\s+(\d{2}:\d{2}:\d{2}))?/);
-    if (mdt) {
-      dt = new Date((mdt[1] + (mdt[2] ? 'T' + mdt[2] : 'T00:00:00')));
-    } else {
-      // 2) Mensajes de la petición actual (sin fecha): dales "ahora" para orden correcto
-      dt = new Date();
-    }
+    if (mdt) { dt = new Date((mdt[1] + (mdt[2] ? 'T' + mdt[2] : 'T00:00:00'))); }
     return { id: i+1, category: m.category, message: txt, date: dt };
-  });
-
-  // >>> ORDENAR por fecha DESC (más recientes primero). Si hay empate, por id DESC.
-  notifData.sort((a,b) => {
-    const ta = a.date ? a.date.getTime() : 0;
-    const tb = b.date ? b.date.getTime() : 0;
-    if (tb !== ta) return tb - ta;
-    return b.id - a.id;
   });
 
   const listEl = document.getElementById('notifList');
@@ -510,6 +526,12 @@
   });
 
   function filtered() {
+    // Ordenar por fecha descendente antes de filtrar/paginar (mantiene historial bien ordenado)
+    notifData.sort((a,b) => {
+      const ta = a.date ? a.date.getTime() : 0;
+      const tb = b.date ? b.date.getTime() : 0;
+      return tb - ta;
+    });
     return notifData.filter(n => {
       if (filterType && n.category !== filterType) return false;
       if (filterDate) {
@@ -622,7 +644,7 @@
 
     if(!input || !feedback || !form) return;
 
-    const ipv4Part = '(25[0-5]|2[0-4]\\d|1?\\d?\\d)'; // 0-255
+    const ipv4Part = '(25[0-5]|2[0-4]\\d|1?\\d?\\d)';
     const ipv4Re = new RegExp(`^${ipv4Part}(\\.${ipv4Part}){3}$`);
     const cidrRe = new RegExp(`^${ipv4Part}(\\.${ipv4Part}){3}\\/(?:[0-9]|[12][0-9]|3[0-2])$`);
     const rangeRe = new RegExp(`^${ipv4Part}(\\.${ipv4Part}){3}\\s*\\-\\s*${ipv4Part}(\\.${ipv4Part}){3}$`);
