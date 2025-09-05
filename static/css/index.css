@@ -171,3 +171,13 @@ body.bg-dark #notif-btn.btn-primary:hover {
   background-color: #0b5ed7;
   border-color: #0a58ca;
 }
+/* Notificaciones en modo oscuro */
+body.bg-dark #notifList .border {
+  background-color: #1f1f1f !important;  /* fondo oscuro */
+  color: #e9ecef;                        /* texto claro */
+  border-color: #343a40 !important;      /* borde gris oscuro */
+}
+
+body.bg-dark #notifList .small.text-muted {
+  color: #adb5bd !important;             /* texto secundario más visible */
+}
