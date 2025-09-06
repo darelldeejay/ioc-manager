@@ -1089,6 +1089,39 @@ if (offcanvasEl) {
     badge.classList.add('d-none');
   }
 }
+// === Helpers de selección múltiple ===
+function getSelectedIPs(){
+  return Array.from(document.querySelectorAll('.row-chk:checked')).map(chk => chk.value);
+}
+
+function updateBulkUI(){
+  const count = getSelectedIPs().length;
+  const btn = document.getElementById('bulkDeleteBtn');
+  const label = document.getElementById('bulkSelectedCount');
+  if (label) label.textContent = String(count);
+  if (btn) btn.disabled = (count === 0);
+}
+
+function attachTableSelectionHandlers(){
+  // Listener en cada fila → actualiza contador al marcar/desmarcar
+  document.querySelectorAll('.row-chk').forEach(chk => {
+    chk.addEventListener('change', updateBulkUI);
+  });
+
+  // Checkbox maestro en el thead
+  const master = document.getElementById('chkAll');
+  if (master){
+    master.checked = false; // siempre empieza limpio al (re)renderizar
+    master.addEventListener('change', () => {
+      const rows = document.querySelectorAll('.row-chk');
+      rows.forEach(chk => { chk.checked = master.checked; });
+      updateBulkUI();
+    });
+  }
+
+  // Sincroniza el contador/botón al enganchar handlers
+  updateBulkUI();
+}  
 
   /* ================== Server-side tabla: fetch + render ================== */
   const tbody = document.querySelector('#tablaIps tbody');
