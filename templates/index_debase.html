@@ -357,26 +357,39 @@
     <input type="text" id="buscadorIp" class="form-control" placeholder="Buscar IP...">
   </div>
 
+  <div class="d-flex justify-content-between align-items-center mb-2">
+  <div class="small text-muted">
+    <span id="bulkSelectedCount">0</span> seleccionada(s)
+  </div>
+  <button id="bulkDeleteBtn" class="btn btn-outline-danger btn-sm" disabled>
+    🗑️ Eliminar seleccionadas
+  </button>
+</div>
   <div class="table-responsive">
     <table class="table table-striped table-hover" id="tablaIps">
       <thead>
-        <tr>
-          <th>IP</th>
-          <th>Fecha</th>
-          <th>TTL</th>
-          <th>Acción</th>
-        </tr>
-      </thead>
+  <tr>
+    <th style="width:36px">
+      <input type="checkbox" id="chkAll">
+    </th>
+    <th>IP</th>
+    <th>Fecha</th>
+    <th>TTL</th>
+    <th>Acción</th>
+  </tr>
+</thead>
       <tbody>
         {% for ip in ips %}
           {% set parts = ip.split('|') %}
-          <tr>
+        <tr>
+          <td>
+            <input type="checkbox" class="row-chk" value="{{ parts[0] }}">
+         </td>
             <td>{{ parts[0] }}</td>
             <td>{{ parts[1] }}</td>
             <td>{{ '∞' if parts[2] == '0' else parts[2] }}</td>
             <td>
               <button class="btn btn-sm btn-outline-danger" data-bs-toggle="modal" data-bs-target="#confirmDelete{{ loop.index }}">Eliminar</button>
-
               <!-- Modal Confirmar eliminación individual -->
               <div class="modal fade" id="confirmDelete{{ loop.index }}" tabindex="-1" aria-hidden="true">
                 <div class="modal-dialog modal-dialog-centered">
@@ -1076,6 +1089,39 @@ if (offcanvasEl) {
     badge.classList.add('d-none');
   }
 }
+// === Helpers de selección múltiple ===
+function getSelectedIPs(){
+  return Array.from(document.querySelectorAll('.row-chk:checked')).map(chk => chk.value);
+}
+
+function updateBulkUI(){
+  const count = getSelectedIPs().length;
+  const btn = document.getElementById('bulkDeleteBtn');
+  const label = document.getElementById('bulkSelectedCount');
+  if (label) label.textContent = String(count);
+  if (btn) btn.disabled = (count === 0);
+}
+
+function attachTableSelectionHandlers(){
+  // Listener en cada fila → actualiza contador al marcar/desmarcar
+  document.querySelectorAll('.row-chk').forEach(chk => {
+    chk.addEventListener('change', updateBulkUI);
+  });
+
+  // Checkbox maestro en el thead
+  const master = document.getElementById('chkAll');
+  if (master){
+    master.checked = false; // siempre empieza limpio al (re)renderizar
+    master.addEventListener('change', () => {
+      const rows = document.querySelectorAll('.row-chk');
+      rows.forEach(chk => { chk.checked = master.checked; });
+      updateBulkUI();
+    });
+  }
+
+  // Sincroniza el contador/botón al enganchar handlers
+  updateBulkUI();
+}  
 
   /* ================== Server-side tabla: fetch + render ================== */
   const tbody = document.querySelector('#tablaIps tbody');
@@ -1148,24 +1194,27 @@ if (offcanvasEl) {
   }
 
   function renderRows(items){
-    tbody.innerHTML = '';
-    items.forEach((row) => {
-      const tr = document.createElement('tr');
-      const ttlText = (row.ttl === 0 || row.ttl === '0') ? '∞' : String(row.ttl);
-      tr.innerHTML = `
-        <td>${escapeHtml(row.ip)}</td>
-        <td>${escapeHtml(row.fecha_alta || '')}</td>
-        <td>${escapeHtml(ttlText)}</td>
-        <td>
-          <form method="POST" onsubmit="return confirm('¿Eliminar ${escapeHtml(row.ip)}?');">
-            <input type="hidden" name="delete_ip" value="${escapeHtml(row.ip)}">
-            <button type="submit" class="btn btn-sm btn-outline-danger">Eliminar</button>
-          </form>
-        </td>
-      `;
-      tbody.appendChild(tr);
-    });
-  }
+  tbody.innerHTML = '';
+  items.forEach((row) => {
+    const tr = document.createElement('tr');
+    const ttlText = (row.ttl === 0 || row.ttl === '0') ? '∞' : String(row.ttl);
+    tr.innerHTML = `
+      <td><input type="checkbox" class="row-chk" value="${escapeHtml(row.ip)}"></td>
+      <td>${escapeHtml(row.ip)}</td>
+      <td>${escapeHtml(row.fecha_alta || '')}</td>
+      <td>${escapeHtml(ttlText)}</td>
+      <td>
+        <form method="POST" onsubmit="return confirm('¿Eliminar ${escapeHtml(row.ip)}?');">
+          <input type="hidden" name="delete_ip" value="${escapeHtml(row.ip)}">
+          <button type="submit" class="btn btn-sm btn-outline-danger">Eliminar</button>
+        </form>
+      </td>
+    `;
+    tbody.appendChild(tr);
+  });
+  // Reenganchar manejadores tras cada re-render
+  attachTableSelectionHandlers();
+}
 
   function updatePager(page, pageSize, total){
     const pages = Math.max(1, Math.ceil((total||0) / (pageSize||50)));
@@ -1185,8 +1234,66 @@ if (offcanvasEl) {
     if (c) c.textContent = counters.csv ?? c.textContent;
   }
 
+  async function bulkDeleteSelected(){
+  const ips = getSelectedIPs();
+  if (ips.length === 0) return;
+
+  const preview = ips.slice(0,10).join(', ') + (ips.length > 10 ? ` … (+${ips.length-10})` : '');
+  const ok = confirm(`Vas a eliminar ${ips.length} IP(s):\n\n${preview}\n\n¿Confirmas?`);
+  if (!ok) return;
+
+  const btn = document.getElementById('bulkDeleteBtn');
+  const origHtml = btn?.innerHTML;
+  if (btn){
+    btn.disabled = true;
+    btn.innerHTML = `
+      <span class="spinner-border spinner-border-sm" role="status" aria-hidden="true"></span>
+      <span class="ms-1">Eliminando…</span>`;
+  }
+
+  let okCount = 0, failCount = 0;
+
+  for (const ip of ips){
+    try{
+      const fd = new FormData();
+      fd.append('delete_ip', ip);
+      const r = await fetch('/', { method:'POST', body: fd });
+      if (r.ok) okCount++; else failCount++;
+    }catch(e){
+      failCount++;
+    }
+  }
+
+  if (okCount && !failCount) {
+    showInlineToast('warning', `${okCount} IP(s) eliminada(s).`);
+  } else if (okCount && failCount) {
+    showInlineToast('warning', `${okCount} eliminada(s) · ${failCount} error(es).`);
+  } else {
+    showInlineToast('danger', 'No se pudo eliminar ninguna IP.');
+  }
+
+  document.getElementById('chkAll')?.click(); 
+  updateBulkUI();
+
+  if (typeof reloadTable === 'function') {
+    await reloadTable(true);
+  } else {
+    const rows = Array.from(document.querySelectorAll('#tablaIps tbody tr'));
+    ips.forEach(ip => {
+      const row = rows.find(tr => tr.cells[1] && tr.cells[1].textContent.trim() === ip);
+      if (row) row.remove();
+    });
+  }
+
+  if (btn && origHtml){
+    btn.innerHTML = origHtml;
+    btn.disabled = false;
+  }
+}
+document.getElementById('bulkDeleteBtn')?.addEventListener('click', bulkDeleteSelected);
   // Primera carga de tabla server-side (si falla => fallback local)
   reloadTable(true);
+  attachTableSelectionHandlers();
 
 </script>
 
