@@ -269,3 +269,11 @@ html[data-theme="dark"] body.bg-light {
 }
 #tablaIps td:first-child, #tablaIps th:first-child { width: 36px; }
 }
+/* === Filas seleccionadas en tabla === */
+tr.table-active-selected {
+  background-color: rgba(13,110,253,0.15) !important; /* azul clarito */
+}
+
+html[data-theme="dark"] tr.table-active-selected {
+  background-color: rgba(13,110,253,0.35) !important; /* azul más fuerte en oscuro */
+}
