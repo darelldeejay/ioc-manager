@@ -98,7 +98,7 @@
       }
     }
 
-    /* ========== Refuerzo DARK por atributo data-theme (cubre gap antes de JS) ========== */
+    /* ========== Refuerzo DARK por data-theme (cubre gap antes de JS) ========== */
     html[data-theme="dark"] body {
       background-color: #121212;
       color: #e9ecef;
@@ -124,7 +124,7 @@
       border-color: #343a40;
     }
 
-    /* Tabla en oscuro sin depender de .table-dark (fallback visual) */
+    /* Tabla en oscuro (fallback visual por data-theme) */
     html[data-theme="dark"] .table {
       color: #e9ecef;
       --bs-table-bg: #1d1d1d;
@@ -140,7 +140,7 @@
       border-color: #2e2e2e;
     }
     html[data-theme="dark"] .pagination .page-item.active .page-link {
-      background-color: #0d6efd; /* azul BS */
+      background-color: #0d6efd;
       color: #fff;
       border-color: #0d6efd;
     }
@@ -165,11 +165,17 @@
       color: #cbd3da !important;
     }
 
-    /* Botón notificaciones “solid” cuando data-theme=dark, por si aún no se aplicó la clase JS */
+    /* Botón notificaciones “solid” cuando data-theme=dark, si aún no se aplicó clase JS */
     html[data-theme="dark"] #notif-btn.btn-outline-primary {
       color: #fff;
       background-color: #0d6efd;
       border-color: #0d6efd;
+    }
+
+    /* Override crítico: si queda body.bg-light con tema dark, fuerzo dark */
+    html[data-theme="dark"] body.bg-light {
+      background-color: #121212 !important;
+      color: #e9ecef !important;
     }
   </style>
 </head>
@@ -505,11 +511,21 @@
 <div id="toast-portal" aria-live="polite" aria-atomic="true"></div>
 
 <script>
-  /* ----------------- Tema oscuro (versión única y persistente) ----------------- */
+  /* ----------------- Tema oscuro (única y persistente) ----------------- */
   window.toggleTheme = function () {
     const body = document.body;
-    const isDark = body.classList.toggle('bg-dark');
-    body.classList.toggle('text-white', isDark);
+
+    // Nuevo estado: “voy a oscuro si aún no tiene bg-dark”
+    const isDark = !body.classList.contains('bg-dark');
+
+    // Body: QUITA/pon bg-light para que no gane el !important de Bootstrap
+    if (isDark) {
+      body.classList.remove('bg-light');
+      body.classList.add('bg-dark','text-white');
+    } else {
+      body.classList.remove('bg-dark','text-white');
+      body.classList.add('bg-light');
+    }
 
     // Sincroniza <html data-theme="...">
     document.documentElement.setAttribute('data-theme', isDark ? 'dark' : 'light');
@@ -531,13 +547,8 @@
     // Botón notificaciones: outline ↔ solid
     const notifBtn = document.getElementById('notif-btn');
     if (notifBtn) {
-      if (isDark) {
-        notifBtn.classList.remove('btn-outline-primary');
-        notifBtn.classList.add('btn-primary');
-      } else {
-        notifBtn.classList.add('btn-outline-primary');
-        notifBtn.classList.remove('btn-primary');
-      }
+      notifBtn.classList.toggle('btn-primary', isDark);
+      notifBtn.classList.toggle('btn-outline-primary', !isDark);
     }
 
     // Persistencia
@@ -547,47 +558,41 @@
   /* Aplicar tema guardado lo antes posible y sin “doble toggle” */
   (function applySavedThemeEarly() {
     try {
-      if (localStorage.getItem('theme') === 'dark') {
-        // 1) Asegura atributo para CSS inmediato (anti-flash ya lo puso en <head>, reforzamos)
-        document.documentElement.setAttribute('data-theme','dark');
+      const saved = localStorage.getItem('theme');
+      document.documentElement.setAttribute('data-theme', saved === 'dark' ? 'dark' : 'light');
 
-        // 2) En la fase INTERACTIVE (cuando ya existe <body>), aplica clases críticas
-        const onInteractive = () => {
-          if (document.readyState === 'interactive' || document.readyState === 'complete') {
-            document.removeEventListener('readystatechange', onInteractive);
+      const onReady = () => {
+        if (document.readyState === 'interactive' || document.readyState === 'complete') {
+          document.removeEventListener('readystatechange', onReady);
 
-            const body = document.body;
-            if (!body.classList.contains('bg-dark')) {
-              body.classList.add('bg-dark','text-white');
-            }
+          const body = document.body;
+          if (saved === 'dark') {
+            body.classList.remove('bg-light');            // << clave
+            body.classList.add('bg-dark','text-white');
 
             const tbl = document.getElementById('tablaIps');
             if (tbl && !tbl.classList.contains('table-dark')) {
               tbl.classList.add('table-dark');
             }
 
-            const notifBtn = document.getElementById('notif-btn');
-            if (notifBtn) {
-              notifBtn.classList.remove('btn-outline-primary');
-              notifBtn.classList.add('btn-primary');
-            }
-          }
-        };
+            const nb = document.getElementById('notif-btn');
+            if (nb) { nb.classList.add('btn-primary'); nb.classList.remove('btn-outline-primary'); }
+          } else {
+            body.classList.remove('bg-dark','text-white');
+            body.classList.add('bg-light');
 
-        // Si ya estamos listos, aplica directo; si no, engancha al cambio de estado
-        if (document.readyState === 'interactive' || document.readyState === 'complete') {
-          onInteractive();
-        } else {
-          document.addEventListener('readystatechange', onInteractive);
+            const nb = document.getElementById('notif-btn');
+            if (nb) { nb.classList.add('btn-outline-primary'); nb.classList.remove('btn-primary'); }
+          }
         }
-      } else {
-        // Coherencia si el tema guardado es claro
-        document.documentElement.setAttribute('data-theme','light');
-      }
-    } catch (e) {}
+      };
+
+      if (document.readyState === 'interactive' || document.readyState === 'complete') onReady();
+      else document.addEventListener('readystatechange', onReady);
+    } catch {}
   })();
 
-  /* ---------- Estado de tabla (server-side) ---------- */
+  /* ----------------- Estado de tabla (server-side) ----------------- */
   const state = {
     page: 1,
     page_size: 50,
@@ -658,7 +663,7 @@
 
     if (!actionable.length) return;
 
-    // ---- Combinar mensajes (p.ej. CSV: añadidas + rechazadas) ----
+    // ---- Combinar mensajes ----
     const byCat = { success: [], warning: [], danger: [], accion_no_permitida: [] };
     actionable.forEach(m => {
       const c = (m.category === 'accion_no_permitida') ? 'accion_no_permitida' :
@@ -719,7 +724,6 @@
         const r = await fetch('/undo-last', { method:'POST' });
         const data = await r.json();
         showInlineToast(data?.ok ? 'warning' : 'danger', data?.ok ? (data?.notices?.[0]?.message || 'Acción deshecha') : (data?.error || 'No se pudo deshacer'));
-        // Recargar tabla si estamos en serverMode
         if (serverMode) await reloadTable();
       }catch(e){
         showInlineToast('danger','Error al deshacer');
@@ -752,11 +756,9 @@
   document.getElementById('markReadBtn').addEventListener('click', async () => {
     try{
       await fetch('/notifications/read-all', { method:'POST' });
-      markAllRead();
-      showInlineToast('success','Notificaciones marcadas como leídas');
-    }catch(e){
-      markAllRead();
-    }
+    }catch(e){}
+    markAllRead();
+    showInlineToast('success','Notificaciones marcadas como leídas');
   });
   function markAllRead(){
     const badge = document.getElementById('notif-badge');
@@ -780,12 +782,12 @@
       const ymd = match[1];
       const hms = match[2] || '00:00:00';
       dt = new Date(`${ymd}T${hms}`);
-      cleanMsg = match[3]; // mensaje sin el prefijo de fecha/hora
+      cleanMsg = match[3];
     }
     return { id: i+1, category: m.category, message: cleanMsg, date: dt };
   });
 
-  // Ordenar por fecha descendente: primero con fecha (nuevos), luego sin fecha al final
+  // Ordenar por fecha descendente
   notifData.sort((a, b) => {
     const ad = a.date ? a.date.getTime() : -Infinity;
     const bd = b.date ? b.date.getTime() : -Infinity;
@@ -1046,7 +1048,7 @@
   applyBtn.addEventListener('click', () => {
     state.q = qInput.value.trim();
     state.date_from = dateFrom.value || '';
-       state.date_to = dateTo.value || '';
+    state.date_to = dateTo.value || '';
     state.page = 1;
     reloadTable(true);
   });
