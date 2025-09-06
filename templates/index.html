@@ -172,17 +172,17 @@
 
   <form id="mainForm" method="POST" enctype="multipart/form-data" class="mt-3">
     <!-- Alta manual -->
-    <div class="row g-3 mb-3">
-      <div class="col-lg-5">
-        <input
-          id="ipInput"
-          type="text"
-          class="form-control"
-          name="ip"
-          autocomplete="off"
-          placeholder="IP, red CIDR (1.2.3.0/24), rango (1.2.3.4-1.2.3.20) o IP + máscara (1.2.3.0 255.255.255.0)">
-        <div id="ipFeedback" class="invalid-feedback"></div>
-      </div>
+<input
+  id="ipInput"
+  type="text"
+  class="form-control"
+  name="ip"
+  autocomplete="off"
+  placeholder="Ej: 1.2.3.4, 1.2.3.0/24, 1.2.3.4-1.2.3.20">
+<div class="form-text">
+  Formatos admitidos: IP individual · CIDR · rango · IP + máscara
+</div>
+<div id="ipFeedback" class="invalid-feedback"></div>
       <div class="col-lg-3">
         <select class="form-select" name="ttl">
           <option value="permanente" selected>Permanente</option>
