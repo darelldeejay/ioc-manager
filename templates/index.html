@@ -15,6 +15,8 @@
         s.innerHTML = 'html,body{background-color:#121212 !important;color:#e9ecef !important;}';
         document.head.appendChild(s);
         document.documentElement.setAttribute('data-theme','dark');
+      } else {
+        document.documentElement.setAttribute('data-theme','light');
       }
     } catch (e) {}
   })();
@@ -96,10 +98,78 @@
       }
     }
 
-    /* Respaldo si el head ya marcó dark antes de que ejecute el JS */
+    /* ========== Refuerzo DARK por atributo data-theme (cubre gap antes de JS) ========== */
     html[data-theme="dark"] body {
       background-color: #121212;
       color: #e9ecef;
+    }
+
+    html[data-theme="dark"] .form-control,
+    html[data-theme="dark"] .form-select {
+      background-color: #1f1f1f;
+      color: #e9ecef;
+      border-color: #495057;
+    }
+
+    html[data-theme="dark"] ::placeholder {
+      color: #adb5bd !important;
+      opacity: 1;
+    }
+
+    html[data-theme="dark"] .offcanvas,
+    html[data-theme="dark"] .modal-content,
+    html[data-theme="dark"] .card {
+      background-color: #1f1f1f;
+      color: #e9ecef;
+      border-color: #343a40;
+    }
+
+    /* Tabla en oscuro sin depender de .table-dark (fallback visual) */
+    html[data-theme="dark"] .table {
+      color: #e9ecef;
+      --bs-table-bg: #1d1d1d;
+      --bs-table-striped-bg: #232323;
+      --bs-table-hover-bg: #2b2b2b;
+      --bs-table-border-color: #2e2e2e;
+    }
+
+    /* Paginación en oscuro */
+    html[data-theme="dark"] .pagination .page-link {
+      background-color: #1f1f1f;
+      color: #e9ecef;
+      border-color: #2e2e2e;
+    }
+    html[data-theme="dark"] .pagination .page-item.active .page-link {
+      background-color: #0d6efd; /* azul BS */
+      color: #fff;
+      border-color: #0d6efd;
+    }
+
+    /* Offcanvas filtros: inputs y selects */
+    html[data-theme="dark"] #offcanvasNotifs .form-control,
+    html[data-theme="dark"] #offcanvasNotifs .form-select {
+      background-color: #1f1f1f;
+      color: #e9ecef;
+      border-color: #343a40;
+    }
+
+    /* Lista de notificaciones */
+    html[data-theme="dark"] #notifList > div {
+      background-color: #1f1f1f !important;
+      color: #e9ecef !important;
+      border-color: #2e2e2e !important;
+    }
+
+    /* Contador de notifs */
+    html[data-theme="dark"] #notifCountInfo {
+      color: #cbd3da !important;
+    }
+
+    /* Botón notificaciones “solid” cuando data-theme=dark, por si aún no se aplicó la clase JS */
+    html[data-theme="dark"] #notif-btn.btn-outline-primary {
+      color: #fff;
+      background-color: #0d6efd;
+      border-color: #0d6efd;
     }
   </style>
 </head>
@@ -474,23 +544,47 @@
     localStorage.setItem('theme', isDark ? 'dark' : 'light');
   };
 
-  // Mantener preferencia al cargar
-  (function applySavedThemeOnLoad(){
+  /* Aplicar tema guardado lo antes posible y sin “doble toggle” */
+  (function applySavedThemeEarly() {
     try {
       if (localStorage.getItem('theme') === 'dark') {
-        if (!document.body.classList.contains('bg-dark')) {
-          window.toggleTheme();
-        } else {
-          const notifBtn = document.getElementById('notif-btn');
-          if (notifBtn) {
-            notifBtn.classList.remove('btn-outline-primary');
-            notifBtn.classList.add('btn-primary');
+        // 1) Asegura atributo para CSS inmediato (anti-flash ya lo puso en <head>, reforzamos)
+        document.documentElement.setAttribute('data-theme','dark');
+
+        // 2) En la fase INTERACTIVE (cuando ya existe <body>), aplica clases críticas
+        const onInteractive = () => {
+          if (document.readyState === 'interactive' || document.readyState === 'complete') {
+            document.removeEventListener('readystatechange', onInteractive);
+
+            const body = document.body;
+            if (!body.classList.contains('bg-dark')) {
+              body.classList.add('bg-dark','text-white');
+            }
+
+            const tbl = document.getElementById('tablaIps');
+            if (tbl && !tbl.classList.contains('table-dark')) {
+              tbl.classList.add('table-dark');
+            }
+
+            const notifBtn = document.getElementById('notif-btn');
+            if (notifBtn) {
+              notifBtn.classList.remove('btn-outline-primary');
+              notifBtn.classList.add('btn-primary');
+            }
           }
-          const tbl = document.getElementById('tablaIps');
-          if (tbl) tbl.classList.add('table-dark');
+        };
+
+        // Si ya estamos listos, aplica directo; si no, engancha al cambio de estado
+        if (document.readyState === 'interactive' || document.readyState === 'complete') {
+          onInteractive();
+        } else {
+          document.addEventListener('readystatechange', onInteractive);
         }
+      } else {
+        // Coherencia si el tema guardado es claro
+        document.documentElement.setAttribute('data-theme','light');
       }
-    } catch(e) {}
+    } catch (e) {}
   })();
 
   /* ---------- Estado de tabla (server-side) ---------- */
@@ -952,7 +1046,7 @@
   applyBtn.addEventListener('click', () => {
     state.q = qInput.value.trim();
     state.date_from = dateFrom.value || '';
-    state.date_to = dateTo.value || '';
+       state.date_to = dateTo.value || '';
     state.page = 1;
     reloadTable(true);
   });
