@@ -802,12 +802,10 @@
 
   /* ---------- Marcar como leído sin abrir offcanvas ---------- */
   document.getElementById('markReadBtn').addEventListener('click', async () => {
-    try{ await fetch('/notifications/read-all', { method:'POST' }); }catch(e){}
-    localStorage.setItem('notif_unread', '0');
-    const badge = document.getElementById('notif-badge');
-    if (badge){ badge.textContent = '0'; badge.classList.add('d-none'); }
-    showInlineToast('success','Notificaciones marcadas como leídas');
-  });
+  try { await fetch('/notifications/read-all', { method:'POST' }); } catch (e) {}
+  markAllReadUI();
+  showInlineToast('success','Notificaciones marcadas como leídas');
+});
 
   /* ----------------- Offcanvas: filtros + paginación ----------------- */
   const PAGE_SIZE_NOTIF = 10;
