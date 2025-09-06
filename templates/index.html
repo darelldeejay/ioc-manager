@@ -57,7 +57,7 @@
     /* TOASTS: arriba a la derecha, bajo la cabecera */
     #toast-portal{
       position: fixed;
-      top: 64px;        /* bajo la cabecera */
+      top: 64px;
       right: 16px;
       left: auto;
       transform: none;
@@ -69,11 +69,7 @@
       pointer-events: none;
       align-items: flex-end;
     }
-    .toast{
-      pointer-events: auto;
-      border: none !important;
-      box-shadow: 0 6px 18px rgba(0,0,0,.25);
-    }
+    .toast{ pointer-events: auto; border: none !important; box-shadow: 0 6px 18px rgba(0,0,0,.25); }
 
     /* Botón Notificaciones (en cabecera) con burbuja */
     #notif-btn{ position:relative; }
@@ -93,38 +89,18 @@
       align-items: end;
     }
     @media (max-width: 992px){
-      .toolbar-grid {
-        grid-template-columns: 1fr 1fr 1fr;
-      }
+      .toolbar-grid { grid-template-columns: 1fr 1fr 1fr; }
     }
 
-    /* ========== Refuerzo DARK por data-theme (cubre gap antes de JS) ========== */
-    html[data-theme="dark"] body {
-      background-color: #121212;
-      color: #e9ecef;
+    /* ====== Refuerzo DARK por data-theme (cubre gap antes de JS) ====== */
+    html[data-theme="dark"] body { background-color: #121212; color: #e9ecef; }
+    html[data-theme="dark"] .form-control, html[data-theme="dark"] .form-select {
+      background-color: #1f1f1f; color: #e9ecef; border-color: #495057;
     }
-
-    html[data-theme="dark"] .form-control,
-    html[data-theme="dark"] .form-select {
-      background-color: #1f1f1f;
-      color: #e9ecef;
-      border-color: #495057;
+    html[data-theme="dark"] ::placeholder { color: #adb5bd !important; opacity: 1; }
+    html[data-theme="dark"] .offcanvas, html[data-theme="dark"] .modal-content, html[data-theme="dark"] .card {
+      background-color: #1f1f1f; color: #e9ecef; border-color: #343a40;
     }
-
-    html[data-theme="dark"] ::placeholder {
-      color: #adb5bd !important;
-      opacity: 1;
-    }
-
-    html[data-theme="dark"] .offcanvas,
-    html[data-theme="dark"] .modal-content,
-    html[data-theme="dark"] .card {
-      background-color: #1f1f1f;
-      color: #e9ecef;
-      border-color: #343a40;
-    }
-
-    /* Tabla en oscuro (fallback visual por data-theme) */
     html[data-theme="dark"] .table {
       color: #e9ecef;
       --bs-table-bg: #1d1d1d;
@@ -132,51 +108,21 @@
       --bs-table-hover-bg: #2b2b2b;
       --bs-table-border-color: #2e2e2e;
     }
-
-    /* Paginación en oscuro */
     html[data-theme="dark"] .pagination .page-link {
-      background-color: #1f1f1f;
-      color: #e9ecef;
-      border-color: #2e2e2e;
+      background-color: #1f1f1f; color: #e9ecef; border-color: #2e2e2e;
     }
     html[data-theme="dark"] .pagination .page-item.active .page-link {
-      background-color: #0d6efd;
-      color: #fff;
-      border-color: #0d6efd;
+      background-color: #0d6efd; color: #fff; border-color: #0d6efd;
     }
-
-    /* Offcanvas filtros: inputs y selects */
-    html[data-theme="dark"] #offcanvasNotifs .form-control,
-    html[data-theme="dark"] #offcanvasNotifs .form-select {
-      background-color: #1f1f1f;
-      color: #e9ecef;
-      border-color: #343a40;
+    html[data-theme="dark"] #offcanvasNotifs .form-control, html[data-theme="dark"] #offcanvasNotifs .form-select {
+      background-color: #1f1f1f; color: #e9ecef; border-color: #343a40;
     }
-
-    /* Lista de notificaciones */
     html[data-theme="dark"] #notifList > div {
-      background-color: #1f1f1f !important;
-      color: #e9ecef !important;
-      border-color: #2e2e2e !important;
+      background-color: #1f1f1f !important; color: #e9ecef !important; border-color: #2e2e2e !important;
     }
-
-    /* Contador de notifs */
-    html[data-theme="dark"] #notifCountInfo {
-      color: #cbd3da !important;
-    }
-
-    /* Botón notificaciones “solid” cuando data-theme=dark, si aún no se aplicó clase JS */
-    html[data-theme="dark"] #notif-btn.btn-outline-primary {
-      color: #fff;
-      background-color: #0d6efd;
-      border-color: #0d6efd;
-    }
-
-    /* Override crítico: si queda body.bg-light con tema dark, fuerzo dark */
-    html[data-theme="dark"] body.bg-light {
-      background-color: #121212 !important;
-      color: #e9ecef !important;
-    }
+    html[data-theme="dark"] #notifCountInfo { color: #cbd3da !important; }
+    html[data-theme="dark"] #notif-btn.btn-outline-primary { color: #fff; background-color: #0d6efd; border-color: #0d6efd; }
+    html[data-theme="dark"] body.bg-light { background-color: #121212 !important; color: #e9ecef !important; }
   </style>
 </head>
 <body class="bg-light">
@@ -245,7 +191,8 @@
         </select>
       </div>
       <div class="col-lg-2">
-        <button type="submit" class="btn btn-success w-100">Añadir</button>
+        <!-- ID para marcar acción manual -->
+        <button id="addManualBtn" type="submit" class="btn btn-success w-100">Añadir</button>
       </div>
       <div class="col-lg-2 d-grid gap-2">
         <button type="button" class="btn btn-danger" data-bs-toggle="modal" data-bs-target="#confirmDeleteAll">Eliminar todas</button>
@@ -266,7 +213,8 @@
         </select>
       </div>
       <div class="col-lg-2">
-        <button type="submit" class="btn btn-primary w-100">Subir archivo</button>
+        <!-- ID para marcar acción CSV -->
+        <button id="uploadCsvBtn" class="btn btn-primary w-100" type="submit">Subir archivo</button>
       </div>
       <div class="col-lg-2">
         <a href="/static/plantilla.csv" class="btn btn-outline-secondary w-100" download>Descargar plantilla</a>
@@ -631,115 +579,134 @@
       {"category": "{{category}}", "message": {{ message|tojson }} }{% if not loop.last %},{% endif %}
     {% endfor %}
   ];
-  window.serverMessages = serverMessages;  // Opción A: exponer al global
+  window.serverMessages = serverMessages;  // Exponer al global (opción A)
 
-  /* ----------------- TOAST: combinar acciones de ESTA petición (mejorado) ----------------- */
+  /* --------------- Marcar tipo de acción (manual vs csv) --------------- */
+  (function wireActionMarkers(){
+    const mark = (type)=>{ try{
+      sessionStorage.setItem('lastActionType', type);
+      sessionStorage.setItem('lastActionTs', String(Date.now()));
+    }catch{} };
+
+    document.getElementById('addManualBtn')?.addEventListener('click', ()=>mark('manual'));
+    document.getElementById('uploadCsvBtn')?.addEventListener('click', ()=>mark('csv'));
+
+    // Salvaguarda: si envían el form con Enter, deducir por el input file
+    document.getElementById('mainForm')?.addEventListener('submit', ()=>{
+      const fileHasValue = !!document.querySelector('input[type="file"][name="file"]')?.value;
+      if (!sessionStorage.getItem('lastActionType')) {
+        mark(fileHasValue ? 'csv' : 'manual');
+      }
+    }, true);
+  })();
+
+  /* ----------------- TOAST de la acción actual ----------------- */
   (function showCombinedActionToast(){
     try {
-      // Momento de carga (para tolerar mensajes con fecha "muy recientes")
-      const PAGE_LOAD_TS = Date.now();
+      const ACTION_PAST_TOL = 5000;    // 5s antes del click
+      const ACTION_FUT_TOL  = 90000;   // 90s después
+      const lastActionTs = parseInt(sessionStorage.getItem('lastActionTs')||'0',10) || 0;
+      const lastActionType = (sessionStorage.getItem('lastActionType')||'').toLowerCase();
 
-      // Normaliza: minúsculas + sin acentos/diacríticos (rango unicode de diacríticos)
-      const norm = (s) => (s||'')
-        .toString()
-        .toLocaleLowerCase()
-        .normalize('NFD')
-        .replace(/[\u0300-\u036f]/g,'');
-
-      // Palabras/expresiones que disparan el toast (añadidas: eliminacion, borrada(s), patron, mascara)
+      const norm = (s)=> (s||'').toLowerCase().normalize('NFD').replace(/[\u0300-\u036f]/g,'');
       const actionKeywords = [
-        'anadida','anadidas',
-        'eliminada','eliminadas','eliminacion',
-        'borrada','borradas',
-        'rechazada','rechazadas',
-        'accion no permitida',
-        'ip duplicada','ip rechazada',
-        'nada que anadir',
-        'entradas rechazadas',
-        'backup forzado creado','backup diario creado',
-        'patron','mascara'
+        'anadida','anadidas','eliminada','eliminadas','eliminacion',
+        'borrada','borradas','rechazada','rechazadas','accion no permitida',
+        'ip duplicada','ip rechazada','nada que anadir','entradas rechazadas',
+        'backup forzado creado','backup diario creado','patron','mascara'
       ];
       const normKeywords = actionKeywords.map(norm);
+      const isActionable = (txt)=> normKeywords.some(k => norm(txt).includes(k));
 
-      // Heurística de "histórico"
-      const startsWithDate = (txt) => /^\d{4}-\d{2}-\d{2}/.test((txt||'').trim());
-      const parseLeadingDateTs = (txt) => {
+      const startsWithDate = (txt)=> /^\d{4}-\d{2}-\d{2}/.test((txt||'').trim());
+      const parseLeadingDateTs = (txt)=>{
         const m = (txt||'').match(/^(\d{4}-\d{2}-\d{2})(?:\s+(\d{2}:\d{2}:\d{2}))?/);
         if (!m) return null;
         const ymd = m[1], hms = m[2] || '00:00:00';
         const d = new Date(`${ymd}T${hms}`);
         return isNaN(d.getTime()) ? null : d.getTime();
       };
-      // Es "de esta petición" si NO empieza por fecha o si la fecha está a ±30 s de la carga.
-      const isCurrent = (txt) => {
-        if (!startsWithDate(txt)) return true;
+
+      function isFromCurrentAction(txt){
+        if (!isActionable(txt)) return false;
         const ts = parseLeadingDateTs(txt);
-        return ts !== null && Math.abs(PAGE_LOAD_TS - ts) <= 30_000;
-      };
-      const isActionable = (txt) => {
-        const t = norm(txt);
-        return normKeywords.some(k => t.includes(k));
-      };
-
-      // Usa window.serverMessages (opción A)
-      const actionable = (window.serverMessages || []).filter(m => isCurrent(m.message) && isActionable(m.message));
-
-      // ---- Burbuja acumulativa (persistente) ----
-      const badge = document.getElementById('notif-badge');
-      const getUnread = () => parseInt(localStorage.getItem('notif_unread')||'0', 10);
-      const setUnread = (v) => localStorage.setItem('notif_unread', String(Math.max(0, v|0)));
-
-      if (actionable.length > 0) setUnread(getUnread() + actionable.length);
-
-      const unreadTotal = getUnread();
-      if (badge) {
-        badge.textContent = unreadTotal;
-        badge.classList.toggle('d-none', unreadTotal <= 0);
+        if (!lastActionTs) return !startsWithDate(txt); // sin marcador: evita histórico
+        if (ts === null) return true; // sin fecha pero hay acción marcada → actual
+        return (ts >= lastActionTs - ACTION_PAST_TOL) && (ts <= lastActionTs + ACTION_FUT_TOL);
       }
 
-      if (!actionable.length) return;
+      const msgs = (window.serverMessages||[]).filter(m => isFromCurrentAction(m.message));
+      if (!msgs.length) return;
 
-      // ---- Combina mensajes por categoría ----
+      // Agrupa por categoría
       const byCat = { success: [], warning: [], danger: [], accion_no_permitida: [] };
-      actionable.forEach(m => {
-        const c = (m.category === 'accion_no_permitida') ? 'accion_no_permitida' :
-                  (m.category === 'warning') ? 'warning' :
-                  (m.category === 'success') ? 'success' : 'danger';
-        byCat[c].push(m.message || '');
+      msgs.forEach(m=>{
+        const k = (m.category==='accion_no_permitida') ? 'accion_no_permitida'
+              : (m.category==='warning') ? 'warning'
+              : (m.category==='success') ? 'success' : 'danger';
+        byCat[k].push(m.message||'');
       });
 
-      function summarize(list, fallbackKeyword){
-        if (!list.length) return '';
-        if (list.length === 1) return list[0];
-        // Intenta sumar cantidades si cada mensaje empieza con un número
-        const nums = list.map(t => {
-          const m = t.match(/(^|\s)(\d+)\s/);
-          return m ? parseInt(m[2],10) : null;
-        }).filter(x => x!==null);
-        if (nums.length === list.length) {
-          const total = nums.reduce((a,b)=>a+b,0);
-          return `${total} ${fallbackKeyword}`;
+      // Helpers
+      const uniq = (arr)=> Array.from(new Set(arr));
+      const extractIPs = (texts)=>{
+        const ipRe = /\b(?:25[0-5]|2[0-4]\d|1?\d?\d)(?:\.(?:25[0-5]|2[0-4]\d|1?\d?\d)){3}\b/g;
+        const out=[]; texts.forEach(t=> (t.match(ipRe)||[]).forEach(ip=> out.push(ip)));
+        return uniq(out);
+      };
+      const listPreview = (arr,n=6)=> arr.length<=n ? arr.join(', ') : `${arr.slice(0,n).join(', ')} … (+${arr.length-n})`;
+
+      // Construcción del texto del toast:
+      // - MANUAL: listar IPs añadidas (máx 6). CSV: resumen.
+      let parts = [];
+
+      // ÉXITOS (success)
+      if (byCat.success.length){
+        if (lastActionType === 'manual'){
+          const ips = extractIPs(byCat.success);
+          if (ips.length === 1) parts.push(`IP añadida: ${ips[0]}`);
+          else if (ips.length > 1) parts.push(`${ips.length} IP(s) añadida(s): ${listPreview(ips, 6)}`);
+          else parts.push(`${byCat.success.length} operación(es) correcta(s)`);
+        } else {
+          const nums = byCat.success.map(t => { const m=t.match(/(^|\s)(\d+)\s/); return m?parseInt(m[2],10):null; }).filter(x=>x!==null);
+          const total = nums.length===byCat.success.length ? nums.reduce((a,b)=>a+b,0) : byCat.success.length;
+          parts.push(`${total} IP(s) añadida(s)`);
         }
-        return list.join(' · ');
       }
 
-      const msgSuccess = summarize(byCat.success, 'IP(s) añadida(s)');
-      const msgWarn    = summarize(byCat.warning, 'IP(s) eliminada(s)');
-      const msgDanger  = summarize(byCat.danger, 'entradas rechazadas');
-      const msgBlock   = summarize(byCat.accion_no_permitida, 'Acción no permitida');
+      // WARNING (eliminaciones)
+      if (byCat.warning.length){
+        if (lastActionType === 'manual'){
+          const ips = extractIPs(byCat.warning);
+          if (ips.length === 1) parts.push(`IP eliminada: ${ips[0]}`);
+          else if (ips.length > 1) parts.push(`${ips.length} IP(s) eliminada(s): ${listPreview(ips, 6)}`);
+          else parts.push(`${byCat.warning.length} IP(s) eliminada(s)`);
+        } else {
+          const nums = byCat.warning.map(t => { const m=t.match(/(^|\s)(\d+)\s/); return m?parseInt(m[2],10):null; }).filter(x=>x!==null);
+          const total = nums.length===byCat.warning.length ? nums.reduce((a,b)=>a+b,0) : byCat.warning.length;
+          parts.push(`${total} IP(s) eliminada(s)`);
+        }
+      }
 
-      const parts = [];
-      if (msgSuccess) parts.push(msgSuccess);
-      if (msgWarn)    parts.push(msgWarn);
-      if (msgDanger)  parts.push(msgDanger);
-      if (msgBlock)   parts.push(msgBlock);
+      // DANGER (rechazos/errores) y BLOQUEOS
+      if (byCat.danger.length)  parts.push('Entradas rechazadas');
+      if (byCat.accion_no_permitida.length) parts.push('Acción no permitida');
+
       const combinedText = parts.join(' — ');
+      if (!combinedText) return;
 
-      const hasBlockOrDanger = byCat.accion_no_permitida.length > 0 || byCat.danger.length > 0;
-      const hasWarning = byCat.warning.length > 0;
-      const color = hasBlockOrDanger ? 'danger' : (hasWarning ? 'warning' : 'success');
-      const delay = hasBlockOrDanger ? 20000 : 10000;
+      // Badge + color/tiempo
+      const badge = document.getElementById('notif-badge');
+      const getUnread = ()=> parseInt(localStorage.getItem('notif_unread')||'0',10);
+      const setUnread = (v)=> localStorage.setItem('notif_unread', String(Math.max(0, v|0)));
+      setUnread(getUnread()+1);
+      if (badge){ const t=getUnread(); badge.textContent=t; badge.classList.toggle('d-none', t<=0); }
 
+      const color = (byCat.accion_no_permitida.length || byCat.danger.length) ? 'danger'
+                   : (byCat.warning.length ? 'warning' : 'success');
+      const delay = (color==='danger') ? 20000 : 10000;
+
+      // Render
       const portal = document.getElementById('toast-portal');
       const el = document.createElement('div');
       el.className = 'toast align-items-center text-bg-' + color + ' border-0';
@@ -752,26 +719,21 @@
           </div>
         </div>`;
       portal.appendChild(el);
-      const toastObj = new bootstrap.Toast(el, { autohide: true, delay });
-      toastObj.show();
+      new bootstrap.Toast(el, { autohide: true, delay }).show();
 
-      // Acción de Deshacer
       el.querySelector('#undoBtn')?.addEventListener('click', async () => {
         try{
           const r = await fetch('/undo-last', { method:'POST' });
           const data = await r.json();
           showInlineToast(data?.ok ? 'warning' : 'danger', data?.ok ? (data?.notices?.[0]?.message || 'Acción deshecha') : (data?.error || 'No se pudo deshacer'));
-          if (serverMode && typeof reloadTable === 'function') await reloadTable();
+          if (typeof reloadTable === 'function') await reloadTable();
         }catch(e){
           showInlineToast('danger','Error al deshacer');
         }
       });
 
-      // Al abrir el offcanvas, marcar como leído (resetea burbuja)
-      const offcanvasEl = document.getElementById('offcanvasNotifs');
-      if (offcanvasEl) {
-        offcanvasEl.addEventListener('shown.bs.offcanvas', () => markAllRead(), { once: true });
-      }
+      // Limpia el marcador para no mezclar con acciones futuras
+      try { sessionStorage.removeItem('lastActionTs'); sessionStorage.removeItem('lastActionType'); } catch {}
     } catch (err) {
       console.error('showCombinedActionToast error:', err);
     }
@@ -794,20 +756,12 @@
 
   /* ---------- Marcar como leído sin abrir offcanvas ---------- */
   document.getElementById('markReadBtn').addEventListener('click', async () => {
-    try{
-      await fetch('/notifications/read-all', { method:'POST' });
-    }catch(e){}
-    markAllRead();
+    try{ await fetch('/notifications/read-all', { method:'POST' }); }catch(e){}
+    localStorage.setItem('notif_unread', '0');
+    const badge = document.getElementById('notif-badge');
+    if (badge){ badge.textContent = '0'; badge.classList.add('d-none'); }
     showInlineToast('success','Notificaciones marcadas como leídas');
   });
-  function markAllRead(){
-    const badge = document.getElementById('notif-badge');
-    localStorage.setItem('notif_unread', '0');
-    if (badge){
-      badge.textContent = '0';
-      badge.classList.add('d-none');
-    }
-  }
 
   /* ----------------- Offcanvas: filtros + paginación ----------------- */
   const PAGE_SIZE_NOTIF = 10;
