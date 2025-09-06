@@ -1108,7 +1108,10 @@ function attachTableSelectionHandlers(){
     chk.addEventListener('change', () => {
       updateBulkUI();
       const tr = chk.closest('tr');
-      if (tr) tr.classList.toggle('table-active-selected', !!chk.checked);
+      if (tr) {
+        tr.classList.toggle('table-active-selected', !!chk.checked);
+        tr.classList.toggle('table-active', !!chk.checked); // extra: clase nativa Bootstrap
+      }
     });
   });
 
@@ -1121,7 +1124,10 @@ function attachTableSelectionHandlers(){
       rows.forEach(chk => {
         chk.checked = master.checked;
         const tr = chk.closest('tr');
-        if (tr) tr.classList.toggle('table-active-selected', !!chk.checked);
+        if (tr) {
+          tr.classList.toggle('table-active-selected', !!chk.checked);
+          tr.classList.toggle('table-active', !!chk.checked); // extra: clase nativa Bootstrap
+        }
       });
       updateBulkUI();
     });
@@ -1129,8 +1135,7 @@ function attachTableSelectionHandlers(){
 
   // Sincroniza el contador/botón al enganchar handlers
   updateBulkUI();
-} 
-
+}
   /* ================== Server-side tabla: fetch + render ================== */
   const tbody = document.querySelector('#tablaIps tbody');
   const pageInfo = document.getElementById('pageInfo');
