@@ -1063,6 +1063,14 @@
     const val = document.getElementById('delete_net_input').value.trim();
     return confirm(`Vas a eliminar todas las IPs que coincidan con:\n\n${val}\n\n¿Confirmas?`);
   }
+  function markAllReadUI(){
+  localStorage.setItem('notif_unread','0');
+  const badge = document.getElementById('notif-badge');
+  if (badge){
+    badge.textContent = '0';
+    badge.classList.add('d-none');
+  }
+}
 
   /* ================== Server-side tabla: fetch + render ================== */
   const tbody = document.querySelector('#tablaIps tbody');
