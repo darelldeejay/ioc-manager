@@ -1159,24 +1159,27 @@ if (offcanvasEl) {
   }
 
   function renderRows(items){
-    tbody.innerHTML = '';
-    items.forEach((row) => {
-      const tr = document.createElement('tr');
-      const ttlText = (row.ttl === 0 || row.ttl === '0') ? '∞' : String(row.ttl);
-      tr.innerHTML = `
-        <td>${escapeHtml(row.ip)}</td>
-        <td>${escapeHtml(row.fecha_alta || '')}</td>
-        <td>${escapeHtml(ttlText)}</td>
-        <td>
-          <form method="POST" onsubmit="return confirm('¿Eliminar ${escapeHtml(row.ip)}?');">
-            <input type="hidden" name="delete_ip" value="${escapeHtml(row.ip)}">
-            <button type="submit" class="btn btn-sm btn-outline-danger">Eliminar</button>
-          </form>
-        </td>
-      `;
-      tbody.appendChild(tr);
-    });
-  }
+  tbody.innerHTML = '';
+  items.forEach((row) => {
+    const tr = document.createElement('tr');
+    const ttlText = (row.ttl === 0 || row.ttl === '0') ? '∞' : String(row.ttl);
+    tr.innerHTML = `
+      <td><input type="checkbox" class="row-chk" value="${escapeHtml(row.ip)}"></td>
+      <td>${escapeHtml(row.ip)}</td>
+      <td>${escapeHtml(row.fecha_alta || '')}</td>
+      <td>${escapeHtml(ttlText)}</td>
+      <td>
+        <form method="POST" onsubmit="return confirm('¿Eliminar ${escapeHtml(row.ip)}?');">
+          <input type="hidden" name="delete_ip" value="${escapeHtml(row.ip)}">
+          <button type="submit" class="btn btn-sm btn-outline-danger">Eliminar</button>
+        </form>
+      </td>
+    `;
+    tbody.appendChild(tr);
+  });
+  // Reenganchar manejadores tras cada re-render
+  attachTableSelectionHandlers();
+}
 
   function updatePager(page, pageSize, total){
     const pages = Math.max(1, Math.ceil((total||0) / (pageSize||50)));
