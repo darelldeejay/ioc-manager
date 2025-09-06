@@ -1103,9 +1103,13 @@ function updateBulkUI(){
 }
 
 function attachTableSelectionHandlers(){
-  // Listener en cada fila → actualiza contador al marcar/desmarcar
+  // Listener en cada fila → actualiza contador + resalta fila
   document.querySelectorAll('.row-chk').forEach(chk => {
-    chk.addEventListener('change', updateBulkUI);
+    chk.addEventListener('change', () => {
+      updateBulkUI();
+      const tr = chk.closest('tr');
+      if (tr) tr.classList.toggle('table-active-selected', chk.checked); // NUEVO
+    });
   });
 
   // Checkbox maestro en el thead
@@ -1114,10 +1118,15 @@ function attachTableSelectionHandlers(){
     master.checked = false; // siempre empieza limpio al (re)renderizar
     master.addEventListener('change', () => {
       const rows = document.querySelectorAll('.row-chk');
-      rows.forEach(chk => { chk.checked = master.checked; });
+      rows.forEach(chk => { 
+        chk.checked = master.checked; 
+        const tr = chk.closest('tr');
+        if (tr) tr.classList.toggle('table-active-selected', chk.checked); // NUEVO
+      });
       updateBulkUI();
     });
   }
+}
 
   // Sincroniza el contador/botón al enganchar handlers
   updateBulkUI();
