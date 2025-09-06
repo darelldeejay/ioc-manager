@@ -599,6 +599,40 @@
       }
     }, true);
   })();
+    // Feedback visual: deshabilita botón y muestra spinner al enviar
+  const setLoading = (btn, textWhileLoading) => {
+    if (!btn) return;
+    btn.dataset.originalHtml = btn.innerHTML;
+    btn.disabled = true;
+    btn.innerHTML = `
+      <span class="spinner-border spinner-border-sm" role="status" aria-hidden="true"></span>
+      <span class="ms-1">${textWhileLoading}</span>
+    `;
+  };
+
+  document.getElementById('mainForm')?.addEventListener('submit', (ev) => {
+    const manualBtn = document.getElementById('addManualBtn');
+    const csvBtn = document.getElementById('uploadCsvBtn');
+    const fileHasValue = !!document.querySelector('input[type="file"][name="file"]')?.value;
+
+    if (fileHasValue) {
+      setLoading(csvBtn, 'Subiendo…');
+    } else {
+      setLoading(manualBtn, 'Añadiendo…');
+    }
+  }, true);
+
+  // Por si el navegador no recarga (ej. en SPA futuro), restauramos tras volver al foco
+  window.addEventListener('pageshow', () => {
+    ['addManualBtn','uploadCsvBtn'].forEach(id => {
+      const b = document.getElementById(id);
+      if (b && b.dataset.originalHtml) {
+        b.innerHTML = b.dataset.originalHtml;
+        b.disabled = false;
+        delete b.dataset.originalHtml;
+      }
+    });
+  });
 
   /* ----------------- TOAST de la acción actual ----------------- */
   (function showCombinedActionToast(){
