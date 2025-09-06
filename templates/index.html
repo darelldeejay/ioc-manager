@@ -655,6 +655,7 @@
         return uniq(out);
       };
       const listPreview = (arr,n=6)=> arr.length<=n ? arr.join(', ') : `${arr.slice(0,n).join(', ')} … (+${arr.length-n})`;
+      const stripDatePrefix = (txt) => (txt||'').replace(/^(\d{4}-\d{2}-\d{2})(?:\s+\d{2}:\d{2}:\d{2})?\s+/, '');
 
       // Construcción del texto del toast:
       // - MANUAL: listar IPs añadidas (máx 6). CSV: resumen.
@@ -668,6 +669,7 @@
           else if (ips.length > 1) parts.push(`${ips.length} IP(s) añadida(s): ${listPreview(ips, 6)}`);
           else parts.push(`${byCat.success.length} operación(es) correcta(s)`);
         } else {
+          // CSV → sólo resumen
           const nums = byCat.success.map(t => { const m=t.match(/(^|\s)(\d+)\s/); return m?parseInt(m[2],10):null; }).filter(x=>x!==null);
           const total = nums.length===byCat.success.length ? nums.reduce((a,b)=>a+b,0) : byCat.success.length;
           parts.push(`${total} IP(s) añadida(s)`);
@@ -682,15 +684,25 @@
           else if (ips.length > 1) parts.push(`${ips.length} IP(s) eliminada(s): ${listPreview(ips, 6)}`);
           else parts.push(`${byCat.warning.length} IP(s) eliminada(s)`);
         } else {
+          // CSV → resumen
           const nums = byCat.warning.map(t => { const m=t.match(/(^|\s)(\d+)\s/); return m?parseInt(m[2],10):null; }).filter(x=>x!==null);
           const total = nums.length===byCat.warning.length ? nums.reduce((a,b)=>a+b,0) : byCat.warning.length;
           parts.push(`${total} IP(s) eliminada(s)`);
         }
       }
 
-      // DANGER (rechazos/errores) y BLOQUEOS
-      if (byCat.danger.length)  parts.push('Entradas rechazadas');
-      if (byCat.accion_no_permitida.length) parts.push('Acción no permitida');
+      // MOTIVO en rechazos/bloqueos (mostrar 1º detalle, sin prefijo de fecha, acotado)
+      if (byCat.danger.length) {
+        const reasonRaw = stripDatePrefix(byCat.danger[0] || '');
+        const reason = reasonRaw.replace(/\s+/g,' ').trim();
+        const shown = reason.length > 140 ? reason.slice(0,140) + '…' : reason;
+        parts.push(`Entradas rechazadas: ${shown}`);
+      }
+      if (byCat.accion_no_permitida.length) {
+        const reasonRaw = stripDatePrefix(byCat.accion_no_permitida[0] || '');
+        const reason = reasonRaw.replace(/\s+/g,' ').trim();
+        parts.push(reason ? `Acción no permitida: ${reason}` : 'Acción no permitida');
+      }
 
       const combinedText = parts.join(' — ');
       if (!combinedText) return;
@@ -769,14 +781,14 @@
   // Construir estructura: detecta si el mensaje empieza con fecha y extrae Date
   let notifData = (serverMessages || []).map((m, i) => {
     const txt = m.message || '';
-    const match = txt.match(/^(\d{4}-\d{2}-\d{2})(?:\s+(\d{2}:\d{2}:\d{2}))?\s+(.*)$/);
+    theMatch = txt.match(/^(\d{4}-\d{2}-\d{2})(?:\s+(\d{2}:\d{2}:\d{2}))?\s+(.*)$/);
     let dt = null;
     let cleanMsg = txt;
-    if (match) {
-      const ymd = match[1];
-      const hms = match[2] || '00:00:00';
+    if (theMatch) {
+      const ymd = theMatch[1];
+      const hms = theMatch[2] || '00:00:00';
       dt = new Date(`${ymd}T${hms}`);
-      cleanMsg = match[3]; // mensaje sin el prefijo de fecha/hora
+      cleanMsg = theMatch[3]; // mensaje sin el prefijo de fecha/hora
     }
     return { id: i+1, category: m.category, message: cleanMsg, date: dt };
   });
