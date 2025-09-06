@@ -1234,6 +1234,63 @@ function attachTableSelectionHandlers(){
     if (c) c.textContent = counters.csv ?? c.textContent;
   }
 
+  async function bulkDeleteSelected(){
+  const ips = getSelectedIPs();
+  if (ips.length === 0) return;
+
+  const preview = ips.slice(0,10).join(', ') + (ips.length > 10 ? ` … (+${ips.length-10})` : '');
+  const ok = confirm(`Vas a eliminar ${ips.length} IP(s):\n\n${preview}\n\n¿Confirmas?`);
+  if (!ok) return;
+
+  const btn = document.getElementById('bulkDeleteBtn');
+  const origHtml = btn?.innerHTML;
+  if (btn){
+    btn.disabled = true;
+    btn.innerHTML = `
+      <span class="spinner-border spinner-border-sm" role="status" aria-hidden="true"></span>
+      <span class="ms-1">Eliminando…</span>`;
+  }
+
+  let okCount = 0, failCount = 0;
+
+  for (const ip of ips){
+    try{
+      const fd = new FormData();
+      fd.append('delete_ip', ip);
+      const r = await fetch('/', { method:'POST', body: fd });
+      if (r.ok) okCount++; else failCount++;
+    }catch(e){
+      failCount++;
+    }
+  }
+
+  if (okCount && !failCount) {
+    showInlineToast('warning', `${okCount} IP(s) eliminada(s).`);
+  } else if (okCount && failCount) {
+    showInlineToast('warning', `${okCount} eliminada(s) · ${failCount} error(es).`);
+  } else {
+    showInlineToast('danger', 'No se pudo eliminar ninguna IP.');
+  }
+
+  document.getElementById('chkAll')?.click(); 
+  updateBulkUI();
+
+  if (typeof reloadTable === 'function') {
+    await reloadTable(true);
+  } else {
+    const rows = Array.from(document.querySelectorAll('#tablaIps tbody tr'));
+    ips.forEach(ip => {
+      const row = rows.find(tr => tr.cells[1] && tr.cells[1].textContent.trim() === ip);
+      if (row) row.remove();
+    });
+  }
+
+  if (btn && origHtml){
+    btn.innerHTML = origHtml;
+    btn.disabled = false;
+  }
+}
+document.getElementById('bulkDeleteBtn')?.addEventListener('click', bulkDeleteSelected);
   // Primera carga de tabla server-side (si falla => fallback local)
   reloadTable(true);
   attachTableSelectionHandlers();
