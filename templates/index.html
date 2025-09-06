@@ -360,13 +360,16 @@
   <div class="table-responsive">
     <table class="table table-striped table-hover" id="tablaIps">
       <thead>
-        <tr>
-          <th>IP</th>
-          <th>Fecha</th>
-          <th>TTL</th>
-          <th>Acción</th>
-        </tr>
-      </thead>
+  <tr>
+    <th style="width:36px">
+      <input type="checkbox" id="chkAll">
+    </th>
+    <th>IP</th>
+    <th>Fecha</th>
+    <th>TTL</th>
+    <th>Acción</th>
+  </tr>
+</thead>
       <tbody>
         {% for ip in ips %}
           {% set parts = ip.split('|') %}
