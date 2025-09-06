@@ -262,3 +262,8 @@ html[data-theme="dark"] body {
   background-color: #121212;
   color: #e9ecef;
 }
+/* Si por un instante queda body.bg-light pero el tema es dark, forzamos dark */
+html[data-theme="dark"] body.bg-light {
+  background-color: #121212 !important;
+  color: #e9ecef !important;
+}
