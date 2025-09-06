@@ -267,3 +267,5 @@ html[data-theme="dark"] body.bg-light {
   background-color: #121212 !important;
   color: #e9ecef !important;
 }
+#tablaIps td:first-child, #tablaIps th:first-child { width: 36px; }
+}
