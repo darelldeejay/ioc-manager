@@ -567,7 +567,7 @@
 
           const body = document.body;
           if (saved === 'dark') {
-            body.classList.remove('bg-light');            // << clave
+            body.classList.remove('bg-light');
             body.classList.add('bg-dark','text-white');
 
             const tbl = document.getElementById('tablaIps');
@@ -632,29 +632,62 @@
     {% endfor %}
   ];
 
-  /* ----------------- TOAST: combinar acciones de ESTA petición ----------------- */
+  /* ----------------- TOAST: combinar acciones de ESTA petición (mejorado) ----------------- */
   (function showCombinedActionToast(){
-    const actionKeywords = [
-      "añadida","añadidas","eliminada","eliminadas",
-      "rechazada","rechazadas","Acción no permitida","IP duplicada",
-      "IP rechazada","Nada que añadir","entradas rechazadas","Backup forzado creado","Backup diario creado"
-    ];
-    const isHistory = (txt) => /^\d{4}-\d{2}-\d{2}/.test((txt||"").trim());
+    // Momento de carga (para tolerar mensajes con fecha "muy recientes")
+    const PAGE_LOAD_TS = Date.now();
 
-    const currentOnly = (serverMessages || []).filter(m => !isHistory(m.message||""));
-    const actionable = currentOnly.filter(m =>
-      actionKeywords.some(k => (m.message||"").includes(k))
-    );
+    // Normaliza: minúsculas + sin acentos/diacríticos
+    const norm = (s) => (s||'')
+      .toString()
+      .toLocaleLowerCase()
+      .normalize('NFD')
+      .replace(/\p{Diacritic}/gu,'');
+
+    // Palabras/expresiones que disparan el toast (añadidas: eliminacion, borrada(s), patron, mascara)
+    const actionKeywords = [
+      'anadida','anadidas',
+      'eliminada','eliminadas','eliminacion',
+      'borrada','borradas',
+      'rechazada','rechazadas',
+      'accion no permitida',
+      'ip duplicada','ip rechazada',
+      'nada que anadir',
+      'entradas rechazadas',
+      'backup forzado creado','backup diario creado',
+      'patron','mascara'
+    ];
+    const normKeywords = actionKeywords.map(norm);
+
+    // Heurística de "histórico"
+    const startsWithDate = (txt) => /^\d{4}-\d{2}-\d{2}/.test((txt||'').trim());
+    const parseLeadingDateTs = (txt) => {
+      const m = (txt||'').match(/^(\d{4}-\d{2}-\d{2})(?:\s+(\d{2}:\d{2}:\d{2}))?/);
+      if (!m) return null;
+      const ymd = m[1], hms = m[2] || '00:00:00';
+      const d = new Date(`${ymd}T${hms}`);
+      return isNaN(d.getTime()) ? null : d.getTime();
+    };
+    // Es "de esta petición" si NO empieza por fecha o si la fecha está a ±30 s de la carga.
+    const isCurrent = (txt) => {
+      if (!startsWithDate(txt)) return true;
+      const ts = parseLeadingDateTs(txt);
+      return ts !== null && Math.abs(PAGE_LOAD_TS - ts) <= 30_000;
+    };
+    const isActionable = (txt) => {
+      const t = norm(txt);
+      return normKeywords.some(k => t.includes(k));
+    };
+
+    const actionable = (window.serverMessages || []).filter(m => isCurrent(m.message) && isActionable(m.message));
 
     // ---- Burbuja acumulativa (persistente) ----
     const badge = document.getElementById('notif-badge');
     const getUnread = () => parseInt(localStorage.getItem('notif_unread')||'0', 10);
     const setUnread = (v) => localStorage.setItem('notif_unread', String(Math.max(0, v|0)));
 
-    // Sumar acciones NUEVAS de esta petición
     if (actionable.length > 0) setUnread(getUnread() + actionable.length);
 
-    // Pintar burbuja con el total persistido
     const unreadTotal = getUnread();
     if (badge) {
       badge.textContent = unreadTotal;
@@ -663,7 +696,7 @@
 
     if (!actionable.length) return;
 
-    // ---- Combinar mensajes ----
+    // ---- Combina mensajes por categoría ----
     const byCat = { success: [], warning: [], danger: [], accion_no_permitida: [] };
     actionable.forEach(m => {
       const c = (m.category === 'accion_no_permitida') ? 'accion_no_permitida' :
@@ -672,16 +705,17 @@
       byCat[c].push(m.message || '');
     });
 
-    function summarize(list, keyword){
+    function summarize(list, fallbackKeyword){
       if (!list.length) return '';
       if (list.length === 1) return list[0];
+      // Intenta sumar cantidades si cada mensaje empieza con un número
       const nums = list.map(t => {
         const m = t.match(/(^|\s)(\d+)\s/);
         return m ? parseInt(m[2],10) : null;
       }).filter(x => x!==null);
       if (nums.length === list.length) {
         const total = nums.reduce((a,b)=>a+b,0);
-        return `${total} ${keyword}`;
+        return `${total} ${fallbackKeyword}`;
       }
       return list.join(' · ');
     }
@@ -724,7 +758,7 @@
         const r = await fetch('/undo-last', { method:'POST' });
         const data = await r.json();
         showInlineToast(data?.ok ? 'warning' : 'danger', data?.ok ? (data?.notices?.[0]?.message || 'Acción deshecha') : (data?.error || 'No se pudo deshacer'));
-        if (serverMode) await reloadTable();
+        if (serverMode && typeof reloadTable === 'function') await reloadTable();
       }catch(e){
         showInlineToast('danger','Error al deshacer');
       }
@@ -754,9 +788,7 @@
 
   /* ---------- Marcar como leído sin abrir offcanvas ---------- */
   document.getElementById('markReadBtn').addEventListener('click', async () => {
-    try{
-      await fetch('/notifications/read-all', { method:'POST' });
-    }catch(e){}
+    try{ await fetch('/notifications/read-all', { method:'POST' }); }catch(e){}
     markAllRead();
     showInlineToast('success','Notificaciones marcadas como leídas');
   });
@@ -782,7 +814,7 @@
       const ymd = match[1];
       const hms = match[2] || '00:00:00';
       dt = new Date(`${ymd}T${hms}`);
-      cleanMsg = match[3];
+      cleanMsg = match[3]; // mensaje sin el prefijo de fecha/hora
     }
     return { id: i+1, category: m.category, message: cleanMsg, date: dt };
   });
