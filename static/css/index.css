@@ -270,10 +270,15 @@ html[data-theme="dark"] body.bg-light {
 #tablaIps td:first-child, #tablaIps th:first-child { width: 36px; }
 }
 /* === Filas seleccionadas en tabla === */
-tr.table-active-selected {
+tr.table-active-selected,
+tr.table-active-selected > td,
+tr.table-active-selected > th {
   background-color: rgba(13,110,253,0.15) !important; /* azul clarito */
 }
 
-html[data-theme="dark"] tr.table-active-selected {
-  background-color: rgba(13,110,253,0.35) !important; /* azul más fuerte en oscuro */
+html[data-theme="dark"] tr.table-active-selected,
+html[data-theme="dark"] tr.table-active-selected > td,
+html[data-theme="dark"] tr.table-active-selected > th {
+  background-color: rgba(13,110,253,0.35) !important; /* azul más visible en oscuro */
 }
+
