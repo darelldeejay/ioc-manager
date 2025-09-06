@@ -1,0 +1,283 @@
+/* =========================
+   Logo de esquina (dashboard)
+   ========================= */
+#corner-logo {
+  width: 110px;
+  height: 110px;
+  position: fixed;        /* fijo en la esquina aunque hagas scroll */
+  bottom: 15px;
+  right: 15px;
+  margin: 0;
+  z-index: 9999;
+  user-select: none;
+  pointer-events: none;   /* no bloquea clicks sobre la UI */
+  opacity: .95;
+}
+
+/* Opcional: más pequeño en móviles */
+@media (max-width: 576px) {
+  #corner-logo { width: 72px; height: 72px; }
+}
+
+/* Duplicado específico muy pequeño */
+@media (max-width: 576px) {
+  #corner-logo {
+    width: 60px;
+    height: 60px;
+    bottom: 10px;
+    right: 10px;
+  }
+}
+
+
+/* =========================
+   Modo oscuro: inputs y placeholders
+   ========================= */
+body.bg-dark ::placeholder {
+  color: #bbb !important;   /* gris claro más visible */
+  opacity: 1;               /* asegura visibilidad */
+}
+
+body.bg-dark .form-control,
+body.bg-dark .form-select {
+  background-color: #1f1f1f;
+  color: #e9ecef;
+  border-color: #495057;
+}
+
+body.bg-dark .form-control:focus,
+body.bg-dark .form-select:focus {
+  background-color: #1c1c1c;
+  color: #fff;
+  border-color: #6ea8fe;
+  box-shadow: 0 0 0 .25rem rgba(110,168,254,.25);
+}
+
+
+/* =========================
+   Tabla en modo oscuro (Bootstrap 5)
+   ========================= */
+body.bg-dark .table,
+body.bg-dark .table th,
+body.bg-dark .table td {
+  background-color: #121212 !important;
+  color: #e9ecef !important;
+  border-color: #2b2b2b !important;
+}
+
+/* Cabecera de tabla */
+body.bg-dark table thead th {
+  background-color: #1a1a1a !important;
+  color: #e9ecef !important;
+}
+
+/* Rayado (striped) sutil en oscuro */
+body.bg-dark .table-striped > tbody > tr:nth-of-type(odd) > * {
+  background-color: rgba(255,255,255,0.03) !important;
+}
+
+/* Hover sutil en oscuro */
+body.bg-dark .table-hover > tbody > tr:hover > * {
+  background-color: rgba(255,255,255,0.06) !important;
+}
+
+/* Botones "Eliminar" dentro de filas oscuras */
+body.bg-dark .table .btn-outline-danger {
+  border-color: #ff6b6b;
+  color: #ff6b6b;
+}
+body.bg-dark .table .btn-outline-danger:hover {
+  background-color: #ff6b6b;
+  color: #121212;
+}
+
+
+/* =========================
+   Modales y Offcanvas en oscuro
+   ========================= */
+body.bg-dark .modal-content {
+  background-color: #1f1f1f;
+  color: #e9ecef;
+  border-color: #2b2b2b;
+}
+body.bg-dark .modal-header,
+body.bg-dark .modal-footer {
+  border-color: #2b2b2b;
+}
+
+body.bg-dark .offcanvas {
+  background-color: #1f1f1f;
+  color: #e9ecef;
+}
+
+body.bg-dark .offcanvas .list-group-item {
+  background-color: transparent;
+  color: #e9ecef;
+  border-color: #2b2b2b;
+}
+
+
+/* =========================
+   Botón Notificaciones + badge
+   ========================= */
+body.bg-dark #notif-btn.btn-outline-primary {
+  /* Sobrescribe variables internas del botón (Bootstrap 5.3) */
+  --bs-btn-color: #66b2ff;
+  --bs-btn-border-color: #66b2ff;
+  --bs-btn-hover-color: #121212;
+  --bs-btn-hover-bg: #66b2ff;
+  --bs-btn-hover-border-color: #66b2ff;
+  --bs-btn-active-color: #121212;
+  --bs-btn-active-bg: #66b2ff;
+  --bs-btn-active-border-color: #66b2ff;
+  --bs-btn-focus-shadow-rgb: 102,178,255;
+
+  /* Fallback directo */
+  border-color: #66b2ff !important;
+  color: #66b2ff !important;
+}
+
+body.bg-dark #notif-btn.btn-outline-primary:hover,
+body.bg-dark #notif-btn.btn-outline-primary:focus,
+body.bg-dark #notif-btn.btn-outline-primary:active {
+  background-color: #66b2ff !important;
+  border-color: #66b2ff !important;
+  color: #121212 !important;
+}
+
+/* Burbuja roja visible en ambos temas */
+body.bg-dark #notif-badge {
+  background-color: #ff6b6b !important;
+  color: #fff !important;
+}
+
+
+/* =========================
+   Hints / cajas informativas en oscuro
+   ========================= */
+body.bg-dark .hint-box {
+  border-color: #495057;
+  background: #1f1f1f;
+  color: #e9ecef;
+}
+/* Ajuste botón Notificaciones en modo oscuro */
+body.bg-dark #notif-btn.btn-primary {
+  background-color: #0d6efd;   /* azul Bootstrap */
+  border-color: #0d6efd;
+  color: #fff;
+}
+
+body.bg-dark #notif-btn.btn-primary:hover {
+  background-color: #0b5ed7;
+  border-color: #0a58ca;
+}
+/* Notificaciones en modo oscuro */
+body.bg-dark #notifList .border {
+  background-color: #1f1f1f !important;  /* fondo oscuro */
+  color: #e9ecef;                        /* texto claro */
+  border-color: #343a40 !important;      /* borde gris oscuro */
+}
+
+body.bg-dark #notifList .small.text-muted {
+  color: #adb5bd !important;             /* texto secundario más visible */
+}
+/* Paginación de notificaciones en modo oscuro */
+body.bg-dark #notifPagination .page-link {
+  background-color: #1f1f1f;
+  border-color: #343a40;
+  color: #e9ecef;
+}
+
+body.bg-dark #notifPagination .page-link:hover {
+  background-color: #343a40;
+  border-color: #495057;
+  color: #fff;
+}
+
+body.bg-dark #notifPagination .page-item.active .page-link {
+  background-color: #0d6efd;  /* azul Bootstrap */
+  border-color: #0d6efd;
+  color: #fff;
+}
+
+body.bg-dark #notifPagination .page-item.disabled .page-link {
+  background-color: #212529;
+  border-color: #343a40;
+  color: #6c757d;
+}
+/* Inputs de filtros en modo oscuro */
+body.bg-dark #offcanvasNotifs .form-select,
+body.bg-dark #offcanvasNotifs .form-control {
+  background-color: #1f1f1f;
+  border-color: #495057;
+  color: #e9ecef;
+}
+
+body.bg-dark #offcanvasNotifs .form-select:focus,
+body.bg-dark #offcanvasNotifs .form-control:focus {
+  background-color: #212529;
+  border-color: #0d6efd;
+  color: #fff;
+  box-shadow: 0 0 0 .25rem rgba(13,110,253,.25); /* efecto azul bootstrap */
+}
+/* Texto de conteo de notificaciones en modo oscuro */
+body.bg-dark #notifCountInfo {
+  color: #adb5bd !important;  /* gris claro */
+}
+/* Botones en el offcanvas de notificaciones (modo oscuro) */
+body.bg-dark #offcanvasNotifs .btn-outline-primary {
+  color: #66b2ff;
+  border-color: #3399ff;
+}
+body.bg-dark #offcanvasNotifs .btn-outline-primary:hover {
+  background-color: #3399ff;
+  color: #fff;
+}
+
+body.bg-dark #offcanvasNotifs .btn-outline-secondary {
+  color: #ccc;
+  border-color: #666;
+}
+body.bg-dark #offcanvasNotifs .btn-outline-secondary:hover {
+  background-color: #666;
+  color: #fff;
+}
+/* Inputs y selects dentro del offcanvas en modo oscuro */
+body.bg-dark #offcanvasNotifs .form-control,
+body.bg-dark #offcanvasNotifs .form-select {
+  background-color: #1f1f1f;
+  color: #e9ecef;
+  border-color: #495057;
+}
+
+body.bg-dark #offcanvasNotifs .form-control:focus,
+body.bg-dark #offcanvasNotifs .form-select:focus {
+  background-color: #2a2a2a;
+  border-color: #66b2ff;
+  color: #fff;
+  box-shadow: none;
+}
+/* Respaldo: si el HTML viene marcado como dark desde el head, asegura colores base */
+html[data-theme="dark"] body {
+  background-color: #121212;
+  color: #e9ecef;
+}
+/* Si por un instante queda body.bg-light pero el tema es dark, forzamos dark */
+html[data-theme="dark"] body.bg-light {
+  background-color: #121212 !important;
+  color: #e9ecef !important;
+}
+#tablaIps td:first-child, #tablaIps th:first-child { width: 36px; }
+}
+/* === Filas seleccionadas manualmente === */
+tr.table-active-selected,
+tr.table-active-selected > td,
+tr.table-active-selected > th {
+  background-color: rgba(13,110,253,0.15) !important; /* azul claro */
+}
+
+html[data-theme="dark"] tr.table-active-selected,
+html[data-theme="dark"] tr.table-active-selected > td,
+html[data-theme="dark"] tr.table-active-selected > th {
+  background-color: rgba(13,110,253,0.35) !important; /* azul más intenso en oscuro */
+}
