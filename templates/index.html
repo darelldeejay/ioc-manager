@@ -381,13 +381,15 @@
       <tbody>
         {% for ip in ips %}
           {% set parts = ip.split('|') %}
-          <tr>
+        <tr>
+          <td>
+            <input type="checkbox" class="row-chk" value="{{ parts[0] }}">
+         </td>
             <td>{{ parts[0] }}</td>
             <td>{{ parts[1] }}</td>
             <td>{{ '∞' if parts[2] == '0' else parts[2] }}</td>
             <td>
               <button class="btn btn-sm btn-outline-danger" data-bs-toggle="modal" data-bs-target="#confirmDelete{{ loop.index }}">Eliminar</button>
-
               <!-- Modal Confirmar eliminación individual -->
               <div class="modal fade" id="confirmDelete{{ loop.index }}" tabindex="-1" aria-hidden="true">
                 <div class="modal-dialog modal-dialog-centered">
