@@ -269,16 +269,15 @@ html[data-theme="dark"] body.bg-light {
 }
 #tablaIps td:first-child, #tablaIps th:first-child { width: 36px; }
 }
-/* === Filas seleccionadas en tabla === */
+/* === Filas seleccionadas manualmente === */
 tr.table-active-selected,
 tr.table-active-selected > td,
 tr.table-active-selected > th {
-  background-color: rgba(13,110,253,0.15) !important; /* azul clarito */
+  background-color: rgba(13,110,253,0.15) !important; /* azul claro */
 }
 
 html[data-theme="dark"] tr.table-active-selected,
 html[data-theme="dark"] tr.table-active-selected > td,
 html[data-theme="dark"] tr.table-active-selected > th {
-  background-color: rgba(13,110,253,0.35) !important; /* azul más visible en oscuro */
+  background-color: rgba(13,110,253,0.35) !important; /* azul más intenso en oscuro */
 }
-
