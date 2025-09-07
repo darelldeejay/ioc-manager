@@ -183,13 +183,16 @@
     <div class="row g-3 mb-3">
       <div class="col-lg-5">
         <input
-          id="ipInput"
-          type="text"
-          class="form-control"
-          name="ip"
-          autocomplete="off"
-          placeholder="IP, red CIDR (1.2.3.0/24), rango (1.2.3.4-1.2.3.20) o IP + máscara (1.2.3.0 255.255.255.0)">
-        <div id="ipFeedback" class="invalid-feedback"></div>
+  id="ipInput"
+  type="text"
+  class="form-control"
+  name="ip"
+  autocomplete="off"
+  placeholder="Ej: 1.2.3.4 · 1.2.3.0/24 · 1.2.3.4-1.2.3.20">
+<div class="form-text small mb-0">
+  Formatos admitidos: IP individual · CIDR · rango · IP + máscara (p. ej. 1.2.3.0 255.255.255.0)
+</div>
+<div id="ipFeedback" class="invalid-feedback"></div>
       </div>
       <div class="col-lg-3">
         <select class="form-select" name="ttl">
