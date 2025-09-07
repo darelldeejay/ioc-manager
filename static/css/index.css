@@ -296,3 +296,6 @@ html[data-theme="dark"] .title-ioc {
 html[data-theme="dark"] .text-muted {
   color: #cbd3da !important;  /* gris claro legible */
 }
+/* opcional en index.css */
+::placeholder { opacity: .85; }
+}
