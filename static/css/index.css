@@ -292,3 +292,7 @@ html[data-theme="dark"] tr.table-active-selected > th {
 html[data-theme="dark"] .title-ioc {
   color: #e9ecef; /* gris claro en oscuro */
 }
+/* Texto secundario (subtítulos) más visible en modo oscuro */
+html[data-theme="dark"] .text-muted {
+  color: #cbd3da !important;  /* gris claro legible */
+}
