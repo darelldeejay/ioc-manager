@@ -303,3 +303,14 @@ html[data-theme="dark"] .text-muted {
 html[data-theme="dark"] .form-text {
   color: #cbd3da !important; /* gris claro legible */
 }
+/* Hints (form-text) legibles en modo oscuro */
+html[data-theme="dark"] .form-text,
+html[data-theme="dark"] .form-text * {
+  color: #cbd3da !important;
+}
+
+/* Por si el body usa bg-dark además del data-theme */
+.bg-dark .form-text,
+.bg-dark .form-text * {
+  color: #cbd3da !important;
+}
