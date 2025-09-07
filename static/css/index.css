@@ -299,3 +299,7 @@ html[data-theme="dark"] .text-muted {
 /* opcional en index.css */
 ::placeholder { opacity: .85; }
 }
+/* Mejorar contraste de hints en modo oscuro */
+html[data-theme="dark"] .form-text {
+  color: #cbd3da !important; /* gris claro legible */
+}
