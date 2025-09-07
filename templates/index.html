@@ -149,8 +149,8 @@
     </div>
   </div>
 
-  <h2 class="mb-4 text-center fw-bold text-primary">Gestor <span class="text-dark">IOC_MANAGER</span></h2>
-  <p class="text-center text-muted mb-4">Plataforma de gestión y control de indicadores maliciosos</p>
+  <h2 class="mb-1 text-center fw-bold text-primary">Gestor <span class="text-dark">IOC_MANAGER</span></h2>
+<p class="text-center text-muted mb-4">Plataforma de gestión y control de indicadores maliciosos</p>
 
   <div class="alert alert-info text-center">
     📊 Total de IPs activas: <strong id="totalCount">{{ total_ips }}</strong><br>
@@ -171,46 +171,27 @@
   {% endif %}
 
   <form id="mainForm" method="POST" enctype="multipart/form-data" class="mt-3">
-<!-- Alta manual -->
-<div class="row g-3 mb-3">
-  <div class="col-lg-5">
-    <label for="ipInput" class="form-label small mb-1">Añadir IP / Rango</label>
-    <input
-      id="ipInput"
-      type="text"
-      class="form-control"
-      name="ip"
-      autocomplete="off"
-      placeholder="Ej: 1.2.3.4, 1.2.3.0/24, 1.2.3.4-1.2.3.20, 1.2.3.0 255.255.255.0">
-    <div class="form-text small mb-0">
-      Formatos admitidos: IP individual · CIDR · rango · IP + máscara
-    </div>
-    <div id="ipFeedback" class="invalid-feedback"></div>
-  </div>
-
-  <div class="col-lg-3">
-    <label for="ttlManual" class="form-label small mb-1">TTL</label>
-    <select id="ttlManual" class="form-select" name="ttl">
-      <option value="permanente" selected>Permanente</option>
-      <option value="1">1 día</option>
-      <option value="3">3 días</option>
-      <option value="7">7 días</option>
-    </select>
-  </div>
-
-  <div class="col-lg-2 d-grid">
-    <label class="form-label small mb-1 invisible">Acción</label>
-    <button id="addManualBtn" type="submit" class="btn btn-success w-100">Añadir</button>
-  </div>
-
-  <div class="col-lg-2 d-grid">
-    <label class="form-label small mb-1 invisible">Acción</label>
-    <button type="button" class="btn btn-danger" data-bs-toggle="modal" data-bs-target="#confirmDeleteAll">
-      Eliminar todas
-    </button>
-  </div>
-</div>
-
+    <!-- Alta manual -->
+    <div class="row g-3 mb-3">
+      <div class="col-lg-5">
+        <input
+          id="ipInput"
+          type="text"
+          class="form-control"
+          name="ip"
+          autocomplete="off"
+          placeholder="IP, red CIDR (1.2.3.0/24), rango (1.2.3.4-1.2.3.20) o IP + máscara (1.2.3.0 255.255.255.0)">
+        <div id="ipFeedback" class="invalid-feedback"></div>
+      </div>
+      <div class="col-lg-3">
+        <select class="form-select" name="ttl">
+          <option value="permanente" selected>Permanente</option>
+          <option value="1">1 día</option>
+          <option value="3">3 días</option>
+          <option value="7">7 días</option>
+        </select>
+      </div>
+      <div class="col-lg-2">
         <!-- ID para marcar acción manual -->
         <button id="addManualBtn" type="submit" class="btn btn-success w-100">Añadir</button>
       </div>
@@ -1128,10 +1109,7 @@ function attachTableSelectionHandlers(){
     chk.addEventListener('change', () => {
       updateBulkUI();
       const tr = chk.closest('tr');
-      if (tr) {
-        tr.classList.toggle('table-active-selected', !!chk.checked);
-        tr.classList.toggle('table-active', !!chk.checked); // extra: clase nativa Bootstrap
-      }
+      if (tr) tr.classList.toggle('table-active-selected', !!chk.checked);
     });
   });
 
@@ -1144,10 +1122,7 @@ function attachTableSelectionHandlers(){
       rows.forEach(chk => {
         chk.checked = master.checked;
         const tr = chk.closest('tr');
-        if (tr) {
-          tr.classList.toggle('table-active-selected', !!chk.checked);
-          tr.classList.toggle('table-active', !!chk.checked); // extra: clase nativa Bootstrap
-        }
+        if (tr) tr.classList.toggle('table-active-selected', !!chk.checked);
       });
       updateBulkUI();
     });
@@ -1155,7 +1130,8 @@ function attachTableSelectionHandlers(){
 
   // Sincroniza el contador/botón al enganchar handlers
   updateBulkUI();
-}
+} 
+
   /* ================== Server-side tabla: fetch + render ================== */
   const tbody = document.querySelector('#tablaIps tbody');
   const pageInfo = document.getElementById('pageInfo');
