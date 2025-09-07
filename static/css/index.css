@@ -281,3 +281,14 @@ html[data-theme="dark"] tr.table-active-selected > td,
 html[data-theme="dark"] tr.table-active-selected > th {
   background-color: rgba(13,110,253,0.35) !important; /* azul más intenso en oscuro */
 }
+.title-gestor {
+  color: #0d6efd; /* azul bootstrap */
+}
+
+.title-ioc {
+  color: #212529; /* gris oscuro por defecto */
+}
+
+html[data-theme="dark"] .title-ioc {
+  color: #e9ecef; /* gris claro en oscuro */
+}
