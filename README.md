@@ -47,9 +47,8 @@ Pensada especialmente para integrarse con **Fortinet FortiGate** mediante conect
 
 ```bash
 sudo apt update && sudo apt install -y python3 python3-venv python3-pip gunicorn
+
 2️⃣ Crear entorno y dependencias
-bash
-Copiar código
 cd /home/darelldeejay
 git clone https://github.com/<tu_usuario>/ioc-manager.git
 cd ioc-manager
@@ -58,23 +57,17 @@ source .venv/bin/activate
 pip install --upgrade pip
 pip install -r requirements.txt
 Si no existe requirements.txt, crea uno mínimo:
-
-nginx
-Copiar código
 Flask
 gunicorn
+
 3️⃣ Archivos y permisos
-bash
-Copiar código
 chmod +x install
 echo 0 > contador_manual.txt
 echo 0 > contador_csv.txt
 touch ioc-feed.txt ioc-log.txt
+
 4️⃣ Crear servicio systemd
 Archivo: /etc/systemd/system/ioc-manager.service
-
-ini
-Copiar código
 [Unit]
 Description=IOC Manager - Flask on 5000
 After=network.target
@@ -94,69 +87,63 @@ StandardError=journal
 [Install]
 WantedBy=multi-user.target
 Activar el servicio:
-
-bash
-Copiar código
 sudo systemctl daemon-reload
 sudo systemctl enable ioc-manager.service
 sudo systemctl start ioc-manager.service
 sudo systemctl status ioc-manager.service --no-pager -l
+
 5️⃣ Verificar ejecución
-bash
-Copiar código
 sudo ss -lntp | grep 5000
 Deberías ver Gunicorn escuchando en el puerto 5000.
 Luego abre en el navegador:
 
-cpp
-Copiar código
 http://<IP_DEL_SERVIDOR>:5000
+
 6️⃣ Logs y mantenimiento
+
 Ver logs recientes:
 
-bash
-Copiar código
 sudo journalctl -u ioc-manager.service -n 50 --no-pager
+
+
 Ver en tiempo real:
 
-bash
-Copiar código
 sudo journalctl -fu ioc-manager.service
+
+
 Reiniciar:
 
-bash
-Copiar código
 sudo systemctl restart ioc-manager.service
+
 7️⃣ (Opcional) Alias útiles
-bash
-Copiar código
 echo "alias ioc-status='sudo systemctl status ioc-manager.service --no-pager -l'" >> ~/.bashrc
 echo "alias ioc-restart='sudo systemctl restart ioc-manager.service && sudo systemctl status ioc-manager.service --no-pager -l'" >> ~/.bashrc
 source ~/.bashrc
+
 🐳 Despliegue alternativo con Docker
 1️⃣ Preparar entorno
+
 Clona el repositorio y asegúrate de tener los archivos:
 
-pgsql
-Copiar código
 ioc-feed.txt
 notif-log.json
 ioc-meta.json
 ioc-log.txt
+
+
 (Si no existen, se crean automáticamente al iniciar.)
 
 2️⃣ Construir y levantar
-bash
-Copiar código
 docker compose build
 docker compose up -d
 # Abre http://localhost:5050
+
 3️⃣ Logs y ciclo de vida
-bash
-Copiar código
 docker compose logs -f
 docker compose down
+
 4️⃣ Persistencia
+
 Los archivos de datos se montan desde el host:
 
 Archivo	Descripción
@@ -164,14 +151,13 @@ ioc-feed.txt	Base principal (IP | fecha | TTL)
 notif-log.json	Historial de notificaciones
 ioc-meta.json	Meta por IP (origen manual/CSV)
 ioc-log.txt	Log de acciones
-
 🔧 Desarrollo local
-bash
-Copiar código
 make venv        # Crea entorno virtual
 make dev         # Ejecuta Flask en modo desarrollo
 make gunicorn    # Ejecuta con Gunicorn local
+
 🛠️ Makefile
+
 El proyecto incluye un Makefile con tareas rápidas:
 
 Comando	Descripción
@@ -184,7 +170,7 @@ make down	Detiene contenedor
 make logs	Muestra logs
 make backup	Copia de seguridad de archivos
 make restore DIR=./backup_YYYYmmdd_HHMMSS	Restaura desde backup
-
 👤 Autor
+
 Proyecto desarrollado por Darell Pérez (darelldeejay).
 Todos los derechos reservados.
