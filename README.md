@@ -1,98 +1,190 @@
 # 🛡️ IOC Manager
 
-IOC Manager es una aplicación web ligera en **Flask** para gestionar listas dinámicas de IPs maliciosas (Indicators of Compromise) usado para el ejemplo con el fabricante **Fortinet en un FortiGate** mediante conectores externos.
+**IOC Manager** es una aplicación web ligera en **Flask** para gestionar listas dinámicas de IPs maliciosas (Indicators of Compromise).  
+Pensada especialmente para integrarse con **Fortinet FortiGate** mediante conectores externos, permite mantener feeds de IPs actualizados de forma simple y segura.
+
+---
 
 ## ✨ Funcionalidades principales
 
-- Alta de IPs manual (con validación de formato, duplicados y rangos).
-- Carga masiva desde archivos `.csv`/`.txt`.
-- Eliminación individual, total o por patrón (CIDR, rango, IP+máscara).
-- Sistema de **notificaciones persistentes** con historial y filtros (tipo/fecha).
-- **Toasts interactivos** que muestran la última acción realizada.
-- Contador de IPs activas (manuales y CSV).
-- Modo oscuro/claro.
-- Logo fijo y UI optimizada para escritorio y móvil.
+- Alta de IPs manual (con validación de formato, duplicados y rangos)
+- Carga masiva desde archivos `.csv` / `.txt`
+- Eliminación individual, total o por patrón (CIDR, rango, IP + máscara)
+- Sistema de notificaciones persistentes con historial y filtros (tipo / fecha)
+- Toasts interactivos que muestran la última acción realizada
+- Contador de IPs activas (manuales y CSV)
+- Modo oscuro / claro con persistencia
+- Logo fijo y UI optimizada para escritorio y móvil
+
+---
 
 ## 🖼️ Interfaz
 
-- Panel principal con IPs activas, fechas y TTL.
-- Botón de notificaciones con burbuja de “no leídas”.
-- Historial filtrable con paginación.
-- Buscador rápido de IPs en tabla.
+- Panel principal con IPs activas, fechas y TTL
+- Botón de notificaciones con burbuja de “no leídas”
+- Historial filtrable con paginación
+- Buscador rápido de IPs en tabla
+
+---
 
 ## ⚙️ Tecnologías usadas
 
-- **Python 3.11**
-- **Flask 3**
-- **Bootstrap 5**
-- **Gunicorn** (producción)
-- **Docker / docker-compose** (despliegue)
-- Archivos planos (`txt/json`) como almacenamiento ligero.
+| Componente | Versión / Descripción |
+|-------------|-----------------------|
+| **Python** | 3.11 |
+| **Flask** | 3.x |
+| **Bootstrap** | 5 |
+| **Gunicorn** | Servidor WSGI en producción |
+| **Systemd** | Gestión de servicio en Linux |
+| **Archivos planos** | Almacenamiento ligero (`.txt`, `.json`) |
+| **Docker / docker-compose** | (opcional) Despliegue alternativo |
 
-## 🚀 Despliegue en Docker
+---
 
-### 1) Prepara entorno
-- Clona el repo y entra en el directorio.
-- Crea `.env` a partir de `.env.example`.
-- Asegúrate de tener los archivos: `ioc-feed.txt`, `notif-log.json`, `ioc-meta.json` y `ioc-log.txt`.
-  (Si no existen, se crean automáticamente).
+## 🚀 Despliegue con Gunicorn + Systemd (recomendado)
 
-### 2) Construye y levanta
+### 1️⃣ Instalación de dependencias
+
 ```bash
+sudo apt update && sudo apt install -y python3 python3-venv python3-pip gunicorn
+2️⃣ Crear entorno y dependencias
+bash
+Copiar código
+cd /home/darelldeejay
+git clone https://github.com/<tu_usuario>/ioc-manager.git
+cd ioc-manager
+python3 -m venv .venv
+source .venv/bin/activate
+pip install --upgrade pip
+pip install -r requirements.txt
+Si no existe requirements.txt, crea uno mínimo:
+
+nginx
+Copiar código
+Flask
+gunicorn
+3️⃣ Archivos y permisos
+bash
+Copiar código
+chmod +x install
+echo 0 > contador_manual.txt
+echo 0 > contador_csv.txt
+touch ioc-feed.txt ioc-log.txt
+4️⃣ Crear servicio systemd
+Archivo: /etc/systemd/system/ioc-manager.service
+
+ini
+Copiar código
+[Unit]
+Description=IOC Manager - Flask on 5000
+After=network.target
+
+[Service]
+User=darelldeejay
+Group=darelldeejay
+WorkingDirectory=/home/darelldeejay/ioc-manager
+ExecStart=/home/darelldeejay/ioc-manager/.venv/bin/gunicorn --chdir /home/darelldeejay/ioc-manager --config gunicorn_config.py app:app
+Restart=always
+RestartSec=3
+Environment="PATH=/home/darelldeejay/ioc-manager/.venv/bin:/usr/local/bin:/usr/bin"
+Environment="PYTHONUNBUFFERED=1"
+StandardOutput=journal
+StandardError=journal
+
+[Install]
+WantedBy=multi-user.target
+Activar el servicio:
+
+bash
+Copiar código
+sudo systemctl daemon-reload
+sudo systemctl enable ioc-manager.service
+sudo systemctl start ioc-manager.service
+sudo systemctl status ioc-manager.service --no-pager -l
+5️⃣ Verificar ejecución
+bash
+Copiar código
+sudo ss -lntp | grep 5000
+Deberías ver Gunicorn escuchando en el puerto 5000.
+Luego abre en el navegador:
+
+cpp
+Copiar código
+http://<IP_DEL_SERVIDOR>:5000
+6️⃣ Logs y mantenimiento
+Ver logs recientes:
+
+bash
+Copiar código
+sudo journalctl -u ioc-manager.service -n 50 --no-pager
+Ver en tiempo real:
+
+bash
+Copiar código
+sudo journalctl -fu ioc-manager.service
+Reiniciar:
+
+bash
+Copiar código
+sudo systemctl restart ioc-manager.service
+7️⃣ (Opcional) Alias útiles
+bash
+Copiar código
+echo "alias ioc-status='sudo systemctl status ioc-manager.service --no-pager -l'" >> ~/.bashrc
+echo "alias ioc-restart='sudo systemctl restart ioc-manager.service && sudo systemctl status ioc-manager.service --no-pager -l'" >> ~/.bashrc
+source ~/.bashrc
+🐳 Despliegue alternativo con Docker
+1️⃣ Preparar entorno
+Clona el repositorio y asegúrate de tener los archivos:
+
+pgsql
+Copiar código
+ioc-feed.txt
+notif-log.json
+ioc-meta.json
+ioc-log.txt
+(Si no existen, se crean automáticamente al iniciar.)
+
+2️⃣ Construir y levantar
+bash
+Copiar código
 docker compose build
 docker compose up -d
 # Abre http://localhost:5050
-```
-
-### 3) Logs y ciclo de vida
-```bash
+3️⃣ Logs y ciclo de vida
+bash
+Copiar código
 docker compose logs -f
 docker compose down
-```
+4️⃣ Persistencia
+Los archivos de datos se montan desde el host:
 
-### 4) Persistencia
-Los archivos de datos se **montan desde el host**:
-- `ioc-feed.txt` – base principal (IP|fecha|ttl)
-- `notif-log.json` – historial de notificaciones
-- `ioc-meta.json` – meta por IP (origen manual/csv)
-- `ioc-log.txt` – log de acciones
+Archivo	Descripción
+ioc-feed.txt	Base principal (IP | fecha | TTL)
+notif-log.json	Historial de notificaciones
+ioc-meta.json	Meta por IP (origen manual/CSV)
+ioc-log.txt	Log de acciones
 
-### 5) Variables útiles
-Configurables por `.env` o variables del contenedor:
-- `SECRET_KEY` – clave de sesión Flask
-- `GUNICORN_*` – afinado de rendimiento (workers, threads, timeout, etc.)
+🔧 Desarrollo local
+bash
+Copiar código
+make venv        # Crea entorno virtual
+make dev         # Ejecuta Flask en modo desarrollo
+make gunicorn    # Ejecuta con Gunicorn local
+🛠️ Makefile
+El proyecto incluye un Makefile con tareas rápidas:
 
-## 🔧 Desarrollo local
+Comando	Descripción
+make venv	Crea entorno virtual
+make dev	Ejecuta Flask en desarrollo
+make gunicorn	Ejecuta con Gunicorn
+make build	Construye imagen Docker
+make up	Levanta contenedor
+make down	Detiene contenedor
+make logs	Muestra logs
+make backup	Copia de seguridad de archivos
+make restore DIR=./backup_YYYYmmdd_HHMMSS	Restaura desde backup
 
-### Crear entorno virtual
-```bash
-make venv
-```
-
-### Ejecutar en desarrollo
-```bash
-make dev
-```
-
-### Ejecutar con Gunicorn
-```bash
-make gunicorn
-```
-
-## 🛠️ Makefile
-
-El proyecto incluye un `Makefile` con tareas rápidas:
-- `make venv` → crea entorno virtual
-- `make dev` → ejecuta Flask en modo desarrollo
-- `make gunicorn` → ejecuta con Gunicorn local
-- `make build` → construye imagen docker
-- `make up` → levanta contenedor en segundo plano
-- `make down` → detiene y borra contenedor
-- `make logs` → muestra logs en vivo
-- `make backup` → crea copia de seguridad de los archivos `.txt/.json`
-- `make restore DIR=./backup_YYYYmmdd_HHMMSS` → restaura desde backup
-
-## 👤 Autor
-
-Proyecto desarrollado por **Darell Pérez (darelldeejay)**.  
+👤 Autor
+Proyecto desarrollado por Darell Pérez (darelldeejay).
 Todos los derechos reservados.
