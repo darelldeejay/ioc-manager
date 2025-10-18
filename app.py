@@ -1232,9 +1232,18 @@ def index():
                 }
             }
         )
+# Cargar meta para tags
+meta_details = load_meta().get("ip_details", {})
 
+# Empaquetar cada línea con sus tags
+ips_with_tags = []
+for line in lines:
+    ip_txt = line.split("|", 1)[0]
+    tags = meta_details.get(ip_txt, {}).get("tags", [])
+    ips_with_tags.append({"raw": line, "ip": ip_txt, "tags": tags})
+    
     return render_template("index.html",
-                           ips=lines,
+                           ips=ips_with_tags,
                            error=error,
                            total_ips=len(lines),
                            contador_manual=live_manual,
