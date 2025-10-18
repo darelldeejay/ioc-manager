@@ -1,0 +1,427 @@
+/* ============================================================
+   PROPUESTA 1: CORPORATE GLASS - Diseño Minimalista Premium
+   ============================================================
+   Añade estas reglas AL FINAL de tu index.css existente
+   ============================================================ */
+
+/* === Variables de color mejoradas === */
+:root {
+  --glass-bg-light: rgba(255, 255, 255, 0.75);
+  --glass-border-light: rgba(255, 255, 255, 0.18);
+  --shadow-soft: 0 8px 32px 0 rgba(31, 38, 135, 0.12);
+  --shadow-medium: 0 12px 40px 0 rgba(31, 38, 135, 0.18);
+  --primary-gradient: linear-gradient(135deg, #667eea 0%, #764ba2 100%);
+  --accent-color: #667eea;
+  --transition-smooth: all 0.3s cubic-bezier(0.4, 0, 0.2, 1);
+}
+
+html[data-theme="dark"] {
+  --glass-bg-dark: rgba(31, 31, 31, 0.8);
+  --glass-border-dark: rgba(255, 255, 255, 0.08);
+  --shadow-soft: 0 8px 32px 0 rgba(0, 0, 0, 0.4);
+  --shadow-medium: 0 12px 40px 0 rgba(0, 0, 0, 0.5);
+}
+
+/* === Header con gradiente elegante === */
+.container > .d-flex.justify-content-between.align-items-center.mb-3:first-child {
+  background: var(--primary-gradient);
+  margin: -1rem -0.75rem 1.5rem;
+  padding: 1rem 1.5rem;
+  border-radius: 0 0 1rem 1rem;
+  box-shadow: var(--shadow-medium);
+}
+
+.container > .d-flex:first-child button,
+.container > .d-flex:first-child a {
+  backdrop-filter: blur(10px);
+  background: rgba(255, 255, 255, 0.15);
+  border-color: rgba(255, 255, 255, 0.3) !important;
+  color: white !important;
+  transition: var(--transition-smooth);
+}
+
+.container > .d-flex:first-child button:hover,
+.container > .d-flex:first-child a:hover {
+  background: rgba(255, 255, 255, 0.25);
+  transform: translateY(-2px);
+  box-shadow: 0 4px 12px rgba(0, 0, 0, 0.15);
+}
+
+/* === Título principal mejorado === */
+.text-center.mb-3 h2 {
+  font-size: 2.5rem;
+  font-weight: 700;
+  letter-spacing: -0.02em;
+  margin-bottom: 0.5rem;
+}
+
+.text-center.mb-3 .title-gestor {
+  background: var(--primary-gradient);
+  -webkit-background-clip: text;
+  -webkit-text-fill-color: transparent;
+  background-clip: text;
+}
+
+.text-center.mb-3 .title-ioc {
+  font-weight: 800;
+}
+
+.text-center.mb-3 p.text-muted {
+  font-size: 1rem;
+  opacity: 0.8;
+}
+
+/* === Cards con efecto glass === */
+.alert,
+#mainForm > .row,
+.table-responsive {
+  background: var(--glass-bg-light);
+  backdrop-filter: blur(10px);
+  border: 1px solid var(--glass-border-light);
+  border-radius: 1rem;
+  box-shadow: var(--shadow-soft);
+  padding: 1.5rem;
+  transition: var(--transition-smooth);
+}
+
+html[data-theme="dark"] .alert,
+html[data-theme="dark"] #mainForm > .row,
+html[data-theme="dark"] .table-responsive {
+  background: var(--glass-bg-dark);
+  border-color: var(--glass-border-dark);
+}
+
+.alert:hover,
+#mainForm > .row:hover {
+  box-shadow: var(--shadow-medium);
+  transform: translateY(-2px);
+}
+
+/* === Alert de estadísticas destacado === */
+.alert.alert-info {
+  background: linear-gradient(135deg, rgba(102, 126, 234, 0.1) 0%, rgba(118, 75, 162, 0.1) 100%);
+  border: 2px solid rgba(102, 126, 234, 0.3);
+  font-size: 1.1rem;
+}
+
+.alert.alert-info strong {
+  font-size: 1.3rem;
+  color: var(--accent-color);
+  font-weight: 700;
+}
+
+html[data-theme="dark"] .alert.alert-info strong {
+  color: #8b9eff;
+}
+
+/* === Inputs modernos con focus mejorado === */
+.form-control,
+.form-select {
+  border-radius: 0.75rem;
+  border: 2px solid #e9ecef;
+  padding: 0.75rem 1rem;
+  transition: var(--transition-smooth);
+  font-size: 0.95rem;
+}
+
+.form-control:focus,
+.form-select:focus {
+  border-color: var(--accent-color);
+  box-shadow: 0 0 0 0.25rem rgba(102, 126, 234, 0.15);
+  transform: translateY(-1px);
+}
+
+html[data-theme="dark"] .form-control,
+html[data-theme="dark"] .form-select {
+  border-color: #495057;
+  background-color: rgba(31, 31, 31, 0.9);
+}
+
+html[data-theme="dark"] .form-control:focus,
+html[data-theme="dark"] .form-select:focus {
+  border-color: #8b9eff;
+  box-shadow: 0 0 0 0.25rem rgba(139, 158, 255, 0.25);
+}
+
+/* === Botones mejorados === */
+.btn {
+  border-radius: 0.75rem;
+  padding: 0.65rem 1.25rem;
+  font-weight: 600;
+  transition: var(--transition-smooth);
+  letter-spacing: 0.02em;
+}
+
+.btn:hover {
+  transform: translateY(-2px);
+  box-shadow: 0 4px 12px rgba(0, 0, 0, 0.15);
+}
+
+.btn:active {
+  transform: translateY(0);
+}
+
+.btn-success {
+  background: linear-gradient(135deg, #10b981 0%, #059669 100%);
+  border: none;
+}
+
+.btn-primary {
+  background: var(--primary-gradient);
+  border: none;
+}
+
+.btn-danger {
+  background: linear-gradient(135deg, #ef4444 0%, #dc2626 100%);
+  border: none;
+}
+
+/* === Tabla moderna con hover suave === */
+.table {
+  border-radius: 0.75rem;
+  overflow: hidden;
+}
+
+.table thead th {
+  background: var(--primary-gradient);
+  color: white;
+  font-weight: 600;
+  text-transform: uppercase;
+  font-size: 0.85rem;
+  letter-spacing: 0.05em;
+  border: none;
+  padding: 1rem;
+}
+
+.table tbody tr {
+  transition: var(--transition-smooth);
+}
+
+.table tbody tr:hover {
+  background-color: rgba(102, 126, 234, 0.08) !important;
+  transform: scale(1.01);
+}
+
+html[data-theme="dark"] .table tbody tr:hover {
+  background-color: rgba(139, 158, 255, 0.15) !important;
+}
+
+.table td {
+  padding: 1rem;
+  vertical-align: middle;
+  border-color: rgba(0, 0, 0, 0.05);
+}
+
+html[data-theme="dark"] .table td {
+  border-color: rgba(255, 255, 255, 0.05);
+}
+
+/* === Badges de tags mejorados === */
+.badge {
+  padding: 0.5rem 0.85rem;
+  border-radius: 0.5rem;
+  font-weight: 600;
+  font-size: 0.85rem;
+  letter-spacing: 0.02em;
+}
+
+/* === Hint box mejorado === */
+.hint-box {
+  background: rgba(102, 126, 234, 0.05);
+  border: 2px dashed rgba(102, 126, 234, 0.3);
+  border-radius: 0.75rem;
+  padding: 1rem;
+  transition: var(--transition-smooth);
+}
+
+.hint-box:hover {
+  background: rgba(102, 126, 234, 0.08);
+  border-style: solid;
+}
+
+html[data-theme="dark"] .hint-box {
+  background: rgba(139, 158, 255, 0.08);
+  border-color: rgba(139, 158, 255, 0.3);
+}
+
+/* === Modales elegantes === */
+.modal-content {
+  border-radius: 1.25rem;
+  border: none;
+  box-shadow: 0 20px 60px rgba(0, 0, 0, 0.3);
+  overflow: hidden;
+}
+
+.modal-header {
+  background: var(--primary-gradient);
+  color: white;
+  border: none;
+  padding: 1.5rem;
+}
+
+.modal-title {
+  font-weight: 700;
+  font-size: 1.25rem;
+}
+
+.modal-body {
+  padding: 2rem;
+}
+
+.modal-footer {
+  border: none;
+  padding: 1rem 2rem 1.5rem;
+  background: rgba(0, 0, 0, 0.02);
+}
+
+html[data-theme="dark"] .modal-footer {
+  background: rgba(255, 255, 255, 0.02);
+}
+
+/* === Toasts premium === */
+.toast {
+  border-radius: 1rem;
+  backdrop-filter: blur(10px);
+  box-shadow: 0 8px 24px rgba(0, 0, 0, 0.25);
+}
+
+.toast-body {
+  padding: 1rem 1.25rem;
+  font-weight: 500;
+}
+
+/* === Offcanvas moderno === */
+.offcanvas {
+  border-radius: 1rem 0 0 1rem;
+  box-shadow: -10px 0 40px rgba(0, 0, 0, 0.2);
+}
+
+.offcanvas-header {
+  background: var(--primary-gradient);
+  color: white;
+  padding: 1.5rem;
+}
+
+.offcanvas-body {
+  padding: 1.5rem;
+}
+
+/* === Paginación elegante === */
+.pagination .page-link {
+  border-radius: 0.5rem;
+  margin: 0 0.25rem;
+  border: 2px solid #e9ecef;
+  transition: var(--transition-smooth);
+  font-weight: 600;
+}
+
+.pagination .page-link:hover {
+  background: var(--accent-color);
+  border-color: var(--accent-color);
+  color: white;
+  transform: translateY(-2px);
+}
+
+.pagination .page-item.active .page-link {
+  background: var(--primary-gradient);
+  border: none;
+  box-shadow: 0 4px 12px rgba(102, 126, 234, 0.3);
+}
+
+/* === Checkboxes mejorados === */
+input[type="checkbox"] {
+  width: 1.2rem;
+  height: 1.2rem;
+  cursor: pointer;
+  accent-color: var(--accent-color);
+}
+
+/* === Animación suave al cargar === */
+@keyframes fadeInUp {
+  from {
+    opacity: 0;
+    transform: translateY(20px);
+  }
+  to {
+    opacity: 1;
+    transform: translateY(0);
+  }
+}
+
+.container > * {
+  animation: fadeInUp 0.6s ease-out backwards;
+}
+
+.container > *:nth-child(1) { animation-delay: 0.1s; }
+.container > *:nth-child(2) { animation-delay: 0.2s; }
+.container > *:nth-child(3) { animation-delay: 0.3s; }
+.container > *:nth-child(4) { animation-delay: 0.4s; }
+
+/* === Scroll suave === */
+html {
+  scroll-behavior: smooth;
+}
+
+/* === Selección personalizada === */
+::selection {
+  background: rgba(102, 126, 234, 0.3);
+  color: inherit;
+}
+
+/* === Logo esquina con efecto hover === */
+#corner-logo {
+  transition: var(--transition-smooth);
+  filter: drop-shadow(0 4px 8px rgba(0, 0, 0, 0.1));
+}
+
+#corner-logo:hover {
+  transform: scale(1.05) rotate(5deg);
+  filter: drop-shadow(0 8px 16px rgba(0, 0, 0, 0.2));
+}
+
+/* === Toolbar grid mejorado === */
+.toolbar-grid {
+  background: var(--glass-bg-light);
+  backdrop-filter: blur(10px);
+  border: 1px solid var(--glass-border-light);
+  border-radius: 1rem;
+  padding: 1.5rem;
+  box-shadow: var(--shadow-soft);
+}
+
+html[data-theme="dark"] .toolbar-grid {
+  background: var(--glass-bg-dark);
+  border-color: var(--glass-border-dark);
+}
+
+/* === Mejora de contraste en labels === */
+.form-label {
+  font-weight: 600;
+  font-size: 0.9rem;
+  color: #495057;
+  margin-bottom: 0.5rem;
+}
+
+html[data-theme="dark"] .form-label {
+  color: #cbd3da;
+}
+
+/* === Responsive mejorado === */
+@media (max-width: 768px) {
+  .text-center.mb-3 h2 {
+    font-size: 2rem;
+  }
+  
+  .alert,
+  #mainForm > .row,
+  .table-responsive,
+  .toolbar-grid {
+    padding: 1rem;
+    border-radius: 0.75rem;
+  }
+  
+  .btn {
+    padding: 0.5rem 1rem;
+    font-size: 0.9rem;
+  }
+}
