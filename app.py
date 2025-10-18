@@ -1232,24 +1232,25 @@ def index():
                 }
             }
         )
-# Cargar meta para tags
-meta_details = load_meta().get("ip_details", {})
 
-# Empaquetar cada línea con sus tags
-ips_with_tags = []
-for line in lines:
-    ip_txt = line.split("|", 1)[0]
-    tags = meta_details.get(ip_txt, {}).get("tags", [])
-    ips_with_tags.append({"raw": line, "ip": ip_txt, "tags": tags})
-    
-    return render_template("index.html",
-                           ips=ips_with_tags,
-                           error=error,
-                           total_ips=len(lines),
-                           contador_manual=live_manual,
-                           contador_csv=live_csv,
-                           messages=messages,
-                           request_actions=request_actions)
+    # === NUEVO: preparar tags para la plantilla ===
+    meta_details = load_meta().get("ip_details", {})
+    ip_tags = {}
+    for line in lines:
+        ip_txt = line.split("|", 1)[0].strip()
+        ip_tags[ip_txt] = meta_details.get(ip_txt, {}).get("tags", [])
+
+    return render_template(
+        "index.html",
+        ips=lines,                       # lista de strings "IP|YYYY-MM-DD|TTL"
+        ip_tags=ip_tags,                 # mapping {ip: [tags]}
+        error=error,
+        total_ips=len(lines),
+        contador_manual=live_manual,
+        contador_csv=live_csv,
+        messages=messages,
+        request_actions=request_actions
+    )
 
 
 @app.route("/feed/ioc-feed.txt")
