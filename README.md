@@ -31,7 +31,7 @@ sudo apt update && sudo apt install -y python3 python3-venv python3-pip gunicorn
 ### 2️⃣ Clonar el proyecto y crear entorno virtual
 
 ```bash
-cd /home/darelldeejay
+cd /home/admin
 git clone https://github.com/darelldeejay/ioc-manager.git
 cd ioc-manager
 python3 -m venv .venv
