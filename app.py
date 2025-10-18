@@ -1615,6 +1615,22 @@ def api_root():
 # Registrar blueprint
 app.register_blueprint(api)
 
+# === Colores consistentes para tags (Opción 2) ===
+def tag_color(tag_name: str) -> str:
+    """
+    Genera un color HEX legible y consistente basado en el nombre del tag.
+    Evita colores demasiado oscuros o chillones.
+    """
+    import hashlib
+    h = hashlib.md5(tag_name.encode("utf-8")).hexdigest()
+    # Valores base suavizados (80–207 aprox)
+    r = int(h[0:2], 16) // 2 + 80
+    g = int(h[2:4], 16) // 2 + 80
+    b = int(h[4:6], 16) // 2 + 80
+    return f"#{r:02x}{g:02x}{b:02x}"
+
+# Exponer en Jinja
+app.jinja_env.globals['tag_color'] = tag_color
 
 if __name__ == "__main__":
     app.run(debug=True, host="0.0.0.0", port=5000)
