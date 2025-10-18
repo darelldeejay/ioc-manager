@@ -3,3 +3,6 @@ body {
     background-color: #f2f2f2;
     font-family: Arial, sans-serif;
 }
+/* Resaltado de filas seleccionadas (bulk selection) */
+.table-active-selected { background-color: rgba(13, 110, 253, 0.08) !important; }
+html[data-theme="dark"] .table-active-selected { background-color: rgba(13, 110, 253, 0.22) !important; }
