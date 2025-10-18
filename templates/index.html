@@ -392,24 +392,51 @@
   </tr>
 </thead><tbody>
   {% for item in ips %}
-    {% set parts = item.raw.split('|') %}
-    <tr>
-      <td>
-        <input type="checkbox" class="row-chk" value="{{ item.ip }}">
-      </td>
-      <td>{{ item.ip }}</td>
-      <td>{{ parts[1] }}</td>
-      <td>{{ '∞' if parts[2] == '0' else parts[2] }}</td>
+  {% set parts = item.split('|') %}
+  {% set ip_txt = parts[0].strip() %}
+  {% set tags = (ip_tags.get(ip_txt, []) if ip_tags is defined and ip_tags else []) %}
 
-      <!-- NUEVA COLUMNA: TAGS con color consistente -->
-      <td>
-        {% if item.tags and item.tags|length > 0 %}
-          {% for tag in item.tags %}
-            <span class="badge rounded-pill"
-                  style="background-color: {{ tag_color(tag) }}; color: #fff; margin-right:.25rem; margin-bottom:.15rem; display:inline-block;">
-              {{ tag }}
-            </span>
-          {% endfor %}
+  <tr>
+    <td>
+      <input type="checkbox" class="row-chk" value="{{ ip_txt }}">
+    </td>
+    <td>
+      {{ ip_txt }}
+      {% if tags %}
+        {% for t in tags %}
+          <span class="badge" style="background-color: {{ tag_color(t) }}; color:#fff; margin-left:6px;">
+            {{ t }}
+          </span>
+        {% endfor %}
+      {% endif %}
+    </td>
+    <td>{{ parts[1] }}</td>
+    <td>{{ '∞' if parts[2] == '0' else parts[2] }}</td>
+    <td>
+      <button class="btn btn-sm btn-outline-danger" data-bs-toggle="modal" data-bs-target="#confirmDelete{{ loop.index }}">Eliminar</button>
+      <div class="modal fade" id="confirmDelete{{ loop.index }}" tabindex="-1" aria-hidden="true">
+        <div class="modal-dialog modal-dialog-centered">
+          <div class="modal-content">
+            <form method="POST">
+              <div class="modal-header">
+                <h5 class="modal-title">Confirmar eliminación</h5>
+                <button type="button" class="btn-close" data-bs-dismiss="modal" aria-label="Cerrar"></button>
+              </div>
+              <div class="modal-body">
+                ¿Eliminar <strong>{{ ip_txt }}</strong>?
+              </div>
+              <div class="modal-footer">
+                <input type="hidden" name="delete_ip" value="{{ ip_txt }}">
+                <button type="submit" class="btn btn-danger">Eliminar</button>
+                <button type="button" class="btn btn-secondary" data-bs-dismiss="modal">Cancelar</button>
+              </div>
+            </form>
+          </div>
+        </div>
+      </div>
+    </td>
+  </tr>
+{% endfor %}
         {% else %}
           <span class="text-muted">—</span>
         {% endif %}
