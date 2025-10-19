@@ -64,6 +64,12 @@ IDEM_TTL_SECONDS = 600
 # Tags válidos
 ALLOWED_TAGS = {"Multicliente", "BPE"}
 
+# Mapa canónico de tags (case-insensitive)
+CANONICAL_TAGS = {
+    "multicliente": "Multicliente",
+    "bpe": "BPE",
+}
+
 # Asegurar carpetas
 os.makedirs(DATA_DIR, exist_ok=True)
 os.makedirs(TAGS_DIR, exist_ok=True)
@@ -478,8 +484,14 @@ def _norm_tags(tags):
     return out
 
 def _filter_allowed_tags(tags):
-    """Devuelve sólo los tags permitidos."""
-    return [t for t in _norm_tags(tags) if t in ALLOWED_TAGS]
+    """Devuelve sólo los tags permitidos, normalizando mayúsculas/minúsculas."""
+    normalized = []
+    for t in _norm_tags(tags):
+        key = str(t).strip().lower()
+        canon = CANONICAL_TAGS.get(key)
+        if canon:
+            normalized.append(canon)
+    return normalized
 
 def _parse_tags_field(val: str):
     if not val:
