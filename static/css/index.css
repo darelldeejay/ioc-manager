@@ -1,805 +1,316 @@
-/* ============================================================
-   PROPUESTA 2: CYBERSEC PRO - Dashboard de Seguridad Oscuro
-   ============================================================
-   Añade estas reglas AL FINAL de tu index.css existente
-   IMPORTANTE: Activa el modo oscuro por defecto
-   ============================================================ */
-
-/* === Variables del tema cybersecurity === */
-:root {
-  --cyber-dark-bg: #0a0e27;
-  --cyber-surface: #151a2e;
-  --cyber-surface-elevated: #1a2038;
-  --cyber-border: rgba(0, 217, 255, 0.15);
-  --cyber-border-active: rgba(0, 217, 255, 0.5);
-  
-  --accent-cyan: #00d9ff;
-  --accent-green: #00ff88;
-  --accent-red: #ff0055;
-  --accent-yellow: #ffdd00;
-  
-  --text-primary: #e4e4e7;
-  --text-secondary: #a1a1aa;
-  --text-muted: #71717a;
-  
-  --glow-cyan: 0 0 20px rgba(0, 217, 255, 0.3);
-  --glow-green: 0 0 20px rgba(0, 255, 136, 0.3);
-  --glow-red: 0 0 20px rgba(255, 0, 85, 0.3);
-  
-  --transition-cyber: all 0.3s cubic-bezier(0.25, 0.8, 0.25, 1);
-}
-
-/* === Forzar tema oscuro en todo el documento === */
-html,
-body {
-  background-color: var(--cyber-dark-bg) !important;
-  color: var(--text-primary) !important;
-}
-
-html[data-theme="light"],
-html[data-theme="light"] body {
-  background-color: var(--cyber-dark-bg) !important;
-  color: var(--text-primary) !important;
-}
-
-/* === Container principal === */
-.container {
-  max-width: 1400px;
-  background: linear-gradient(180deg, 
-    var(--cyber-dark-bg) 0%, 
-    rgba(21, 26, 46, 0.8) 50%, 
-    var(--cyber-dark-bg) 100%);
-}
-
-/* === Header estilo terminal === */
-.container > .d-flex.justify-content-between.align-items-center.mb-3:first-child {
-  background: var(--cyber-surface);
-  border: 1px solid var(--cyber-border);
-  border-radius: 0.5rem;
-  padding: 1rem 1.5rem;
-  margin-bottom: 2rem;
-  box-shadow: 0 0 30px rgba(0, 217, 255, 0.1);
-  position: relative;
-}
-
-.container > .d-flex:first-child::before {
-  content: '';
-  position: absolute;
-  top: 0;
-  left: 0;
-  right: 0;
-  height: 2px;
-  background: linear-gradient(90deg, 
-    transparent 0%, 
-    var(--accent-cyan) 50%, 
-    transparent 100%);
-}
-
-.container > .d-flex:first-child button,
-.container > .d-flex:first-child a {
-  background: transparent !important;
-  border: 1px solid var(--cyber-border) !important;
-  color: var(--accent-cyan) !important;
-  font-family: 'Courier New', monospace;
-  font-weight: 600;
-  transition: var(--transition-cyber);
-  text-transform: uppercase;
-  font-size: 0.85rem;
-  letter-spacing: 0.05em;
-}
-
-.container > .d-flex:first-child button:hover,
-.container > .d-flex:first-child a:hover {
-  background: var(--accent-cyan) !important;
-  color: var(--cyber-dark-bg) !important;
-  border-color: var(--accent-cyan) !important;
-  box-shadow: var(--glow-cyan);
-  transform: translateY(-2px);
-}
-
-/* === Título principal con efecto glitch === */
-.text-center.mb-3 h2 {
-  font-family: 'Courier New', monospace;
-  font-size: 3rem;
-  font-weight: 900;
-  letter-spacing: 0.05em;
-  text-transform: uppercase;
-  position: relative;
-  margin-bottom: 1rem;
-}
-
-.text-center.mb-3 .title-gestor {
-  color: var(--text-primary);
-  text-shadow: 0 0 10px rgba(228, 228, 231, 0.5);
-}
-
-.text-center.mb-3 .title-ioc {
-  color: var(--accent-cyan);
-  text-shadow: var(--glow-cyan);
-}
-
-.text-center.mb-3 > div[style*="background"] {
-  background: linear-gradient(90deg, 
-    transparent 0%, 
-    var(--accent-cyan) 50%, 
-    transparent 100%) !important;
-  height: 2px !important;
-  box-shadow: var(--glow-cyan);
-}
-
-.text-center.mb-3 p.text-muted {
-  color: var(--text-secondary) !important;
-  font-family: 'Courier New', monospace;
-  font-size: 0.95rem;
-  text-transform: uppercase;
-  letter-spacing: 0.1em;
-}
-
-/* === Alert de estadísticas - Estilo dashboard === */
-.alert.alert-info {
-  background: var(--cyber-surface);
-  border: 2px solid var(--cyber-border);
-  border-radius: 0.75rem;
-  padding: 2rem;
-  box-shadow: var(--glow-cyan), inset 0 1px 0 rgba(0, 217, 255, 0.1);
-  color: var(--text-primary);
-}
-
-.alert.alert-info strong {
-  color: var(--accent-cyan);
-  font-size: 2rem;
-  font-weight: 900;
-  font-family: 'Courier New', monospace;
-  text-shadow: var(--glow-cyan);
-  display: inline-block;
-  padding: 0 0.5rem;
-  background: rgba(0, 217, 255, 0.1);
-  border-radius: 0.25rem;
-}
-
-.alert.alert-info::before {
-  content: '//';
-  position: absolute;
-  left: 1rem;
-  top: 0.5rem;
-  color: var(--accent-green);
-  font-family: 'Courier New', monospace;
-  font-size: 0.85rem;
-  opacity: 0.5;
-}
-
-/* === Cards con bordes neón === */
-#mainForm > .row,
-.table-responsive,
-.toolbar-grid {
-  background: var(--cyber-surface);
-  border: 1px solid var(--cyber-border);
-  border-radius: 0.75rem;
-  padding: 1.5rem;
-  margin-bottom: 1.5rem;
-  box-shadow: 0 4px 20px rgba(0, 0, 0, 0.3),
-              inset 0 1px 0 rgba(0, 217, 255, 0.1);
-  transition: var(--transition-cyber);
-  position: relative;
-}
-
-#mainForm > .row:hover,
-.table-responsive:hover,
-.toolbar-grid:hover {
-  border-color: var(--cyber-border-active);
-  box-shadow: var(--glow-cyan), 
-              0 4px 20px rgba(0, 0, 0, 0.3);
-}
-
-/* === Inputs estilo terminal === */
-.form-control,
-.form-select {
-  background: rgba(0, 0, 0, 0.3);
-  border: 1px solid var(--cyber-border);
-  border-radius: 0.5rem;
-  color: var(--text-primary);
-  font-family: 'Courier New', monospace;
-  padding: 0.75rem 1rem;
-  transition: var(--transition-cyber);
-}
-
-.form-control::placeholder {
-  color: var(--text-muted);
-  opacity: 0.7;
-}
-
-.form-control:focus,
-.form-select:focus {
-  background: rgba(0, 217, 255, 0.05);
-  border-color: var(--accent-cyan);
-  color: var(--text-primary);
-  box-shadow: 0 0 0 3px rgba(0, 217, 255, 0.1), var(--glow-cyan);
-  outline: none;
-}
-
-/* === Botones cybersecurity === */
-.btn {
-  font-family: 'Courier New', monospace;
-  font-weight: 700;
-  text-transform: uppercase;
-  letter-spacing: 0.05em;
-  border-radius: 0.5rem;
-  padding: 0.75rem 1.5rem;
-  transition: var(--transition-cyber);
-  border: none;
-  position: relative;
-  overflow: hidden;
-}
-
-.btn::before {
-  content: '';
-  position: absolute;
-  top: 0;
-  left: -100%;
-  width: 100%;
-  height: 100%;
-  background: linear-gradient(90deg, transparent, rgba(255,255,255,0.2), transparent);
-  transition: left 0.5s;
-}
-
-.btn:hover::before {
-  left: 100%;
-}
-
-.btn-success {
-  background: linear-gradient(135deg, #00ff88 0%, #00cc70 100%);
-  color: var(--cyber-dark-bg);
-  box-shadow: var(--glow-green);
-}
-
-.btn-success:hover {
-  box-shadow: var(--glow-green), 0 0 30px rgba(0, 255, 136, 0.5);
-  transform: translateY(-2px);
-}
-
-.btn-primary {
-  background: linear-gradient(135deg, var(--accent-cyan) 0%, #0099cc 100%);
-  color: var(--cyber-dark-bg);
-  box-shadow: var(--glow-cyan);
-}
-
-.btn-primary:hover {
-  box-shadow: var(--glow-cyan), 0 0 30px rgba(0, 217, 255, 0.5);
-  transform: translateY(-2px);
-}
-
-.btn-danger {
-  background: linear-gradient(135deg, var(--accent-red) 0%, #cc0044 100%);
-  color: white;
-  box-shadow: var(--glow-red);
-}
-
-.btn-danger:hover {
-  box-shadow: var(--glow-red), 0 0 30px rgba(255, 0, 85, 0.5);
-  transform: translateY(-2px);
-}
-
-.btn-outline-secondary,
-.btn-outline-primary,
-.btn-outline-danger,
-.btn-outline-warning {
-  background: transparent;
-  border: 1px solid var(--cyber-border);
-  color: var(--text-primary);
-}
-
-.btn-outline-secondary:hover {
-  background: var(--text-secondary);
-  color: var(--cyber-dark-bg);
-  border-color: var(--text-secondary);
-}
-
-.btn-outline-primary:hover {
-  background: var(--accent-cyan);
-  color: var(--cyber-dark-bg);
-  border-color: var(--accent-cyan);
-  box-shadow: var(--glow-cyan);
-}
-
-.btn-outline-danger:hover {
-  background: var(--accent-red);
-  color: white;
-  border-color: var(--accent-red);
-  box-shadow: var(--glow-red);
-}
-
-/* === Tabla futurista === */
-.table {
-  color: var(--text-primary);
-  font-family: 'Courier New', monospace;
-  font-size: 0.9rem;
-}
-
-.table thead th {
-  background: linear-gradient(135deg, var(--cyber-surface-elevated) 0%, var(--cyber-surface) 100%);
-  color: var(--accent-cyan);
-  text-transform: uppercase;
-  letter-spacing: 0.1em;
-  font-weight: 700;
-  border: none;
-  border-bottom: 2px solid var(--accent-cyan);
-  padding: 1rem;
-  font-size: 0.85rem;
-}
-
-.table tbody tr {
-  border-bottom: 1px solid var(--cyber-border);
-  transition: var(--transition-cyber);
-}
-
-.table tbody tr:hover {
-  background: rgba(0, 217, 255, 0.05) !important;
-  box-shadow: inset 0 0 0 1px var(--accent-cyan);
-}
-
-.table td {
-  padding: 1rem;
-  vertical-align: middle;
-  border-color: var(--cyber-border);
-}
-
-/* === Badges estilo chip === */
-.badge {
-  padding: 0.5rem 1rem;
-  border-radius: 0.5rem;
-  font-weight: 700;
-  font-family: 'Courier New', monospace;
-  font-size: 0.8rem;
-  text-transform: uppercase;
-  letter-spacing: 0.05em;
-  border: 1px solid currentColor;
-}
-
-/* === Hint box estilo warning === */
-.hint-box {
-  background: rgba(255, 221, 0, 0.05);
-  border: 1px solid rgba(255, 221, 0, 0.3);
-  border-left: 4px solid var(--accent-yellow);
-  border-radius: 0.5rem;
-  padding: 1rem;
-  color: var(--text-primary);
-}
-
-.hint-box strong {
-  color: var(--accent-yellow);
-  font-family: 'Courier New', monospace;
-}
-
-.hint-box code {
-  background: rgba(0, 0, 0, 0.3);
-  padding: 0.2rem 0.5rem;
-  border-radius: 0.25rem;
-  color: var(--accent-cyan);
-  font-size: 0.9rem;
-}
-
-/* === Modales cyberpunk === */
-.modal-content {
-  background: var(--cyber-surface);
-  border: 2px solid var(--cyber-border);
-  border-radius: 0.75rem;
-  box-shadow: var(--glow-cyan), 0 20px 60px rgba(0, 0, 0, 0.5);
-  color: var(--text-primary);
-}
-
-.modal-header {
-  background: linear-gradient(135deg, var(--cyber-surface-elevated) 0%, var(--cyber-surface) 100%);
-  border-bottom: 2px solid var(--accent-cyan);
-  color: var(--text-primary);
-}
-
-.modal-title {
-  color: var(--accent-cyan);
-  font-family: 'Courier New', monospace;
-  text-transform: uppercase;
-  letter-spacing: 0.1em;
-  font-weight: 700;
-}
-
-.modal-body {
-  padding: 2rem;
-  background: var(--cyber-surface);
-}
-
-.modal-footer {
-  background: var(--cyber-surface-elevated);
-  border-top: 1px solid var(--cyber-border);
-  padding: 1.5rem;
-}
-
-/* === Toasts con glow === */
-.toast {
-  background: var(--cyber-surface);
-  border: 2px solid var(--cyber-border);
-  border-radius: 0.75rem;
-  color: var(--text-primary);
-  box-shadow: 0 8px 30px rgba(0, 0, 0, 0.5);
-  backdrop-filter: blur(10px);
-}
-
-.toast.text-bg-success {
-  background: linear-gradient(135deg, rgba(0, 255, 136, 0.2) 0%, var(--cyber-surface) 100%);
-  border-color: var(--accent-green);
-  box-shadow: var(--glow-green);
-}
-
-.toast.text-bg-warning {
-  background: linear-gradient(135deg, rgba(255, 221, 0, 0.2) 0%, var(--cyber-surface) 100%);
-  border-color: var(--accent-yellow);
-  box-shadow: 0 0 20px rgba(255, 221, 0, 0.3);
-}
-
-.toast.text-bg-danger {
-  background: linear-gradient(135deg, rgba(255, 0, 85, 0.2) 0%, var(--cyber-surface) 100%);
-  border-color: var(--accent-red);
-  box-shadow: var(--glow-red);
-}
-
-.toast-body {
-  font-family: 'Courier New', monospace;
-  font-weight: 600;
-  padding: 1rem 1.25rem;
-}
-
-/* === Offcanvas futurista === */
-.offcanvas {
-  background: var(--cyber-dark-bg);
-  border-left: 2px solid var(--accent-cyan);
-  box-shadow: var(--glow-cyan), -10px 0 40px rgba(0, 0, 0, 0.5);
-  color: var(--text-primary);
-}
-
-.offcanvas-header {
-  background: var(--cyber-surface-elevated);
-  border-bottom: 2px solid var(--accent-cyan);
-  padding: 1.5rem;
-}
-
-.offcanvas-header h5 {
-  color: var(--accent-cyan);
-  font-family: 'Courier New', monospace;
-  text-transform: uppercase;
-  letter-spacing: 0.1em;
-  font-weight: 700;
-}
-
-.offcanvas-body {
-  background: var(--cyber-surface);
-  padding: 1.5rem;
-}
-
-/* === Notificaciones en lista === */
-#notifList > div {
-  background: var(--cyber-surface-elevated) !important;
-  border: 1px solid var(--cyber-border) !important;
-  border-radius: 0.5rem;
-  padding: 1rem;
-  color: var(--text-primary) !important;
-  transition: var(--transition-cyber);
-  position: relative;
-  overflow: hidden;
-}
-
-#notifList > div::before {
-  content: '';
-  position: absolute;
-  left: 0;
-  top: 0;
-  bottom: 0;
-  width: 3px;
-  background: var(--accent-cyan);
-}
-
-#notifList > div:hover {
-  border-color: var(--cyber-border-active);
-  box-shadow: var(--glow-cyan);
-  transform: translateX(5px);
-}
-
-#notifList .badge {
-  box-shadow: 0 0 10px currentColor;
-}
-
-/* === Paginación tech === */
-.pagination .page-link {
-  background: var(--cyber-surface);
-  border: 1px solid var(--cyber-border);
-  color: var(--accent-cyan);
-  font-family: 'Courier New', monospace;
-  font-weight: 700;
-  margin: 0 0.25rem;
-  border-radius: 0.5rem;
-  transition: var(--transition-cyber);
-}
-
-.pagination .page-link:hover {
-  background: var(--accent-cyan);
-  border-color: var(--accent-cyan);
-  color: var(--cyber-dark-bg);
-  box-shadow: var(--glow-cyan);
-  transform: translateY(-2px);
-}
-
-.pagination .page-item.active .page-link {
-  background: linear-gradient(135deg, var(--accent-cyan) 0%, #0099cc 100%);
-  border-color: var(--accent-cyan);
-  color: var(--cyber-dark-bg);
-  box-shadow: var(--glow-cyan);
-}
-
-.pagination .page-item.disabled .page-link {
-  background: rgba(0, 0, 0, 0.3);
-  border-color: rgba(0, 217, 255, 0.1);
-  color: var(--text-muted);
-}
-
-/* === Checkboxes personalizados === */
-input[type="checkbox"] {
-  appearance: none;
-  width: 1.25rem;
-  height: 1.25rem;
-  border: 2px solid var(--cyber-border);
-  border-radius: 0.25rem;
-  background: rgba(0, 0, 0, 0.3);
-  cursor: pointer;
-  position: relative;
-  transition: var(--transition-cyber);
-}
-
-input[type="checkbox"]:hover {
-  border-color: var(--accent-cyan);
-  box-shadow: var(--glow-cyan);
-}
-
-input[type="checkbox"]:checked {
-  background: var(--accent-cyan);
-  border-color: var(--accent-cyan);
-  box-shadow: var(--glow-cyan);
-}
-
-input[type="checkbox"]:checked::after {
-  content: '✓';
-  position: absolute;
-  top: 50%;
-  left: 50%;
-  transform: translate(-50%, -50%);
-  color: var(--cyber-dark-bg);
-  font-weight: 900;
-  font-size: 0.9rem;
-}
-
-/* === Filas seleccionadas === */
-tr.table-active-selected {
-  background: rgba(0, 217, 255, 0.1) !important;
-  box-shadow: inset 0 0 0 2px var(--accent-cyan);
-}
-
-/* === Labels mejorados === */
-.form-label {
-  color: var(--accent-cyan);
-  font-family: 'Courier New', monospace;
-  font-weight: 700;
-  font-size: 0.85rem;
-  text-transform: uppercase;
-  letter-spacing: 0.05em;
-  margin-bottom: 0.5rem;
-}
-
-/* === Form text === */
-.form-text {
-  color: var(--text-secondary) !important;
-  font-family: 'Courier New', monospace;
-  font-size: 0.85rem;
-}
-
-.form-text code {
-  background: rgba(0, 217, 255, 0.1);
-  color: var(--accent-cyan);
-  padding: 0.2rem 0.4rem;
-  border-radius: 0.25rem;
-}
-
-/* === Botón de notificaciones mejorado === */
-#notif-btn {
-  position: relative;
-  background: transparent !important;
-  border: 1px solid var(--accent-cyan) !important;
-  color: var(--accent-cyan) !important;
-}
-
-#notif-btn:hover {
-  background: var(--accent-cyan) !important;
-  color: var(--cyber-dark-bg) !important;
-  box-shadow: var(--glow-cyan);
-}
-
-#notif-badge {
-  background: var(--accent-red) !important;
-  color: white !important;
-  box-shadow: var(--glow-red);
-  animation: pulse-badge 2s infinite;
-}
-
-@keyframes pulse-badge {
-  0%, 100% { transform: scale(1); }
-  50% { transform: scale(1.1); }
-}
-
-/* === Logo con efecto cyber === */
+/* =========================
+   Logo de esquina (dashboard)
+   ========================= */
 #corner-logo {
-  filter: drop-shadow(0 0 10px rgba(0, 217, 255, 0.3));
-  transition: var(--transition-cyber);
+  width: 110px;
+  height: 110px;
+  position: fixed;        /* fijo en la esquina aunque hagas scroll */
+  bottom: 15px;
+  right: 15px;
+  margin: 0;
+  z-index: 9999;
+  user-select: none;
+  pointer-events: none;   /* no bloquea clicks sobre la UI */
+  opacity: .95;
 }
 
-#corner-logo:hover {
-  filter: drop-shadow(0 0 20px rgba(0, 217, 255, 0.6));
-  transform: scale(1.05);
+/* Opcional: más pequeño en móviles */
+@media (max-width: 576px) {
+  #corner-logo { width: 72px; height: 72px; }
 }
 
-/* === Animación de carga === */
-@keyframes slideInFromBottom {
-  from {
-    opacity: 0;
-    transform: translateY(30px);
-  }
-  to {
-    opacity: 1;
-    transform: translateY(0);
-  }
-}
-
-.container > * {
-  animation: slideInFromBottom 0.6s cubic-bezier(0.25, 0.8, 0.25, 1) backwards;
-}
-
-.container > *:nth-child(1) { animation-delay: 0.05s; }
-.container > *:nth-child(2) { animation-delay: 0.1s; }
-.container > *:nth-child(3) { animation-delay: 0.15s; }
-.container > *:nth-child(4) { animation-delay: 0.2s; }
-.container > *:nth-child(5) { animation-delay: 0.25s; }
-
-/* === Efecto scanline (opcional, sutil) === */
-body::before {
-  content: '';
-  position: fixed;
-  top: 0;
-  left: 0;
-  right: 0;
-  bottom: 0;
-  background: repeating-linear-gradient(
-    0deg,
-    rgba(0, 0, 0, 0.15) 0px,
-    transparent 1px,
-    transparent 2px,
-    rgba(0, 0, 0, 0.15) 3px
-  );
-  pointer-events: none;
-  z-index: 10000;
-  opacity: 0.05;
-}
-
-/* === Grid background effect === */
-body::after {
-  content: '';
-  position: fixed;
-  top: 0;
-  left: 0;
-  right: 0;
-  bottom: 0;
-  background-image: 
-    linear-gradient(rgba(0, 217, 255, 0.03) 1px, transparent 1px),
-    linear-gradient(90deg, rgba(0, 217, 255, 0.03) 1px, transparent 1px);
-  background-size: 50px 50px;
-  pointer-events: none;
-  z-index: 0;
-}
-
-.container {
-  position: relative;
-  z-index: 1;
-}
-
-/* === Scrollbar personalizado === */
-::-webkit-scrollbar {
-  width: 10px;
-  height: 10px;
-}
-
-::-webkit-scrollbar-track {
-  background: var(--cyber-dark-bg);
-}
-
-::-webkit-scrollbar-thumb {
-  background: var(--accent-cyan);
-  border-radius: 5px;
-  box-shadow: var(--glow-cyan);
-}
-
-::-webkit-scrollbar-thumb:hover {
-  background: #00ffff;
-}
-
-/* === Selección de texto === */
-::selection {
-  background: rgba(0, 217, 255, 0.3);
-  color: var(--text-primary);
-}
-
-/* === Feedback de validación === */
-.form-control.is-valid {
-  border-color: var(--accent-green);
-  box-shadow: 0 0 0 3px rgba(0, 255, 136, 0.1);
-}
-
-.form-control.is-invalid {
-  border-color: var(--accent-red);
-  box-shadow: 0 0 0 3px rgba(255, 0, 85, 0.1);
-}
-
-.invalid-feedback {
-  color: var(--accent-red);
-  font-family: 'Courier New', monospace;
-  font-size: 0.85rem;
-  font-weight: 600;
-}
-
-/* === Toolbar grid especial === */
-.toolbar-grid {
-  position: relative;
-}
-
-.toolbar-grid::before {
-  content: '// FILTROS';
-  position: absolute;
-  top: -0.75rem;
-  left: 1rem;
-  background: var(--cyber-surface);
-  padding: 0 0.5rem;
-  color: var(--accent-green);
-  font-family: 'Courier New', monospace;
-  font-size: 0.75rem;
-  font-weight: 700;
-}
-
-/* === Responsive === */
-@media (max-width: 768px) {
-  .text-center.mb-3 h2 {
-    font-size: 2rem;
-  }
-  
-  .alert.alert-info strong {
-    font-size: 1.5rem;
-  }
-  
-  #mainForm > .row,
-  .table-responsive,
-  .toolbar-grid {
-    padding: 1rem;
-  }
-  
-  .btn {
-    padding: 0.6rem 1rem;
-    font-size: 0.85rem;
-  }
-  
-  body::after {
-    background-size: 30px 30px;
+/* Duplicado específico muy pequeño */
+@media (max-width: 576px) {
+  #corner-logo {
+    width: 60px;
+    height: 60px;
+    bottom: 10px;
+    right: 10px;
   }
 }
 
-/* === Efecto de tecleo en título (opcional) === */
-@keyframes blink {
-  0%, 49% { opacity: 1; }
-  50%, 100% { opacity: 0; }
+
+/* =========================
+   Modo oscuro: inputs y placeholders
+   ========================= */
+body.bg-dark ::placeholder {
+  color: #bbb !important;   /* gris claro más visible */
+  opacity: 1;               /* asegura visibilidad */
 }
 
-.text-center.mb-3 .title-ioc::after {
-  content: '_';
-  animation: blink 1s infinite;
-  color: var(--accent-green);
+body.bg-dark .form-control,
+body.bg-dark .form-select {
+  background-color: #1f1f1f;
+  color: #e9ecef;
+  border-color: #495057;
+}
+
+body.bg-dark .form-control:focus,
+body.bg-dark .form-select:focus {
+  background-color: #1c1c1c;
+  color: #fff;
+  border-color: #6ea8fe;
+  box-shadow: 0 0 0 .25rem rgba(110,168,254,.25);
+}
+
+
+/* =========================
+   Tabla en modo oscuro (Bootstrap 5)
+   ========================= */
+body.bg-dark .table,
+body.bg-dark .table th,
+body.bg-dark .table td {
+  background-color: #121212 !important;
+  color: #e9ecef !important;
+  border-color: #2b2b2b !important;
+}
+
+/* Cabecera de tabla */
+body.bg-dark table thead th {
+  background-color: #1a1a1a !important;
+  color: #e9ecef !important;
+}
+
+/* Rayado (striped) sutil en oscuro */
+body.bg-dark .table-striped > tbody > tr:nth-of-type(odd) > * {
+  background-color: rgba(255,255,255,0.03) !important;
+}
+
+/* Hover sutil en oscuro */
+body.bg-dark .table-hover > tbody > tr:hover > * {
+  background-color: rgba(255,255,255,0.06) !important;
+}
+
+/* Botones "Eliminar" dentro de filas oscuras */
+body.bg-dark .table .btn-outline-danger {
+  border-color: #ff6b6b;
+  color: #ff6b6b;
+}
+body.bg-dark .table .btn-outline-danger:hover {
+  background-color: #ff6b6b;
+  color: #121212;
+}
+
+
+/* =========================
+   Modales y Offcanvas en oscuro
+   ========================= */
+body.bg-dark .modal-content {
+  background-color: #1f1f1f;
+  color: #e9ecef;
+  border-color: #2b2b2b;
+}
+body.bg-dark .modal-header,
+body.bg-dark .modal-footer {
+  border-color: #2b2b2b;
+}
+
+body.bg-dark .offcanvas {
+  background-color: #1f1f1f;
+  color: #e9ecef;
+}
+
+body.bg-dark .offcanvas .list-group-item {
+  background-color: transparent;
+  color: #e9ecef;
+  border-color: #2b2b2b;
+}
+
+
+/* =========================
+   Botón Notificaciones + badge
+   ========================= */
+body.bg-dark #notif-btn.btn-outline-primary {
+  /* Sobrescribe variables internas del botón (Bootstrap 5.3) */
+  --bs-btn-color: #66b2ff;
+  --bs-btn-border-color: #66b2ff;
+  --bs-btn-hover-color: #121212;
+  --bs-btn-hover-bg: #66b2ff;
+  --bs-btn-hover-border-color: #66b2ff;
+  --bs-btn-active-color: #121212;
+  --bs-btn-active-bg: #66b2ff;
+  --bs-btn-active-border-color: #66b2ff;
+  --bs-btn-focus-shadow-rgb: 102,178,255;
+
+  /* Fallback directo */
+  border-color: #66b2ff !important;
+  color: #66b2ff !important;
+}
+
+body.bg-dark #notif-btn.btn-outline-primary:hover,
+body.bg-dark #notif-btn.btn-outline-primary:focus,
+body.bg-dark #notif-btn.btn-outline-primary:active {
+  background-color: #66b2ff !important;
+  border-color: #66b2ff !important;
+  color: #121212 !important;
+}
+
+/* Burbuja roja visible en ambos temas */
+body.bg-dark #notif-badge {
+  background-color: #ff6b6b !important;
+  color: #fff !important;
+}
+
+
+/* =========================
+   Hints / cajas informativas en oscuro
+   ========================= */
+body.bg-dark .hint-box {
+  border-color: #495057;
+  background: #1f1f1f;
+  color: #e9ecef;
+}
+/* Ajuste botón Notificaciones en modo oscuro */
+body.bg-dark #notif-btn.btn-primary {
+  background-color: #0d6efd;   /* azul Bootstrap */
+  border-color: #0d6efd;
+  color: #fff;
+}
+
+body.bg-dark #notif-btn.btn-primary:hover {
+  background-color: #0b5ed7;
+  border-color: #0a58ca;
+}
+/* Notificaciones en modo oscuro */
+body.bg-dark #notifList .border {
+  background-color: #1f1f1f !important;  /* fondo oscuro */
+  color: #e9ecef;                        /* texto claro */
+  border-color: #343a40 !important;      /* borde gris oscuro */
+}
+
+body.bg-dark #notifList .small.text-muted {
+  color: #adb5bd !important;             /* texto secundario más visible */
+}
+/* Paginación de notificaciones en modo oscuro */
+body.bg-dark #notifPagination .page-link {
+  background-color: #1f1f1f;
+  border-color: #343a40;
+  color: #e9ecef;
+}
+
+body.bg-dark #notifPagination .page-link:hover {
+  background-color: #343a40;
+  border-color: #495057;
+  color: #fff;
+}
+
+body.bg-dark #notifPagination .page-item.active .page-link {
+  background-color: #0d6efd;  /* azul Bootstrap */
+  border-color: #0d6efd;
+  color: #fff;
+}
+
+body.bg-dark #notifPagination .page-item.disabled .page-link {
+  background-color: #212529;
+  border-color: #343a40;
+  color: #6c757d;
+}
+/* Inputs de filtros en modo oscuro */
+body.bg-dark #offcanvasNotifs .form-select,
+body.bg-dark #offcanvasNotifs .form-control {
+  background-color: #1f1f1f;
+  border-color: #495057;
+  color: #e9ecef;
+}
+
+body.bg-dark #offcanvasNotifs .form-select:focus,
+body.bg-dark #offcanvasNotifs .form-control:focus {
+  background-color: #212529;
+  border-color: #0d6efd;
+  color: #fff;
+  box-shadow: 0 0 0 .25rem rgba(13,110,253,.25); /* efecto azul bootstrap */
+}
+/* Texto de conteo de notificaciones en modo oscuro */
+body.bg-dark #notifCountInfo {
+  color: #adb5bd !important;  /* gris claro */
+}
+/* Botones en el offcanvas de notificaciones (modo oscuro) */
+body.bg-dark #offcanvasNotifs .btn-outline-primary {
+  color: #66b2ff;
+  border-color: #3399ff;
+}
+body.bg-dark #offcanvasNotifs .btn-outline-primary:hover {
+  background-color: #3399ff;
+  color: #fff;
+}
+
+body.bg-dark #offcanvasNotifs .btn-outline-secondary {
+  color: #ccc;
+  border-color: #666;
+}
+body.bg-dark #offcanvasNotifs .btn-outline-secondary:hover {
+  background-color: #666;
+  color: #fff;
+}
+/* Inputs y selects dentro del offcanvas en modo oscuro */
+body.bg-dark #offcanvasNotifs .form-control,
+body.bg-dark #offcanvasNotifs .form-select {
+  background-color: #1f1f1f;
+  color: #e9ecef;
+  border-color: #495057;
+}
+
+body.bg-dark #offcanvasNotifs .form-control:focus,
+body.bg-dark #offcanvasNotifs .form-select:focus {
+  background-color: #2a2a2a;
+  border-color: #66b2ff;
+  color: #fff;
+  box-shadow: none;
+}
+/* Respaldo: si el HTML viene marcado como dark desde el head, asegura colores base */
+html[data-theme="dark"] body {
+  background-color: #121212;
+  color: #e9ecef;
+}
+/* Si por un instante queda body.bg-light pero el tema es dark, forzamos dark */
+html[data-theme="dark"] body.bg-light {
+  background-color: #121212 !important;
+  color: #e9ecef !important;
+}
+#tablaIps td:first-child, #tablaIps th:first-child { width: 36px; }
+}
+/* === Filas seleccionadas manualmente === */
+tr.table-active-selected,
+tr.table-active-selected > td,
+tr.table-active-selected > th {
+  background-color: rgba(13,110,253,0.15) !important; /* azul claro */
+}
+
+html[data-theme="dark"] tr.table-active-selected,
+html[data-theme="dark"] tr.table-active-selected > td,
+html[data-theme="dark"] tr.table-active-selected > th {
+  background-color: rgba(13,110,253,0.35) !important; /* azul más intenso en oscuro */
+}
+.title-gestor {
+  color: #0d6efd; /* azul bootstrap */
+}
+
+.title-ioc {
+  color: #212529; /* gris oscuro por defecto */
+}
+
+html[data-theme="dark"] .title-ioc {
+  color: #e9ecef; /* gris claro en oscuro */
+}
+/* Texto secundario (subtítulos) más visible en modo oscuro */
+html[data-theme="dark"] .text-muted {
+  color: #cbd3da !important;  /* gris claro legible */
+}
+/* opcional en index.css */
+::placeholder { opacity: .85; }
+}
+/* Mejorar contraste de hints en modo oscuro */
+html[data-theme="dark"] .form-text {
+  color: #cbd3da !important; /* gris claro legible */
+}
+/* Hints (form-text) legibles en modo oscuro */
+html[data-theme="dark"] .form-text,
+html[data-theme="dark"] .form-text * {
+  color: #cbd3da !important;
+}
+
+/* Por si el body usa bg-dark además del data-theme */
+.bg-dark .form-text,
+.bg-dark .form-text * {
+  color: #cbd3da !important;
 }
