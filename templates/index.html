@@ -1,3 +1,5 @@
+Aquí tienes todo el index.html con los dos arreglos aplicados (listener del submit que respeta la validación y regex simplificadas). Puedes copiar/pegar tal cual:
+
 <!DOCTYPE html>
 <html lang="es">
 <head>
@@ -641,7 +643,7 @@
       if (!sessionStorage.getItem('lastActionType')) {
         mark(fileHasValue ? 'csv' : 'manual');
       }
-    }, true);
+    });
   })();
 
   // Feedback visual: deshabilita botón y muestra spinner al enviar
@@ -655,7 +657,9 @@
     `;
   };
 
+  /* === ARREGLO 1: NO activar spinner si la validación cancela el submit === */
   document.getElementById('mainForm')?.addEventListener('submit', (ev) => {
+    if (ev.defaultPrevented) return; // validación lo canceló
     const manualBtn = document.getElementById('addManualBtn');
     const csvBtn = document.getElementById('uploadCsvBtn');
     const fileHasValue = !!document.querySelector('input[type="file"][name="file"]')?.value;
@@ -665,7 +669,7 @@
     } else {
       setLoading(manualBtn, 'Añadiendo…');
     }
-  }, true);
+  });
 
   // Por si el navegador no recarga (ej. en SPA futuro), restauramos tras volver al foco
   window.addEventListener('pageshow', () => {
@@ -1017,11 +1021,12 @@
 
     if(!input || !feedback || !form) return;
 
-    const ipv4Part = '(25[0-5]|2[0-4]\\\\d|1?\\\\d?\\\\d)'; // 0-255
-    const ipv4Re = new RegExp(`^${ipv4Part}(\\\\.${ipv4Part}){3}$`);
-    const cidrRe = new RegExp(`^${ipv4Part}(\\\\.${ipv4Part}){3}\\\\/(?:[0-9]|[12][0-9]|3[0-2])$`);
-    const rangeRe = new RegExp(`^${ipv4Part}(\\\\.${ipv4Part}){3}\\\\s*\\\\-\\\\s*${ipv4Part}(\\\\.${ipv4Part}){3}$`);
-    const ipMaskRe = new RegExp(`^${ipv4Part}(\\\\.${ipv4Part}){3}\\\\s+${ipv4Part}(\\\\.${ipv4Part}){3}$`);
+    /* === ARREGLO 2: regex simplificadas con literales === */
+    const OCTET = '(25[0-5]|2[0-4]\\d|1?\\d?\\d)'; // 0–255
+    const ipv4Re   = new RegExp(`^${OCTET}(\\.${OCTET}){3}$`);
+    const cidrRe   = new RegExp(`^${OCTET}(\\.${OCTET}){3}\\/(?:[0-9]|[12][0-9]|3[0-2])$`);
+    const rangeRe  = new RegExp(`^${OCTET}(\\.${OCTET}){3}\\s*-\\s*${OCTET}(\\.${OCTET}){3}$`);
+    const ipMaskRe = new RegExp(`^${OCTET}(\\.${OCTET}){3}\\s+${OCTET}(\\.${OCTET}){3}$`);
 
     const validMasks = new Set([
       '255.255.255.255','255.255.255.254','255.255.255.252','255.255.255.248',
@@ -1039,7 +1044,7 @@
       if (v === '0.0.0.0') return true;
       if (v.startsWith('0.0.0.0/')) return true;
       if (v.startsWith('0.0.0.0 ')) return true;
-      if (/^\\s*0\\.0\\.0\\.0\\s*\\-\\s*/.test(v)) return true;
+      if (/^\s*0\.0\.0\.0\s*-\s*/.test(v)) return true;
       return false;
     }
 
@@ -1054,7 +1059,7 @@
       if (cidrRe.test(val)) return { ok:true };
       if (rangeRe.test(val)) return { ok:true };
       if (ipMaskRe.test(val)) {
-        const mask = val.trim().split(/\\s+/)[1];
+        const mask = val.trim().split(/\s+/)[1];
         if (validMasks.has(mask)) return { ok:true };
         return { ok:false, msg:'Máscara inválida. Usa máscara de red contigua (p.ej. 255.255.255.0).' };
       }
@@ -1109,7 +1114,7 @@
 
   function confirmDeletePattern() {
     const val = document.getElementById('delete_net_input').value.trim();
-    return confirm(`Vas a eliminar todas las IPs que coincidan con:\\n\\n${val}\\n\\n¿Confirmas?`);
+    return confirm(`Vas a eliminar todas las IPs que coincidan con:\n\n${val}\n\n¿Confirmas?`);
   }
   function markAllReadUI(){
     localStorage.setItem('notif_unread','0');
@@ -1186,7 +1191,7 @@
   applyBtn.addEventListener('click', () => {
     state.q = qInput.value.trim();
     state.date_from = dateFrom.value || '';
-    state.date_to = dateTo.value || '';
+       state.date_to = dateTo.value || '';
     state.page = 1;
     reloadTable(true);
   });
@@ -1279,7 +1284,7 @@
     if (ips.length === 0) return;
 
     const preview = ips.slice(0,10).join(', ') + (ips.length > 10 ? ` … (+${ips.length-10})` : '');
-    const ok = confirm(`Vas a eliminar ${ips.length} IP(s):\\n\\n${preview}\\n\\n¿Confirmas?`);
+    const ok = confirm(`Vas a eliminar ${ips.length} IP(s):\n\n${preview}\n\n¿Confirmas?`);
     if (!ok) return;
 
     const btn = document.getElementById('bulkDeleteBtn');
