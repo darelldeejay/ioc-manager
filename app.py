@@ -1280,6 +1280,8 @@ def index():
         filtered = _apply_filters(records, q=q, date_param=date_param)
         ordered = _apply_sort(filtered, sort_key=sort_key, order=order)
         paged, p, ps, total = _paginate(ordered, page=page, page_size=page_size)
+        meta = load_meta()
+        ip_details = meta.get("ip_details", {})
 
         items = []
         for r in paged:
@@ -1287,7 +1289,8 @@ def index():
                 "ip": r["ip"],
                 "ttl": 0 if r["ttl"] is None else r["ttl"],
                 "origen": r.get("origen"),
-                "fecha_alta": r["fecha"] if r["fecha"] else None
+                "fecha_alta": r["fecha"] if r["fecha"] else None,
+                "tags": (ip_details.get(r["ip"], {}) or {}).get("tags", [])
             })
 
         notices = [{"time": datetime.utcnow().isoformat()+"Z", "category": c, "message": m} for c, m in request_actions]
