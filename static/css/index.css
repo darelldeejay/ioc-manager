@@ -1,316 +1,489 @@
-/* =========================
-   Logo de esquina (dashboard)
-   ========================= */
-#corner-logo {
-  width: 110px;
-  height: 110px;
-  position: fixed;        /* fijo en la esquina aunque hagas scroll */
-  bottom: 15px;
-  right: 15px;
-  margin: 0;
-  z-index: 9999;
-  user-select: none;
-  pointer-events: none;   /* no bloquea clicks sobre la UI */
-  opacity: .95;
+/* ============================================================
+   PROPUESTA 1 CORREGIDA: CORPORATE GLASS 
+   Diseño Minimalista Premium QUE RESPETA EL TOGGLE DE TEMA
+   ============================================================
+   Añade estas reglas AL FINAL de tu index.css existente
+   ============================================================ */
+
+/* === Variables de color mejoradas === */
+:root {
+  --glass-bg-light: rgba(255, 255, 255, 0.75);
+  --glass-border-light: rgba(209, 213, 219, 0.3);
+  --shadow-soft: 0 8px 32px 0 rgba(31, 38, 135, 0.12);
+  --shadow-medium: 0 12px 40px 0 rgba(31, 38, 135, 0.18);
+  --primary-gradient: linear-gradient(135deg, #667eea 0%, #764ba2 100%);
+  --accent-color: #667eea;
+  --transition-smooth: all 0.3s cubic-bezier(0.4, 0, 0.2, 1);
 }
 
-/* Opcional: más pequeño en móviles */
-@media (max-width: 576px) {
-  #corner-logo { width: 72px; height: 72px; }
+/* Variables para modo oscuro */
+html[data-theme="dark"],
+body.bg-dark {
+  --glass-bg-dark: rgba(31, 31, 31, 0.8);
+  --glass-border-dark: rgba(255, 255, 255, 0.08);
+  --shadow-soft: 0 8px 32px 0 rgba(0, 0, 0, 0.4);
+  --shadow-medium: 0 12px 40px 0 rgba(0, 0, 0, 0.5);
+  --accent-color: #8b9eff;
 }
 
-/* Duplicado específico muy pequeño */
-@media (max-width: 576px) {
-  #corner-logo {
-    width: 60px;
-    height: 60px;
-    bottom: 10px;
-    right: 10px;
-  }
+/* === Header con gradiente elegante === */
+.container > .d-flex.justify-content-between.align-items-center.mb-3:first-child {
+  background: var(--primary-gradient);
+  margin: -1rem -0.75rem 1.5rem;
+  padding: 1rem 1.5rem;
+  border-radius: 0 0 1rem 1rem;
+  box-shadow: var(--shadow-medium);
 }
 
-
-/* =========================
-   Modo oscuro: inputs y placeholders
-   ========================= */
-body.bg-dark ::placeholder {
-  color: #bbb !important;   /* gris claro más visible */
-  opacity: 1;               /* asegura visibilidad */
+.container > .d-flex:first-child button,
+.container > .d-flex:first-child a {
+  backdrop-filter: blur(10px);
+  background: rgba(255, 255, 255, 0.15) !important;
+  border-color: rgba(255, 255, 255, 0.3) !important;
+  color: white !important;
+  transition: var(--transition-smooth);
 }
 
-body.bg-dark .form-control,
-body.bg-dark .form-select {
-  background-color: #1f1f1f;
-  color: #e9ecef;
-  border-color: #495057;
+.container > .d-flex:first-child button:hover,
+.container > .d-flex:first-child a:hover {
+  background: rgba(255, 255, 255, 0.25) !important;
+  transform: translateY(-2px);
+  box-shadow: 0 4px 12px rgba(0, 0, 0, 0.15);
+}
+
+/* === Título principal mejorado === */
+.text-center.mb-3 h2 {
+  font-size: 2.5rem;
+  font-weight: 700;
+  letter-spacing: -0.02em;
+  margin-bottom: 0.5rem;
+}
+
+.text-center.mb-3 .title-gestor {
+  background: var(--primary-gradient);
+  -webkit-background-clip: text;
+  -webkit-text-fill-color: transparent;
+  background-clip: text;
+}
+
+.text-center.mb-3 .title-ioc {
+  font-weight: 800;
+}
+
+.text-center.mb-3 p.text-muted {
+  font-size: 1rem;
+  opacity: 0.8;
+}
+
+/* === Cards con efecto glass (MODO CLARO) === */
+body:not(.bg-dark) .alert,
+body:not(.bg-dark) #mainForm > .row,
+body:not(.bg-dark) .table-responsive,
+body:not(.bg-dark) .toolbar-grid {
+  background: var(--glass-bg-light);
+  backdrop-filter: blur(10px);
+  border: 1px solid var(--glass-border-light);
+  border-radius: 1rem;
+  box-shadow: var(--shadow-soft);
+  padding: 1.5rem;
+  transition: var(--transition-smooth);
+}
+
+body:not(.bg-dark) .alert:hover,
+body:not(.bg-dark) #mainForm > .row:hover,
+body:not(.bg-dark) .toolbar-grid:hover {
+  box-shadow: var(--shadow-medium);
+  transform: translateY(-2px);
+}
+
+/* === Cards con efecto glass (MODO OSCURO) === */
+body.bg-dark .alert,
+body.bg-dark #mainForm > .row,
+body.bg-dark .table-responsive,
+body.bg-dark .toolbar-grid,
+html[data-theme="dark"] .alert,
+html[data-theme="dark"] #mainForm > .row,
+html[data-theme="dark"] .table-responsive,
+html[data-theme="dark"] .toolbar-grid {
+  background: var(--glass-bg-dark);
+  backdrop-filter: blur(10px);
+  border: 1px solid var(--glass-border-dark);
+  border-radius: 1rem;
+  box-shadow: var(--shadow-soft);
+  padding: 1.5rem;
+  transition: var(--transition-smooth);
+}
+
+/* === Alert de estadísticas destacado === */
+.alert.alert-info {
+  background: linear-gradient(135deg, rgba(102, 126, 234, 0.1) 0%, rgba(118, 75, 162, 0.1) 100%);
+  border: 2px solid rgba(102, 126, 234, 0.3);
+  font-size: 1.1rem;
+}
+
+.alert.alert-info strong {
+  font-size: 1.3rem;
+  color: var(--accent-color);
+  font-weight: 700;
+}
+
+body.bg-dark .alert.alert-info,
+html[data-theme="dark"] .alert.alert-info {
+  background: linear-gradient(135deg, rgba(139, 158, 255, 0.15) 0%, rgba(139, 158, 255, 0.1) 100%);
+  border-color: rgba(139, 158, 255, 0.4);
+}
+
+body.bg-dark .alert.alert-info strong,
+html[data-theme="dark"] .alert.alert-info strong {
+  color: #8b9eff;
+}
+
+/* === Inputs modernos con focus mejorado === */
+.form-control,
+.form-select {
+  border-radius: 0.75rem;
+  border: 2px solid #e9ecef;
+  padding: 0.75rem 1rem;
+  transition: var(--transition-smooth);
+  font-size: 0.95rem;
+}
+
+.form-control:focus,
+.form-select:focus {
+  border-color: var(--accent-color);
+  box-shadow: 0 0 0 0.25rem rgba(102, 126, 234, 0.15);
+  transform: translateY(-1px);
 }
 
 body.bg-dark .form-control:focus,
-body.bg-dark .form-select:focus {
-  background-color: #1c1c1c;
-  color: #fff;
-  border-color: #6ea8fe;
-  box-shadow: 0 0 0 .25rem rgba(110,168,254,.25);
+body.bg-dark .form-select:focus,
+html[data-theme="dark"] .form-control:focus,
+html[data-theme="dark"] .form-select:focus {
+  border-color: #8b9eff;
+  box-shadow: 0 0 0 0.25rem rgba(139, 158, 255, 0.25);
 }
 
-
-/* =========================
-   Tabla en modo oscuro (Bootstrap 5)
-   ========================= */
-body.bg-dark .table,
-body.bg-dark .table th,
-body.bg-dark .table td {
-  background-color: #121212 !important;
-  color: #e9ecef !important;
-  border-color: #2b2b2b !important;
+/* === Botones mejorados === */
+.btn {
+  border-radius: 0.75rem;
+  padding: 0.65rem 1.25rem;
+  font-weight: 600;
+  transition: var(--transition-smooth);
+  letter-spacing: 0.02em;
 }
 
-/* Cabecera de tabla */
-body.bg-dark table thead th {
-  background-color: #1a1a1a !important;
-  color: #e9ecef !important;
+.btn:hover:not(:disabled) {
+  transform: translateY(-2px);
+  box-shadow: 0 4px 12px rgba(0, 0, 0, 0.15);
 }
 
-/* Rayado (striped) sutil en oscuro */
-body.bg-dark .table-striped > tbody > tr:nth-of-type(odd) > * {
-  background-color: rgba(255,255,255,0.03) !important;
+.btn:active {
+  transform: translateY(0);
 }
 
-/* Hover sutil en oscuro */
-body.bg-dark .table-hover > tbody > tr:hover > * {
-  background-color: rgba(255,255,255,0.06) !important;
+.btn-success {
+  background: linear-gradient(135deg, #10b981 0%, #059669 100%);
+  border: none;
 }
 
-/* Botones "Eliminar" dentro de filas oscuras */
-body.bg-dark .table .btn-outline-danger {
-  border-color: #ff6b6b;
-  color: #ff6b6b;
-}
-body.bg-dark .table .btn-outline-danger:hover {
-  background-color: #ff6b6b;
-  color: #121212;
+.btn-primary {
+  background: var(--primary-gradient);
+  border: none;
 }
 
-
-/* =========================
-   Modales y Offcanvas en oscuro
-   ========================= */
-body.bg-dark .modal-content {
-  background-color: #1f1f1f;
-  color: #e9ecef;
-  border-color: #2b2b2b;
+.btn-danger {
+  background: linear-gradient(135deg, #ef4444 0%, #dc2626 100%);
+  border: none;
 }
+
+/* === Tabla moderna con hover suave === */
+.table {
+  border-radius: 0.75rem;
+  overflow: hidden;
+}
+
+body:not(.bg-dark) .table thead th {
+  background: var(--primary-gradient);
+  color: white;
+  font-weight: 600;
+  text-transform: uppercase;
+  font-size: 0.85rem;
+  letter-spacing: 0.05em;
+  border: none;
+  padding: 1rem;
+}
+
+body.bg-dark .table thead th,
+html[data-theme="dark"] .table thead th {
+  background: linear-gradient(135deg, #2a2a3e 0%, #1a1a2e 100%);
+  color: #8b9eff;
+  font-weight: 600;
+  text-transform: uppercase;
+  font-size: 0.85rem;
+  letter-spacing: 0.05em;
+  border: none;
+  padding: 1rem;
+}
+
+.table tbody tr {
+  transition: var(--transition-smooth);
+}
+
+body:not(.bg-dark) .table tbody tr:hover {
+  background-color: rgba(102, 126, 234, 0.08) !important;
+  transform: scale(1.005);
+}
+
+body.bg-dark .table tbody tr:hover,
+html[data-theme="dark"] .table tbody tr:hover {
+  background-color: rgba(139, 158, 255, 0.15) !important;
+  transform: scale(1.005);
+}
+
+.table td {
+  padding: 1rem;
+  vertical-align: middle;
+}
+
+body:not(.bg-dark) .table td {
+  border-color: rgba(0, 0, 0, 0.05);
+}
+
+body.bg-dark .table td,
+html[data-theme="dark"] .table td {
+  border-color: rgba(255, 255, 255, 0.05);
+}
+
+/* === Badges de tags mejorados === */
+.badge {
+  padding: 0.5rem 0.85rem;
+  border-radius: 0.5rem;
+  font-weight: 600;
+  font-size: 0.85rem;
+  letter-spacing: 0.02em;
+  box-shadow: 0 2px 4px rgba(0, 0, 0, 0.1);
+}
+
+/* === Hint box mejorado === */
+body:not(.bg-dark) .hint-box {
+  background: rgba(102, 126, 234, 0.05);
+  border: 2px dashed rgba(102, 126, 234, 0.3);
+  border-radius: 0.75rem;
+  padding: 1rem;
+  transition: var(--transition-smooth);
+}
+
+body:not(.bg-dark) .hint-box:hover {
+  background: rgba(102, 126, 234, 0.08);
+  border-style: solid;
+}
+
+body.bg-dark .hint-box,
+html[data-theme="dark"] .hint-box {
+  background: rgba(139, 158, 255, 0.08);
+  border: 2px dashed rgba(139, 158, 255, 0.3);
+  border-radius: 0.75rem;
+  padding: 1rem;
+}
+
+/* === Modales elegantes === */
+.modal-content {
+  border-radius: 1.25rem;
+  border: none;
+  box-shadow: 0 20px 60px rgba(0, 0, 0, 0.3);
+  overflow: hidden;
+}
+
+body:not(.bg-dark) .modal-header {
+  background: var(--primary-gradient);
+  color: white;
+  border: none;
+  padding: 1.5rem;
+}
+
 body.bg-dark .modal-header,
-body.bg-dark .modal-footer {
-  border-color: #2b2b2b;
+html[data-theme="dark"] .modal-header {
+  background: linear-gradient(135deg, #2a2a3e 0%, #1a1a2e 100%);
+  color: #8b9eff;
+  border: none;
+  padding: 1.5rem;
 }
 
-body.bg-dark .offcanvas {
-  background-color: #1f1f1f;
-  color: #e9ecef;
+.modal-title {
+  font-weight: 700;
+  font-size: 1.25rem;
 }
 
-body.bg-dark .offcanvas .list-group-item {
-  background-color: transparent;
-  color: #e9ecef;
-  border-color: #2b2b2b;
+.modal-body {
+  padding: 2rem;
 }
 
-
-/* =========================
-   Botón Notificaciones + badge
-   ========================= */
-body.bg-dark #notif-btn.btn-outline-primary {
-  /* Sobrescribe variables internas del botón (Bootstrap 5.3) */
-  --bs-btn-color: #66b2ff;
-  --bs-btn-border-color: #66b2ff;
-  --bs-btn-hover-color: #121212;
-  --bs-btn-hover-bg: #66b2ff;
-  --bs-btn-hover-border-color: #66b2ff;
-  --bs-btn-active-color: #121212;
-  --bs-btn-active-bg: #66b2ff;
-  --bs-btn-active-border-color: #66b2ff;
-  --bs-btn-focus-shadow-rgb: 102,178,255;
-
-  /* Fallback directo */
-  border-color: #66b2ff !important;
-  color: #66b2ff !important;
+body:not(.bg-dark) .modal-footer {
+  border: none;
+  padding: 1rem 2rem 1.5rem;
+  background: rgba(0, 0, 0, 0.02);
 }
 
-body.bg-dark #notif-btn.btn-outline-primary:hover,
-body.bg-dark #notif-btn.btn-outline-primary:focus,
-body.bg-dark #notif-btn.btn-outline-primary:active {
-  background-color: #66b2ff !important;
-  border-color: #66b2ff !important;
-  color: #121212 !important;
+body.bg-dark .modal-footer,
+html[data-theme="dark"] .modal-footer {
+  border: none;
+  padding: 1rem 2rem 1.5rem;
+  background: rgba(255, 255, 255, 0.02);
 }
 
-/* Burbuja roja visible en ambos temas */
-body.bg-dark #notif-badge {
-  background-color: #ff6b6b !important;
-  color: #fff !important;
+/* === Toasts premium === */
+.toast {
+  border-radius: 1rem;
+  backdrop-filter: blur(10px);
+  box-shadow: 0 8px 24px rgba(0, 0, 0, 0.25);
 }
 
-
-/* =========================
-   Hints / cajas informativas en oscuro
-   ========================= */
-body.bg-dark .hint-box {
-  border-color: #495057;
-  background: #1f1f1f;
-  color: #e9ecef;
-}
-/* Ajuste botón Notificaciones en modo oscuro */
-body.bg-dark #notif-btn.btn-primary {
-  background-color: #0d6efd;   /* azul Bootstrap */
-  border-color: #0d6efd;
-  color: #fff;
+.toast-body {
+  padding: 1rem 1.25rem;
+  font-weight: 500;
 }
 
-body.bg-dark #notif-btn.btn-primary:hover {
-  background-color: #0b5ed7;
-  border-color: #0a58ca;
-}
-/* Notificaciones en modo oscuro */
-body.bg-dark #notifList .border {
-  background-color: #1f1f1f !important;  /* fondo oscuro */
-  color: #e9ecef;                        /* texto claro */
-  border-color: #343a40 !important;      /* borde gris oscuro */
+/* === Offcanvas moderno === */
+.offcanvas {
+  border-radius: 1rem 0 0 1rem;
+  box-shadow: -10px 0 40px rgba(0, 0, 0, 0.2);
 }
 
-body.bg-dark #notifList .small.text-muted {
-  color: #adb5bd !important;             /* texto secundario más visible */
-}
-/* Paginación de notificaciones en modo oscuro */
-body.bg-dark #notifPagination .page-link {
-  background-color: #1f1f1f;
-  border-color: #343a40;
-  color: #e9ecef;
+body:not(.bg-dark) .offcanvas-header {
+  background: var(--primary-gradient);
+  color: white;
+  padding: 1.5rem;
 }
 
-body.bg-dark #notifPagination .page-link:hover {
-  background-color: #343a40;
-  border-color: #495057;
-  color: #fff;
+body.bg-dark .offcanvas-header,
+html[data-theme="dark"] .offcanvas-header {
+  background: linear-gradient(135deg, #2a2a3e 0%, #1a1a2e 100%);
+  color: #8b9eff;
+  padding: 1.5rem;
 }
 
-body.bg-dark #notifPagination .page-item.active .page-link {
-  background-color: #0d6efd;  /* azul Bootstrap */
-  border-color: #0d6efd;
-  color: #fff;
+.offcanvas-body {
+  padding: 1.5rem;
 }
 
-body.bg-dark #notifPagination .page-item.disabled .page-link {
-  background-color: #212529;
-  border-color: #343a40;
-  color: #6c757d;
-}
-/* Inputs de filtros en modo oscuro */
-body.bg-dark #offcanvasNotifs .form-select,
-body.bg-dark #offcanvasNotifs .form-control {
-  background-color: #1f1f1f;
-  border-color: #495057;
-  color: #e9ecef;
+/* === Paginación elegante === */
+.pagination .page-link {
+  border-radius: 0.5rem;
+  margin: 0 0.25rem;
+  border: 2px solid #e9ecef;
+  transition: var(--transition-smooth);
+  font-weight: 600;
 }
 
-body.bg-dark #offcanvasNotifs .form-select:focus,
-body.bg-dark #offcanvasNotifs .form-control:focus {
-  background-color: #212529;
-  border-color: #0d6efd;
-  color: #fff;
-  box-shadow: 0 0 0 .25rem rgba(13,110,253,.25); /* efecto azul bootstrap */
-}
-/* Texto de conteo de notificaciones en modo oscuro */
-body.bg-dark #notifCountInfo {
-  color: #adb5bd !important;  /* gris claro */
-}
-/* Botones en el offcanvas de notificaciones (modo oscuro) */
-body.bg-dark #offcanvasNotifs .btn-outline-primary {
-  color: #66b2ff;
-  border-color: #3399ff;
-}
-body.bg-dark #offcanvasNotifs .btn-outline-primary:hover {
-  background-color: #3399ff;
-  color: #fff;
+body:not(.bg-dark) .pagination .page-link:hover {
+  background: var(--accent-color);
+  border-color: var(--accent-color);
+  color: white;
+  transform: translateY(-2px);
 }
 
-body.bg-dark #offcanvasNotifs .btn-outline-secondary {
-  color: #ccc;
-  border-color: #666;
-}
-body.bg-dark #offcanvasNotifs .btn-outline-secondary:hover {
-  background-color: #666;
-  color: #fff;
-}
-/* Inputs y selects dentro del offcanvas en modo oscuro */
-body.bg-dark #offcanvasNotifs .form-control,
-body.bg-dark #offcanvasNotifs .form-select {
-  background-color: #1f1f1f;
-  color: #e9ecef;
-  border-color: #495057;
+body.bg-dark .pagination .page-link:hover,
+html[data-theme="dark"] .pagination .page-link:hover {
+  background: #8b9eff;
+  border-color: #8b9eff;
+  color: #121212;
+  transform: translateY(-2px);
 }
 
-body.bg-dark #offcanvasNotifs .form-control:focus,
-body.bg-dark #offcanvasNotifs .form-select:focus {
-  background-color: #2a2a2a;
-  border-color: #66b2ff;
-  color: #fff;
-  box-shadow: none;
-}
-/* Respaldo: si el HTML viene marcado como dark desde el head, asegura colores base */
-html[data-theme="dark"] body {
-  background-color: #121212;
-  color: #e9ecef;
-}
-/* Si por un instante queda body.bg-light pero el tema es dark, forzamos dark */
-html[data-theme="dark"] body.bg-light {
-  background-color: #121212 !important;
-  color: #e9ecef !important;
-}
-#tablaIps td:first-child, #tablaIps th:first-child { width: 36px; }
-}
-/* === Filas seleccionadas manualmente === */
-tr.table-active-selected,
-tr.table-active-selected > td,
-tr.table-active-selected > th {
-  background-color: rgba(13,110,253,0.15) !important; /* azul claro */
+.pagination .page-item.active .page-link {
+  background: var(--primary-gradient);
+  border: none;
+  box-shadow: 0 4px 12px rgba(102, 126, 234, 0.3);
 }
 
-html[data-theme="dark"] tr.table-active-selected,
-html[data-theme="dark"] tr.table-active-selected > td,
-html[data-theme="dark"] tr.table-active-selected > th {
-  background-color: rgba(13,110,253,0.35) !important; /* azul más intenso en oscuro */
-}
-.title-gestor {
-  color: #0d6efd; /* azul bootstrap */
-}
-
-.title-ioc {
-  color: #212529; /* gris oscuro por defecto */
+/* === Checkboxes mejorados === */
+input[type="checkbox"] {
+  width: 1.2rem;
+  height: 1.2rem;
+  cursor: pointer;
+  accent-color: var(--accent-color);
 }
 
-html[data-theme="dark"] .title-ioc {
-  color: #e9ecef; /* gris claro en oscuro */
-}
-/* Texto secundario (subtítulos) más visible en modo oscuro */
-html[data-theme="dark"] .text-muted {
-  color: #cbd3da !important;  /* gris claro legible */
-}
-/* opcional en index.css */
-::placeholder { opacity: .85; }
-}
-/* Mejorar contraste de hints en modo oscuro */
-html[data-theme="dark"] .form-text {
-  color: #cbd3da !important; /* gris claro legible */
-}
-/* Hints (form-text) legibles en modo oscuro */
-html[data-theme="dark"] .form-text,
-html[data-theme="dark"] .form-text * {
-  color: #cbd3da !important;
+/* === Animación suave al cargar === */
+@keyframes fadeInUp {
+  from {
+    opacity: 0;
+    transform: translateY(20px);
+  }
+  to {
+    opacity: 1;
+    transform: translateY(0);
+  }
 }
 
-/* Por si el body usa bg-dark además del data-theme */
-.bg-dark .form-text,
-.bg-dark .form-text * {
-  color: #cbd3da !important;
+.container > * {
+  animation: fadeInUp 0.6s ease-out backwards;
+}
+
+.container > *:nth-child(1) { animation-delay: 0.1s; }
+.container > *:nth-child(2) { animation-delay: 0.2s; }
+.container > *:nth-child(3) { animation-delay: 0.3s; }
+.container > *:nth-child(4) { animation-delay: 0.4s; }
+
+/* === Scroll suave === */
+html {
+  scroll-behavior: smooth;
+}
+
+/* === Selección personalizada === */
+::selection {
+  background: rgba(102, 126, 234, 0.3);
+  color: inherit;
+}
+
+body.bg-dark ::selection,
+html[data-theme="dark"] ::selection {
+  background: rgba(139, 158, 255, 0.4);
+}
+
+/* === Logo esquina con efecto hover === */
+#corner-logo {
+  transition: var(--transition-smooth);
+  filter: drop-shadow(0 4px 8px rgba(0, 0, 0, 0.1));
+}
+
+#corner-logo:hover {
+  transform: scale(1.05) rotate(5deg);
+  filter: drop-shadow(0 8px 16px rgba(0, 0, 0, 0.2));
+}
+
+/* === Mejora de contraste en labels === */
+body:not(.bg-dark) .form-label {
+  font-weight: 600;
+  font-size: 0.9rem;
+  color: #495057;
+  margin-bottom: 0.5rem;
+}
+
+body.bg-dark .form-label,
+html[data-theme="dark"] .form-label {
+  font-weight: 600;
+  font-size: 0.9rem;
+  color: #cbd3da;
+  margin-bottom: 0.5rem;
+}
+
+/* === Responsive mejorado === */
+@media (max-width: 768px) {
+  .text-center.mb-3 h2 {
+    font-size: 2rem;
+  }
+  
+  .alert,
+  #mainForm > .row,
+  .table-responsive,
+  .toolbar-grid {
+    padding: 1rem;
+    border-radius: 0.75rem;
+  }
+  
+  .btn {
+    padding: 0.5rem 1rem;
+    font-size: 0.9rem;
+  }
 }
