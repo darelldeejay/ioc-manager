@@ -406,11 +406,8 @@
             <td>{{ parts[1] }}</td>
             <td>{{ '∞' if parts[2] == '0' else parts[2] }}</td>
             <td>
-              <td class="tags-cell">
-             {% set tags = tags_by_ip.get(item.ip if item is defined else ip, []) %}
-                {% if tags %}
-                 {% for t in tags %}
-              <span class="tag-pill">
+              {% if tags %}
+                {% for t in tags %}
                   <span class="badge" style="background-color: {{ tag_color(t) }}; color:#fff; margin-right:6px;">
                     {{ t }}
                   </span>
