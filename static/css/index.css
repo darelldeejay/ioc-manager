@@ -1,346 +1,651 @@
 /* ============================================================
-   PROPUESTA 1: CORPORATE GLASS - Diseño Minimalista Premium
+   PROPUESTA 2: CYBERSEC PRO - Dashboard de Seguridad Oscuro
    ============================================================
    Añade estas reglas AL FINAL de tu index.css existente
+   IMPORTANTE: Activa el modo oscuro por defecto
    ============================================================ */
 
-/* === Variables de color mejoradas === */
+/* === Variables del tema cybersecurity === */
 :root {
-  --glass-bg-light: rgba(255, 255, 255, 0.75);
-  --glass-border-light: rgba(255, 255, 255, 0.18);
-  --shadow-soft: 0 8px 32px 0 rgba(31, 38, 135, 0.12);
-  --shadow-medium: 0 12px 40px 0 rgba(31, 38, 135, 0.18);
-  --primary-gradient: linear-gradient(135deg, #667eea 0%, #764ba2 100%);
-  --accent-color: #667eea;
-  --transition-smooth: all 0.3s cubic-bezier(0.4, 0, 0.2, 1);
+  --cyber-dark-bg: #0a0e27;
+  --cyber-surface: #151a2e;
+  --cyber-surface-elevated: #1a2038;
+  --cyber-border: rgba(0, 217, 255, 0.15);
+  --cyber-border-active: rgba(0, 217, 255, 0.5);
+  
+  --accent-cyan: #00d9ff;
+  --accent-green: #00ff88;
+  --accent-red: #ff0055;
+  --accent-yellow: #ffdd00;
+  
+  --text-primary: #e4e4e7;
+  --text-secondary: #a1a1aa;
+  --text-muted: #71717a;
+  
+  --glow-cyan: 0 0 20px rgba(0, 217, 255, 0.3);
+  --glow-green: 0 0 20px rgba(0, 255, 136, 0.3);
+  --glow-red: 0 0 20px rgba(255, 0, 85, 0.3);
+  
+  --transition-cyber: all 0.3s cubic-bezier(0.25, 0.8, 0.25, 1);
 }
 
-html[data-theme="dark"] {
-  --glass-bg-dark: rgba(31, 31, 31, 0.8);
-  --glass-border-dark: rgba(255, 255, 255, 0.08);
-  --shadow-soft: 0 8px 32px 0 rgba(0, 0, 0, 0.4);
-  --shadow-medium: 0 12px 40px 0 rgba(0, 0, 0, 0.5);
+/* === Forzar tema oscuro en todo el documento === */
+html,
+body {
+  background-color: var(--cyber-dark-bg) !important;
+  color: var(--text-primary) !important;
 }
 
-/* === Header con gradiente elegante === */
+html[data-theme="light"],
+html[data-theme="light"] body {
+  background-color: var(--cyber-dark-bg) !important;
+  color: var(--text-primary) !important;
+}
+
+/* === Container principal === */
+.container {
+  max-width: 1400px;
+  background: linear-gradient(180deg, 
+    var(--cyber-dark-bg) 0%, 
+    rgba(21, 26, 46, 0.8) 50%, 
+    var(--cyber-dark-bg) 100%);
+}
+
+/* === Header estilo terminal === */
 .container > .d-flex.justify-content-between.align-items-center.mb-3:first-child {
-  background: var(--primary-gradient);
-  margin: -1rem -0.75rem 1.5rem;
+  background: var(--cyber-surface);
+  border: 1px solid var(--cyber-border);
+  border-radius: 0.5rem;
   padding: 1rem 1.5rem;
-  border-radius: 0 0 1rem 1rem;
-  box-shadow: var(--shadow-medium);
+  margin-bottom: 2rem;
+  box-shadow: 0 0 30px rgba(0, 217, 255, 0.1);
+  position: relative;
+}
+
+.container > .d-flex:first-child::before {
+  content: '';
+  position: absolute;
+  top: 0;
+  left: 0;
+  right: 0;
+  height: 2px;
+  background: linear-gradient(90deg, 
+    transparent 0%, 
+    var(--accent-cyan) 50%, 
+    transparent 100%);
 }
 
 .container > .d-flex:first-child button,
 .container > .d-flex:first-child a {
-  backdrop-filter: blur(10px);
-  background: rgba(255, 255, 255, 0.15);
-  border-color: rgba(255, 255, 255, 0.3) !important;
-  color: white !important;
-  transition: var(--transition-smooth);
+  background: transparent !important;
+  border: 1px solid var(--cyber-border) !important;
+  color: var(--accent-cyan) !important;
+  font-family: 'Courier New', monospace;
+  font-weight: 600;
+  transition: var(--transition-cyber);
+  text-transform: uppercase;
+  font-size: 0.85rem;
+  letter-spacing: 0.05em;
 }
 
 .container > .d-flex:first-child button:hover,
 .container > .d-flex:first-child a:hover {
-  background: rgba(255, 255, 255, 0.25);
+  background: var(--accent-cyan) !important;
+  color: var(--cyber-dark-bg) !important;
+  border-color: var(--accent-cyan) !important;
+  box-shadow: var(--glow-cyan);
   transform: translateY(-2px);
-  box-shadow: 0 4px 12px rgba(0, 0, 0, 0.15);
 }
 
-/* === Título principal mejorado === */
+/* === Título principal con efecto glitch === */
 .text-center.mb-3 h2 {
-  font-size: 2.5rem;
-  font-weight: 700;
-  letter-spacing: -0.02em;
-  margin-bottom: 0.5rem;
+  font-family: 'Courier New', monospace;
+  font-size: 3rem;
+  font-weight: 900;
+  letter-spacing: 0.05em;
+  text-transform: uppercase;
+  position: relative;
+  margin-bottom: 1rem;
 }
 
 .text-center.mb-3 .title-gestor {
-  background: var(--primary-gradient);
-  -webkit-background-clip: text;
-  -webkit-text-fill-color: transparent;
-  background-clip: text;
+  color: var(--text-primary);
+  text-shadow: 0 0 10px rgba(228, 228, 231, 0.5);
 }
 
 .text-center.mb-3 .title-ioc {
-  font-weight: 800;
+  color: var(--accent-cyan);
+  text-shadow: var(--glow-cyan);
+}
+
+.text-center.mb-3 > div[style*="background"] {
+  background: linear-gradient(90deg, 
+    transparent 0%, 
+    var(--accent-cyan) 50%, 
+    transparent 100%) !important;
+  height: 2px !important;
+  box-shadow: var(--glow-cyan);
 }
 
 .text-center.mb-3 p.text-muted {
-  font-size: 1rem;
-  opacity: 0.8;
+  color: var(--text-secondary) !important;
+  font-family: 'Courier New', monospace;
+  font-size: 0.95rem;
+  text-transform: uppercase;
+  letter-spacing: 0.1em;
 }
 
-/* === Cards con efecto glass === */
-.alert,
-#mainForm > .row,
-.table-responsive {
-  background: var(--glass-bg-light);
-  backdrop-filter: blur(10px);
-  border: 1px solid var(--glass-border-light);
-  border-radius: 1rem;
-  box-shadow: var(--shadow-soft);
-  padding: 1.5rem;
-  transition: var(--transition-smooth);
-}
-
-html[data-theme="dark"] .alert,
-html[data-theme="dark"] #mainForm > .row,
-html[data-theme="dark"] .table-responsive {
-  background: var(--glass-bg-dark);
-  border-color: var(--glass-border-dark);
-}
-
-.alert:hover,
-#mainForm > .row:hover {
-  box-shadow: var(--shadow-medium);
-  transform: translateY(-2px);
-}
-
-/* === Alert de estadísticas destacado === */
+/* === Alert de estadísticas - Estilo dashboard === */
 .alert.alert-info {
-  background: linear-gradient(135deg, rgba(102, 126, 234, 0.1) 0%, rgba(118, 75, 162, 0.1) 100%);
-  border: 2px solid rgba(102, 126, 234, 0.3);
-  font-size: 1.1rem;
+  background: var(--cyber-surface);
+  border: 2px solid var(--cyber-border);
+  border-radius: 0.75rem;
+  padding: 2rem;
+  box-shadow: var(--glow-cyan), inset 0 1px 0 rgba(0, 217, 255, 0.1);
+  color: var(--text-primary);
 }
 
 .alert.alert-info strong {
-  font-size: 1.3rem;
-  color: var(--accent-color);
-  font-weight: 700;
+  color: var(--accent-cyan);
+  font-size: 2rem;
+  font-weight: 900;
+  font-family: 'Courier New', monospace;
+  text-shadow: var(--glow-cyan);
+  display: inline-block;
+  padding: 0 0.5rem;
+  background: rgba(0, 217, 255, 0.1);
+  border-radius: 0.25rem;
 }
 
-html[data-theme="dark"] .alert.alert-info strong {
-  color: #8b9eff;
+.alert.alert-info::before {
+  content: '//';
+  position: absolute;
+  left: 1rem;
+  top: 0.5rem;
+  color: var(--accent-green);
+  font-family: 'Courier New', monospace;
+  font-size: 0.85rem;
+  opacity: 0.5;
 }
 
-/* === Inputs modernos con focus mejorado === */
+/* === Cards con bordes neón === */
+#mainForm > .row,
+.table-responsive,
+.toolbar-grid {
+  background: var(--cyber-surface);
+  border: 1px solid var(--cyber-border);
+  border-radius: 0.75rem;
+  padding: 1.5rem;
+  margin-bottom: 1.5rem;
+  box-shadow: 0 4px 20px rgba(0, 0, 0, 0.3),
+              inset 0 1px 0 rgba(0, 217, 255, 0.1);
+  transition: var(--transition-cyber);
+  position: relative;
+}
+
+#mainForm > .row:hover,
+.table-responsive:hover,
+.toolbar-grid:hover {
+  border-color: var(--cyber-border-active);
+  box-shadow: var(--glow-cyan), 
+              0 4px 20px rgba(0, 0, 0, 0.3);
+}
+
+/* === Inputs estilo terminal === */
 .form-control,
 .form-select {
-  border-radius: 0.75rem;
-  border: 2px solid #e9ecef;
+  background: rgba(0, 0, 0, 0.3);
+  border: 1px solid var(--cyber-border);
+  border-radius: 0.5rem;
+  color: var(--text-primary);
+  font-family: 'Courier New', monospace;
   padding: 0.75rem 1rem;
-  transition: var(--transition-smooth);
-  font-size: 0.95rem;
+  transition: var(--transition-cyber);
+}
+
+.form-control::placeholder {
+  color: var(--text-muted);
+  opacity: 0.7;
 }
 
 .form-control:focus,
 .form-select:focus {
-  border-color: var(--accent-color);
-  box-shadow: 0 0 0 0.25rem rgba(102, 126, 234, 0.15);
-  transform: translateY(-1px);
+  background: rgba(0, 217, 255, 0.05);
+  border-color: var(--accent-cyan);
+  color: var(--text-primary);
+  box-shadow: 0 0 0 3px rgba(0, 217, 255, 0.1), var(--glow-cyan);
+  outline: none;
 }
 
-html[data-theme="dark"] .form-control,
-html[data-theme="dark"] .form-select {
-  border-color: #495057;
-  background-color: rgba(31, 31, 31, 0.9);
-}
-
-html[data-theme="dark"] .form-control:focus,
-html[data-theme="dark"] .form-select:focus {
-  border-color: #8b9eff;
-  box-shadow: 0 0 0 0.25rem rgba(139, 158, 255, 0.25);
-}
-
-/* === Botones mejorados === */
+/* === Botones cybersecurity === */
 .btn {
-  border-radius: 0.75rem;
-  padding: 0.65rem 1.25rem;
-  font-weight: 600;
-  transition: var(--transition-smooth);
-  letter-spacing: 0.02em;
-}
-
-.btn:hover {
-  transform: translateY(-2px);
-  box-shadow: 0 4px 12px rgba(0, 0, 0, 0.15);
-}
-
-.btn:active {
-  transform: translateY(0);
-}
-
-.btn-success {
-  background: linear-gradient(135deg, #10b981 0%, #059669 100%);
+  font-family: 'Courier New', monospace;
+  font-weight: 700;
+  text-transform: uppercase;
+  letter-spacing: 0.05em;
+  border-radius: 0.5rem;
+  padding: 0.75rem 1.5rem;
+  transition: var(--transition-cyber);
   border: none;
-}
-
-.btn-primary {
-  background: var(--primary-gradient);
-  border: none;
-}
-
-.btn-danger {
-  background: linear-gradient(135deg, #ef4444 0%, #dc2626 100%);
-  border: none;
-}
-
-/* === Tabla moderna con hover suave === */
-.table {
-  border-radius: 0.75rem;
+  position: relative;
   overflow: hidden;
 }
 
-.table thead th {
-  background: var(--primary-gradient);
+.btn::before {
+  content: '';
+  position: absolute;
+  top: 0;
+  left: -100%;
+  width: 100%;
+  height: 100%;
+  background: linear-gradient(90deg, transparent, rgba(255,255,255,0.2), transparent);
+  transition: left 0.5s;
+}
+
+.btn:hover::before {
+  left: 100%;
+}
+
+.btn-success {
+  background: linear-gradient(135deg, #00ff88 0%, #00cc70 100%);
+  color: var(--cyber-dark-bg);
+  box-shadow: var(--glow-green);
+}
+
+.btn-success:hover {
+  box-shadow: var(--glow-green), 0 0 30px rgba(0, 255, 136, 0.5);
+  transform: translateY(-2px);
+}
+
+.btn-primary {
+  background: linear-gradient(135deg, var(--accent-cyan) 0%, #0099cc 100%);
+  color: var(--cyber-dark-bg);
+  box-shadow: var(--glow-cyan);
+}
+
+.btn-primary:hover {
+  box-shadow: var(--glow-cyan), 0 0 30px rgba(0, 217, 255, 0.5);
+  transform: translateY(-2px);
+}
+
+.btn-danger {
+  background: linear-gradient(135deg, var(--accent-red) 0%, #cc0044 100%);
   color: white;
-  font-weight: 600;
+  box-shadow: var(--glow-red);
+}
+
+.btn-danger:hover {
+  box-shadow: var(--glow-red), 0 0 30px rgba(255, 0, 85, 0.5);
+  transform: translateY(-2px);
+}
+
+.btn-outline-secondary,
+.btn-outline-primary,
+.btn-outline-danger,
+.btn-outline-warning {
+  background: transparent;
+  border: 1px solid var(--cyber-border);
+  color: var(--text-primary);
+}
+
+.btn-outline-secondary:hover {
+  background: var(--text-secondary);
+  color: var(--cyber-dark-bg);
+  border-color: var(--text-secondary);
+}
+
+.btn-outline-primary:hover {
+  background: var(--accent-cyan);
+  color: var(--cyber-dark-bg);
+  border-color: var(--accent-cyan);
+  box-shadow: var(--glow-cyan);
+}
+
+.btn-outline-danger:hover {
+  background: var(--accent-red);
+  color: white;
+  border-color: var(--accent-red);
+  box-shadow: var(--glow-red);
+}
+
+/* === Tabla futurista === */
+.table {
+  color: var(--text-primary);
+  font-family: 'Courier New', monospace;
+  font-size: 0.9rem;
+}
+
+.table thead th {
+  background: linear-gradient(135deg, var(--cyber-surface-elevated) 0%, var(--cyber-surface) 100%);
+  color: var(--accent-cyan);
   text-transform: uppercase;
-  font-size: 0.85rem;
-  letter-spacing: 0.05em;
+  letter-spacing: 0.1em;
+  font-weight: 700;
   border: none;
+  border-bottom: 2px solid var(--accent-cyan);
   padding: 1rem;
+  font-size: 0.85rem;
 }
 
 .table tbody tr {
-  transition: var(--transition-smooth);
+  border-bottom: 1px solid var(--cyber-border);
+  transition: var(--transition-cyber);
 }
 
 .table tbody tr:hover {
-  background-color: rgba(102, 126, 234, 0.08) !important;
-  transform: scale(1.01);
-}
-
-html[data-theme="dark"] .table tbody tr:hover {
-  background-color: rgba(139, 158, 255, 0.15) !important;
+  background: rgba(0, 217, 255, 0.05) !important;
+  box-shadow: inset 0 0 0 1px var(--accent-cyan);
 }
 
 .table td {
   padding: 1rem;
   vertical-align: middle;
-  border-color: rgba(0, 0, 0, 0.05);
+  border-color: var(--cyber-border);
 }
 
-html[data-theme="dark"] .table td {
-  border-color: rgba(255, 255, 255, 0.05);
-}
-
-/* === Badges de tags mejorados === */
+/* === Badges estilo chip === */
 .badge {
-  padding: 0.5rem 0.85rem;
+  padding: 0.5rem 1rem;
   border-radius: 0.5rem;
-  font-weight: 600;
-  font-size: 0.85rem;
-  letter-spacing: 0.02em;
+  font-weight: 700;
+  font-family: 'Courier New', monospace;
+  font-size: 0.8rem;
+  text-transform: uppercase;
+  letter-spacing: 0.05em;
+  border: 1px solid currentColor;
 }
 
-/* === Hint box mejorado === */
+/* === Hint box estilo warning === */
 .hint-box {
-  background: rgba(102, 126, 234, 0.05);
-  border: 2px dashed rgba(102, 126, 234, 0.3);
-  border-radius: 0.75rem;
+  background: rgba(255, 221, 0, 0.05);
+  border: 1px solid rgba(255, 221, 0, 0.3);
+  border-left: 4px solid var(--accent-yellow);
+  border-radius: 0.5rem;
   padding: 1rem;
-  transition: var(--transition-smooth);
+  color: var(--text-primary);
 }
 
-.hint-box:hover {
-  background: rgba(102, 126, 234, 0.08);
-  border-style: solid;
+.hint-box strong {
+  color: var(--accent-yellow);
+  font-family: 'Courier New', monospace;
 }
 
-html[data-theme="dark"] .hint-box {
-  background: rgba(139, 158, 255, 0.08);
-  border-color: rgba(139, 158, 255, 0.3);
+.hint-box code {
+  background: rgba(0, 0, 0, 0.3);
+  padding: 0.2rem 0.5rem;
+  border-radius: 0.25rem;
+  color: var(--accent-cyan);
+  font-size: 0.9rem;
 }
 
-/* === Modales elegantes === */
+/* === Modales cyberpunk === */
 .modal-content {
-  border-radius: 1.25rem;
-  border: none;
-  box-shadow: 0 20px 60px rgba(0, 0, 0, 0.3);
-  overflow: hidden;
+  background: var(--cyber-surface);
+  border: 2px solid var(--cyber-border);
+  border-radius: 0.75rem;
+  box-shadow: var(--glow-cyan), 0 20px 60px rgba(0, 0, 0, 0.5);
+  color: var(--text-primary);
 }
 
 .modal-header {
-  background: var(--primary-gradient);
-  color: white;
-  border: none;
-  padding: 1.5rem;
+  background: linear-gradient(135deg, var(--cyber-surface-elevated) 0%, var(--cyber-surface) 100%);
+  border-bottom: 2px solid var(--accent-cyan);
+  color: var(--text-primary);
 }
 
 .modal-title {
+  color: var(--accent-cyan);
+  font-family: 'Courier New', monospace;
+  text-transform: uppercase;
+  letter-spacing: 0.1em;
   font-weight: 700;
-  font-size: 1.25rem;
 }
 
 .modal-body {
   padding: 2rem;
+  background: var(--cyber-surface);
 }
 
 .modal-footer {
-  border: none;
-  padding: 1rem 2rem 1.5rem;
-  background: rgba(0, 0, 0, 0.02);
+  background: var(--cyber-surface-elevated);
+  border-top: 1px solid var(--cyber-border);
+  padding: 1.5rem;
 }
 
-html[data-theme="dark"] .modal-footer {
-  background: rgba(255, 255, 255, 0.02);
-}
-
-/* === Toasts premium === */
+/* === Toasts con glow === */
 .toast {
-  border-radius: 1rem;
+  background: var(--cyber-surface);
+  border: 2px solid var(--cyber-border);
+  border-radius: 0.75rem;
+  color: var(--text-primary);
+  box-shadow: 0 8px 30px rgba(0, 0, 0, 0.5);
   backdrop-filter: blur(10px);
-  box-shadow: 0 8px 24px rgba(0, 0, 0, 0.25);
+}
+
+.toast.text-bg-success {
+  background: linear-gradient(135deg, rgba(0, 255, 136, 0.2) 0%, var(--cyber-surface) 100%);
+  border-color: var(--accent-green);
+  box-shadow: var(--glow-green);
+}
+
+.toast.text-bg-warning {
+  background: linear-gradient(135deg, rgba(255, 221, 0, 0.2) 0%, var(--cyber-surface) 100%);
+  border-color: var(--accent-yellow);
+  box-shadow: 0 0 20px rgba(255, 221, 0, 0.3);
+}
+
+.toast.text-bg-danger {
+  background: linear-gradient(135deg, rgba(255, 0, 85, 0.2) 0%, var(--cyber-surface) 100%);
+  border-color: var(--accent-red);
+  box-shadow: var(--glow-red);
 }
 
 .toast-body {
+  font-family: 'Courier New', monospace;
+  font-weight: 600;
   padding: 1rem 1.25rem;
-  font-weight: 500;
 }
 
-/* === Offcanvas moderno === */
+/* === Offcanvas futurista === */
 .offcanvas {
-  border-radius: 1rem 0 0 1rem;
-  box-shadow: -10px 0 40px rgba(0, 0, 0, 0.2);
+  background: var(--cyber-dark-bg);
+  border-left: 2px solid var(--accent-cyan);
+  box-shadow: var(--glow-cyan), -10px 0 40px rgba(0, 0, 0, 0.5);
+  color: var(--text-primary);
 }
 
 .offcanvas-header {
-  background: var(--primary-gradient);
-  color: white;
+  background: var(--cyber-surface-elevated);
+  border-bottom: 2px solid var(--accent-cyan);
   padding: 1.5rem;
+}
+
+.offcanvas-header h5 {
+  color: var(--accent-cyan);
+  font-family: 'Courier New', monospace;
+  text-transform: uppercase;
+  letter-spacing: 0.1em;
+  font-weight: 700;
 }
 
 .offcanvas-body {
+  background: var(--cyber-surface);
   padding: 1.5rem;
 }
 
-/* === Paginación elegante === */
-.pagination .page-link {
+/* === Notificaciones en lista === */
+#notifList > div {
+  background: var(--cyber-surface-elevated) !important;
+  border: 1px solid var(--cyber-border) !important;
   border-radius: 0.5rem;
+  padding: 1rem;
+  color: var(--text-primary) !important;
+  transition: var(--transition-cyber);
+  position: relative;
+  overflow: hidden;
+}
+
+#notifList > div::before {
+  content: '';
+  position: absolute;
+  left: 0;
+  top: 0;
+  bottom: 0;
+  width: 3px;
+  background: var(--accent-cyan);
+}
+
+#notifList > div:hover {
+  border-color: var(--cyber-border-active);
+  box-shadow: var(--glow-cyan);
+  transform: translateX(5px);
+}
+
+#notifList .badge {
+  box-shadow: 0 0 10px currentColor;
+}
+
+/* === Paginación tech === */
+.pagination .page-link {
+  background: var(--cyber-surface);
+  border: 1px solid var(--cyber-border);
+  color: var(--accent-cyan);
+  font-family: 'Courier New', monospace;
+  font-weight: 700;
   margin: 0 0.25rem;
-  border: 2px solid #e9ecef;
-  transition: var(--transition-smooth);
-  font-weight: 600;
+  border-radius: 0.5rem;
+  transition: var(--transition-cyber);
 }
 
 .pagination .page-link:hover {
-  background: var(--accent-color);
-  border-color: var(--accent-color);
-  color: white;
+  background: var(--accent-cyan);
+  border-color: var(--accent-cyan);
+  color: var(--cyber-dark-bg);
+  box-shadow: var(--glow-cyan);
   transform: translateY(-2px);
 }
 
 .pagination .page-item.active .page-link {
-  background: var(--primary-gradient);
-  border: none;
-  box-shadow: 0 4px 12px rgba(102, 126, 234, 0.3);
+  background: linear-gradient(135deg, var(--accent-cyan) 0%, #0099cc 100%);
+  border-color: var(--accent-cyan);
+  color: var(--cyber-dark-bg);
+  box-shadow: var(--glow-cyan);
 }
 
-/* === Checkboxes mejorados === */
+.pagination .page-item.disabled .page-link {
+  background: rgba(0, 0, 0, 0.3);
+  border-color: rgba(0, 217, 255, 0.1);
+  color: var(--text-muted);
+}
+
+/* === Checkboxes personalizados === */
 input[type="checkbox"] {
-  width: 1.2rem;
-  height: 1.2rem;
+  appearance: none;
+  width: 1.25rem;
+  height: 1.25rem;
+  border: 2px solid var(--cyber-border);
+  border-radius: 0.25rem;
+  background: rgba(0, 0, 0, 0.3);
   cursor: pointer;
-  accent-color: var(--accent-color);
+  position: relative;
+  transition: var(--transition-cyber);
 }
 
-/* === Animación suave al cargar === */
-@keyframes fadeInUp {
+input[type="checkbox"]:hover {
+  border-color: var(--accent-cyan);
+  box-shadow: var(--glow-cyan);
+}
+
+input[type="checkbox"]:checked {
+  background: var(--accent-cyan);
+  border-color: var(--accent-cyan);
+  box-shadow: var(--glow-cyan);
+}
+
+input[type="checkbox"]:checked::after {
+  content: '✓';
+  position: absolute;
+  top: 50%;
+  left: 50%;
+  transform: translate(-50%, -50%);
+  color: var(--cyber-dark-bg);
+  font-weight: 900;
+  font-size: 0.9rem;
+}
+
+/* === Filas seleccionadas === */
+tr.table-active-selected {
+  background: rgba(0, 217, 255, 0.1) !important;
+  box-shadow: inset 0 0 0 2px var(--accent-cyan);
+}
+
+/* === Labels mejorados === */
+.form-label {
+  color: var(--accent-cyan);
+  font-family: 'Courier New', monospace;
+  font-weight: 700;
+  font-size: 0.85rem;
+  text-transform: uppercase;
+  letter-spacing: 0.05em;
+  margin-bottom: 0.5rem;
+}
+
+/* === Form text === */
+.form-text {
+  color: var(--text-secondary) !important;
+  font-family: 'Courier New', monospace;
+  font-size: 0.85rem;
+}
+
+.form-text code {
+  background: rgba(0, 217, 255, 0.1);
+  color: var(--accent-cyan);
+  padding: 0.2rem 0.4rem;
+  border-radius: 0.25rem;
+}
+
+/* === Botón de notificaciones mejorado === */
+#notif-btn {
+  position: relative;
+  background: transparent !important;
+  border: 1px solid var(--accent-cyan) !important;
+  color: var(--accent-cyan) !important;
+}
+
+#notif-btn:hover {
+  background: var(--accent-cyan) !important;
+  color: var(--cyber-dark-bg) !important;
+  box-shadow: var(--glow-cyan);
+}
+
+#notif-badge {
+  background: var(--accent-red) !important;
+  color: white !important;
+  box-shadow: var(--glow-red);
+  animation: pulse-badge 2s infinite;
+}
+
+@keyframes pulse-badge {
+  0%, 100% { transform: scale(1); }
+  50% { transform: scale(1.1); }
+}
+
+/* === Logo con efecto cyber === */
+#corner-logo {
+  filter: drop-shadow(0 0 10px rgba(0, 217, 255, 0.3));
+  transition: var(--transition-cyber);
+}
+
+#corner-logo:hover {
+  filter: drop-shadow(0 0 20px rgba(0, 217, 255, 0.6));
+  transform: scale(1.05);
+}
+
+/* === Animación de carga === */
+@keyframes slideInFromBottom {
   from {
     opacity: 0;
-    transform: translateY(20px);
+    transform: translateY(30px);
   }
   to {
     opacity: 1;
@@ -349,79 +654,152 @@ input[type="checkbox"] {
 }
 
 .container > * {
-  animation: fadeInUp 0.6s ease-out backwards;
+  animation: slideInFromBottom 0.6s cubic-bezier(0.25, 0.8, 0.25, 1) backwards;
 }
 
-.container > *:nth-child(1) { animation-delay: 0.1s; }
-.container > *:nth-child(2) { animation-delay: 0.2s; }
-.container > *:nth-child(3) { animation-delay: 0.3s; }
-.container > *:nth-child(4) { animation-delay: 0.4s; }
+.container > *:nth-child(1) { animation-delay: 0.05s; }
+.container > *:nth-child(2) { animation-delay: 0.1s; }
+.container > *:nth-child(3) { animation-delay: 0.15s; }
+.container > *:nth-child(4) { animation-delay: 0.2s; }
+.container > *:nth-child(5) { animation-delay: 0.25s; }
 
-/* === Scroll suave === */
-html {
-  scroll-behavior: smooth;
+/* === Efecto scanline (opcional, sutil) === */
+body::before {
+  content: '';
+  position: fixed;
+  top: 0;
+  left: 0;
+  right: 0;
+  bottom: 0;
+  background: repeating-linear-gradient(
+    0deg,
+    rgba(0, 0, 0, 0.15) 0px,
+    transparent 1px,
+    transparent 2px,
+    rgba(0, 0, 0, 0.15) 3px
+  );
+  pointer-events: none;
+  z-index: 10000;
+  opacity: 0.05;
 }
 
-/* === Selección personalizada === */
+/* === Grid background effect === */
+body::after {
+  content: '';
+  position: fixed;
+  top: 0;
+  left: 0;
+  right: 0;
+  bottom: 0;
+  background-image: 
+    linear-gradient(rgba(0, 217, 255, 0.03) 1px, transparent 1px),
+    linear-gradient(90deg, rgba(0, 217, 255, 0.03) 1px, transparent 1px);
+  background-size: 50px 50px;
+  pointer-events: none;
+  z-index: 0;
+}
+
+.container {
+  position: relative;
+  z-index: 1;
+}
+
+/* === Scrollbar personalizado === */
+::-webkit-scrollbar {
+  width: 10px;
+  height: 10px;
+}
+
+::-webkit-scrollbar-track {
+  background: var(--cyber-dark-bg);
+}
+
+::-webkit-scrollbar-thumb {
+  background: var(--accent-cyan);
+  border-radius: 5px;
+  box-shadow: var(--glow-cyan);
+}
+
+::-webkit-scrollbar-thumb:hover {
+  background: #00ffff;
+}
+
+/* === Selección de texto === */
 ::selection {
-  background: rgba(102, 126, 234, 0.3);
-  color: inherit;
+  background: rgba(0, 217, 255, 0.3);
+  color: var(--text-primary);
 }
 
-/* === Logo esquina con efecto hover === */
-#corner-logo {
-  transition: var(--transition-smooth);
-  filter: drop-shadow(0 4px 8px rgba(0, 0, 0, 0.1));
+/* === Feedback de validación === */
+.form-control.is-valid {
+  border-color: var(--accent-green);
+  box-shadow: 0 0 0 3px rgba(0, 255, 136, 0.1);
 }
 
-#corner-logo:hover {
-  transform: scale(1.05) rotate(5deg);
-  filter: drop-shadow(0 8px 16px rgba(0, 0, 0, 0.2));
+.form-control.is-invalid {
+  border-color: var(--accent-red);
+  box-shadow: 0 0 0 3px rgba(255, 0, 85, 0.1);
 }
 
-/* === Toolbar grid mejorado === */
-.toolbar-grid {
-  background: var(--glass-bg-light);
-  backdrop-filter: blur(10px);
-  border: 1px solid var(--glass-border-light);
-  border-radius: 1rem;
-  padding: 1.5rem;
-  box-shadow: var(--shadow-soft);
-}
-
-html[data-theme="dark"] .toolbar-grid {
-  background: var(--glass-bg-dark);
-  border-color: var(--glass-border-dark);
-}
-
-/* === Mejora de contraste en labels === */
-.form-label {
+.invalid-feedback {
+  color: var(--accent-red);
+  font-family: 'Courier New', monospace;
+  font-size: 0.85rem;
   font-weight: 600;
-  font-size: 0.9rem;
-  color: #495057;
-  margin-bottom: 0.5rem;
 }
 
-html[data-theme="dark"] .form-label {
-  color: #cbd3da;
+/* === Toolbar grid especial === */
+.toolbar-grid {
+  position: relative;
 }
 
-/* === Responsive mejorado === */
+.toolbar-grid::before {
+  content: '// FILTROS';
+  position: absolute;
+  top: -0.75rem;
+  left: 1rem;
+  background: var(--cyber-surface);
+  padding: 0 0.5rem;
+  color: var(--accent-green);
+  font-family: 'Courier New', monospace;
+  font-size: 0.75rem;
+  font-weight: 700;
+}
+
+/* === Responsive === */
 @media (max-width: 768px) {
   .text-center.mb-3 h2 {
     font-size: 2rem;
   }
   
-  .alert,
+  .alert.alert-info strong {
+    font-size: 1.5rem;
+  }
+  
   #mainForm > .row,
   .table-responsive,
   .toolbar-grid {
     padding: 1rem;
-    border-radius: 0.75rem;
   }
   
   .btn {
-    padding: 0.5rem 1rem;
-    font-size: 0.9rem;
+    padding: 0.6rem 1rem;
+    font-size: 0.85rem;
   }
+  
+  body::after {
+    background-size: 30px 30px;
+  }
+}
+
+/* === Efecto de tecleo en título (opcional) === */
+@keyframes blink {
+  0%, 49% { opacity: 1; }
+  50%, 100% { opacity: 0; }
+}
+
+.text-center.mb-3 .title-ioc::after {
+  content: '_';
+  animation: blink 1s infinite;
+  color: var(--accent-green);
 }
