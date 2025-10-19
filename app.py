@@ -19,6 +19,9 @@ app.secret_key = 'clave-secreta'
 
 BASE_DIR = os.path.dirname(os.path.realpath(__file__))
 FEED_FILE = os.path.join(BASE_DIR, 'ioc-feed.txt')
+# === Nuevo feed BPE ===
+FEED_FILE_BPE = os.path.join(BASE_DIR, 'ioc-feed-bpe.txt')
+
 LOG_FILE = os.path.join(BASE_DIR, 'ioc-log.txt')
 NOTIF_FILE = os.path.join(BASE_DIR, 'notif-log.json')
 
@@ -57,6 +60,9 @@ _rate_hist = {}  # {auth_header: [timestamps]}
 _idem_lock = threading.Lock()
 _idem_cache = {}  # {idem_key: (ts, response)}
 IDEM_TTL_SECONDS = 600
+
+# Tags válidos
+ALLOWED_TAGS = {"Multicliente", "BPE"}
 
 # Asegurar carpetas
 os.makedirs(DATA_DIR, exist_ok=True)
@@ -334,7 +340,6 @@ def filter_lines_delete_pattern(lines, pattern):
             kept.append(line)
             continue
 
-    # ... check match
         match = False
         if kind == "single":
             match = ip_obj == obj
@@ -383,14 +388,29 @@ def get_notifs(limit=200):
 
 
 # =========================
-#  Helpers almacenamiento
+#  Helpers almacenamiento (feeds)
 # =========================
-def eliminar_ips_vencidas():
+def _append_line_unique(feed_path, line_txt):
+    """Append si no existe esa IP en el feed dado."""
+    ip_txt = line_txt.split("|", 1)[0]
+    existing = []
+    if os.path.exists(feed_path):
+        with open(feed_path, "r", encoding="utf-8") as f:
+            existing = [l.strip() for l in f if l.strip()]
+    exists = any(l.startswith(ip_txt + "|") for l in existing)
+    if not exists:
+        with open(feed_path, "a", encoding="utf-8") as f:
+            f.write(line_txt + "\n")
+
+def _ensure_dir(p):
+    os.makedirs(p, exist_ok=True)
+
+def eliminar_ips_vencidas_en_feed(feed_path):
     now = datetime.now()
     nuevas = []
     vencidas = []
     try:
-        with open(FEED_FILE, "r", encoding="utf-8") as f:
+        with open(feed_path, "r", encoding="utf-8") as f:
             for linea in f:
                 partes = linea.strip().split("|")
                 if len(partes) != 3:
@@ -406,23 +426,29 @@ def eliminar_ips_vencidas():
                     nuevas.append(linea.strip())
                 else:
                     vencidas.append(ip.strip())
-        with open(FEED_FILE, "w", encoding="utf-8") as f:
+        with open(feed_path, "w", encoding="utf-8") as f:
             for l in nuevas:
                 f.write(l + "\n")
     except FileNotFoundError:
         pass
     return vencidas
 
+def eliminar_ips_vencidas():
+    """Compat histórica: expiración del feed principal y retorno de IPs vencidas allí."""
+    return eliminar_ips_vencidas_en_feed(FEED_FILE)
 
-def load_lines():
-    if not os.path.exists(FEED_FILE):
+def eliminar_ips_vencidas_bpe():
+    """Expiración para el feed BPE."""
+    return eliminar_ips_vencidas_en_feed(FEED_FILE_BPE)
+
+def load_lines(feed_path=FEED_FILE):
+    if not os.path.exists(feed_path):
         return []
-    with open(FEED_FILE, encoding="utf-8") as f:
+    with open(feed_path, encoding="utf-8") as f:
         return [l.strip() for l in f if l.strip()]
 
-
-def save_lines(lines):
-    with open(FEED_FILE, "w", encoding="utf-8") as f:
+def save_lines(lines, feed_path=FEED_FILE):
+    with open(feed_path, "w", encoding="utf-8") as f:
         for l in lines:
             f.write(l + "\n")
 
@@ -450,6 +476,10 @@ def _norm_tags(tags):
             out.append(s)
             seen.add(s)
     return out
+
+def _filter_allowed_tags(tags):
+    """Devuelve sólo los tags permitidos."""
+    return [t for t in _norm_tags(tags) if t in ALLOWED_TAGS]
 
 def _parse_tags_field(val: str):
     if not val:
@@ -480,11 +510,11 @@ def _remove_ip_from_tag_file(tag, ip):
         for l in new_lines:
             f.write(l + "\n")
 
-def _remove_ip_from_feed(ip):
-    lines = load_lines()
+def _remove_ip_from_feed(ip, feed_path=FEED_FILE):
+    lines = load_lines(feed_path)
     new_lines = [l for l in lines if not l.startswith(ip + "|")]
     if len(new_lines) != len(lines):
-        save_lines(new_lines)
+        save_lines(new_lines, feed_path)
 
 def _merge_meta_tags(ip, new_tags, expires_at, source, note):
     """Fusiona tags y actualiza expiración en META_FILE.ip_details"""
@@ -617,9 +647,6 @@ def coerce_message_pairs(raw_flashes):
 # =========================
 #  Backup utils
 # =========================
-def _ensure_dir(p):
-    os.makedirs(p, exist_ok=True)
-
 def _safe_copy(src, dst_dir):
     """Copia src dentro de dst_dir conservando el nombre de archivo (si existe)."""
     if not os.path.exists(src):
@@ -677,7 +704,7 @@ def _rotate_backups(keep_days=14):
 def perform_daily_backup(keep_days=14):
     """
     Si el backup de HOY no existe, crea:
-      - backups/YYYY-MM-DD/ con copias de FEED_FILE, META_FILE (si existe), NOTIF_FILE (si existe)
+      - backups/YYYY-MM-DD/ con copias de FEED_FILE, FEED_FILE_BPE, META_FILE (si existe), NOTIF_FILE (si existe)
       - backups/YYYY-MM-DD.zip con todo lo anterior
     Luego rota backups antiguos.
     """
@@ -692,6 +719,7 @@ def perform_daily_backup(keep_days=14):
 
         _ensure_dir(day_dir)
         _safe_copy(FEED_FILE, day_dir)
+        _safe_copy(FEED_FILE_BPE, day_dir)  # incluir BPE
         if META_FILE and os.path.exists(META_FILE):
             _safe_copy(META_FILE, day_dir)
         if NOTIF_FILE and os.path.exists(NOTIF_FILE):
@@ -1011,51 +1039,53 @@ def index():
     # Snapshot diario si hace falta
     perform_daily_backup(keep_days=14)
 
-    # Expirar y sincronizar meta
-    vencidas = eliminar_ips_vencidas()
+    # Expirar y sincronizar meta (principal y BPE)
+    vencidas_main = eliminar_ips_vencidas()
+    vencidas_bpe = eliminar_ips_vencidas_bpe()
+    vencidas = list(set((vencidas_main or []) + (vencidas_bpe or [])))
     if vencidas:
         meta_bulk_del(vencidas)
 
     error = None
-    lines = load_lines()
+    lines = load_lines(FEED_FILE)
     existentes = {l.split("|", 1)[0] for l in lines}
 
     # ----- Mutaciones (POST) -----
     if request.method == "POST":
-        # Eliminar todas
+        # Eliminar todas (sólo feed principal; evitamos impactos en BPE desde la tabla actual)
         if "delete-all" in request.form:
             all_lines = list(lines)  # guardar para UNDO
             all_ips = [l.split("|", 1)[0].strip() for l in lines]
-            save_lines([])
+            save_lines([], FEED_FILE)
             meta_bulk_del(all_ips)
-            log("Eliminadas", "todas las IPs")
-            guardar_notif("warning", "Se eliminaron todas las IPs")
-            flash("Se eliminaron todas las IPs", "warning")
+            log("Eliminadas", "todas las IPs (Multicliente)")
+            guardar_notif("warning", "Se eliminaron todas las IPs (Multicliente)")
+            flash("Se eliminaron todas las IPs (Multicliente)", "warning")
             _set_last_action("delete_all", all_lines)
             return redirect(url_for("index"))
 
-        # Eliminar individual
+        # Eliminar individual (sólo del listado principal)
         if "delete_ip" in request.form:
             ip_to_delete = request.form.get("delete_ip")
             orig_line = next((l for l in lines if l.startswith(ip_to_delete + "|")), None)
             new_lines = [l for l in lines if not l.startswith(ip_to_delete + "|")]
-            save_lines(new_lines)
-            meta_del_ip(ip_to_delete)
-            guardar_notif("warning", f"IP eliminada: {ip_to_delete}")
+            save_lines(new_lines, FEED_FILE)
+            meta_del_ip(ip_to_delete)  # meta/tag-files coherentes
+            guardar_notif("warning", f"IP eliminada (Multicliente): {ip_to_delete}")
             flash(f"IP eliminada: {ip_to_delete}", "warning")
             if orig_line:
                 _set_last_action("delete", [orig_line])
             return redirect(url_for("index"))
 
-        # Eliminar por patrón
+        # Eliminar por patrón (sólo feed principal)
         if "delete-net" in request.form:
             patron = request.form.get("delete_net_input", "").strip()
             try:
                 new_lines, removed, removed_ips, removed_lines = filter_lines_delete_pattern(lines, patron)
-                save_lines(new_lines)
+                save_lines(new_lines, FEED_FILE)
                 if removed_ips:
                     meta_bulk_del(removed_ips)
-                guardar_notif("warning", f"Eliminadas por patrón {patron}: {removed}")
+                guardar_notif("warning", f"Eliminadas por patrón (Multicliente) {patron}: {removed}")
                 flash(f"Eliminadas por patrón {patron}: {removed}", "warning")
                 if removed_lines:
                     _set_last_action("delete_bulk", removed_lines)
@@ -1066,11 +1096,11 @@ def index():
         # Subida CSV/TXT
         file = request.files.get("file")
         if file and file.filename:
-            # TTL CSV desde el select de la UI
             ttl_csv_sel = request.form.get("ttl_csv", "permanente")
             ttl_csv_val = "0" if ttl_csv_sel == "permanente" else ttl_csv_sel
-            # Tags CSV (opcional)
-            tags_csv = _parse_tags_field(request.form.get("tags_csv", ""))
+            # Tags CSV (opcional, mantenemos opcionalidad)
+            raw_tags_csv = _parse_tags_field(request.form.get("tags_csv", ""))
+            tags_csv = _filter_allowed_tags(raw_tags_csv)
 
             valid_ips_total = 0
             rejected_total = 0
@@ -1098,11 +1128,19 @@ def index():
                     lines, existentes, expanded, ttl_val=ttl_csv_val,
                     origin="csv", contador_ruta=COUNTER_CSV, tags=tags_csv
                 )
+                # Si incluye BPE, reflejar también en FEED_FILE_BPE
+                if "BPE" in (tags_csv or []):
+                    fecha = datetime.now().strftime("%Y-%m-%d")
+                    for ip_str in expanded:
+                        if is_allowed_ip(ip_str):
+                            line_txt = f"{ip_str}|{fecha}|{ttl_csv_val}"
+                            _append_line_unique(FEED_FILE_BPE, line_txt)
+
                 valid_ips_total += add_ok
                 rejected_total += add_bad
                 added_lines_acc.extend(added_lines)
 
-            save_lines(lines)
+            save_lines(lines, FEED_FILE)
             if valid_ips_total:
                 guardar_notif("success", f"{valid_ips_total} IPs añadidas (CSV)")
                 flash(f"{valid_ips_total} IP(s) añadida(s) correctamente (CSV)", "success")
@@ -1113,15 +1151,18 @@ def index():
                 flash(f"{rejected_total} entradas rechazadas (inválidas/privadas/duplicadas/no permitidas)", "danger")
             return redirect(url_for("index"))
 
-        # Alta manual
+        # Alta manual (Tag OBLIGATORIO: Multicliente y/o BPE)
         raw_input = request.form.get("ip", "").strip()
 
-        # TTL manual desde el select de la UI
         ttl_man_sel = request.form.get("ttl_manual", "permanente")
         ttl_val = "0" if ttl_man_sel == "permanente" else ttl_man_sel
 
-        # Tags manuales (opcional)
-        tags_manual = _parse_tags_field(request.form.get("tags_manual", ""))
+        raw_tags_manual = _parse_tags_field(request.form.get("tags_manual", ""))
+        tags_manual = _filter_allowed_tags(raw_tags_manual)
+
+        if not tags_manual:
+            flash("Debes seleccionar al menos un tag válido (Multicliente y/o BPE).", "danger")
+            return redirect(url_for("index"))
 
         if raw_input:
             try:
@@ -1148,8 +1189,17 @@ def index():
                     lines, existentes, expanded, ttl_val=ttl_val,
                     origin="manual", contador_ruta=COUNTER_MANUAL, tags=tags_manual
                 )
+
+                # Si incluye BPE, reflejar también en FEED_FILE_BPE (aunque ya existiera en principal)
+                if "BPE" in (tags_manual or []):
+                    fecha = datetime.now().strftime("%Y-%m-%d")
+                    for ip_str in expanded:
+                        if is_allowed_ip(ip_str):
+                            line_txt = f"{ip_str}|{fecha}|{ttl_val}"
+                            _append_line_unique(FEED_FILE_BPE, line_txt)
+
                 if add_ok > 0:
-                    save_lines(lines)
+                    save_lines(lines, FEED_FILE)
                     if single_input:
                         guardar_notif("success", f"IP añadida: {single_ip}")
                         flash(f"IP añadida: {single_ip}", "success")
@@ -1196,8 +1246,8 @@ def index():
     except Exception:
         pass
 
-    # Totales VIVOS (manual/csv)
-    lines = load_lines()
+    # Totales VIVOS (manual/csv) sobre feed principal
+    lines = load_lines(FEED_FILE)
     live_manual, live_csv = compute_live_counters(lines)
 
     # Construye map de tags para la tabla server-rendered
@@ -1253,7 +1303,8 @@ def index():
             }
         )
 
-    # known tags para el datalist de la UI
+    # known tags para el datalist de la UI (seguimos mostrando todo lo conocido,
+    # pero en el frontal manual exigimos que sea de ALLOWED_TAGS)
     known_tags = _collect_known_tags()
 
     return render_template("index.html",
@@ -1286,6 +1337,25 @@ def feed():
     resp.headers["Content-Type"] = "text/plain"
     return resp
 
+# === NUEVO: feed BPE separado ===
+@app.route("/feed/ioc-feed-bpe.txt")
+def feed_bpe():
+    ips = []
+    if os.path.exists(FEED_FILE_BPE):
+        with open(FEED_FILE_BPE, encoding="utf-8") as f:
+            for line in f:
+                ip = line.split("|", 1)[0].strip()
+                if ip and is_allowed_ip(ip):
+                    try:
+                        if isinstance(ipaddress.ip_address(ip), ipaddress.IPv4Address):
+                            ips.append(ip)
+                    except Exception:
+                        continue
+    body = "\n".join(ips) + "\n"
+    resp = make_response(body, 200)
+    resp.headers["Content-Type"] = "text/plain"
+    return resp
+
 
 @app.route("/preview-delete")
 @login_required
@@ -1294,7 +1364,7 @@ def preview_delete():
     if not pattern:
         return jsonify({"error": "Patrón vacío"}), 400
     try:
-        lines = load_lines()
+        lines = load_lines(FEED_FILE)
         _, removed, _removed_ips, _removed_lines = filter_lines_delete_pattern(lines, pattern)
         return jsonify({"count": removed})
     except Exception as e:
@@ -1360,6 +1430,7 @@ def backup_list():
 def healthz():
     try:
         _ = os.path.exists(FEED_FILE)
+        _ = os.path.exists(FEED_FILE_BPE)
         return jsonify({"status": "ok", "time": datetime.utcnow().isoformat()+"Z"})
     except Exception as e:
         return jsonify({"status": "error", "error": str(e)}), 500
@@ -1368,7 +1439,7 @@ def healthz():
 @app.route("/metrics")
 @login_required
 def metrics():
-    lines = load_lines()
+    lines = load_lines(FEED_FILE)
     manual, csvc = compute_live_counters(lines)
     return jsonify({
         "total_active": len(lines),
@@ -1519,7 +1590,7 @@ def bloquear_ip_api():
         force = bool(payload.get("force", False))
 
         # Estado actual del feed
-        lines = load_lines()
+        lines = load_lines(FEED_FILE)
         existentes = {l.split("|", 1)[0] for l in lines}
 
         processed, errors = [], []
@@ -1531,7 +1602,7 @@ def bloquear_ip_api():
                 # para feed en días (compat frontal)
                 ttl_days = 0 if ttl_s == 0 else max(1, math.ceil(ttl_s / 86400.0))
 
-                tags = _norm_tags(it.get("tags", []))
+                tags = _filter_allowed_tags(it.get("tags", []))
                 note = str(it.get("nota", "") or it.get("note", "")).strip()
 
                 # soportar inputs: ip / cidr / range / "ip máscara"
@@ -1577,7 +1648,7 @@ def bloquear_ip_api():
                             item_result["ips"].append({"ip": ip_str, "status": "already_exists"})
                             continue
 
-                    # Append en feed (mantener compat de UI)
+                    # Append en feed principal (mantener compat de UI)
                     if ip_str not in existentes:
                         fecha = datetime.now().strftime("%Y-%m-%d")
                         line_txt = f"{ip_str}|{fecha}|{ttl_days}"
@@ -1592,7 +1663,18 @@ def bloquear_ip_api():
                     for t in [x for x in tags if x not in set(current.get("tags", []))] if current else tags:
                         _write_tag_line(t, ip_str, _now_utc(), ttl_s, expires_at, origin, entry["tags"])
 
-                    item_result["ips"].append({"ip": ip_str, "status": "ok", "tags": entry["tags"], "expires_at": entry["expires_at"]})
+                    # Reflejar en feed BPE si corresponde
+                    if "BPE" in (tags or []):
+                        fecha = datetime.now().strftime("%Y-%m-%d")
+                        line_txt_bpe = f"{ip_str}|{fecha}|{ttl_days}"
+                        _append_line_unique(FEED_FILE_BPE, line_txt_bpe)
+
+                    item_result["ips"].append({
+                        "ip": ip_str,
+                        "status": "ok",
+                        "tags": entry["tags"],
+                        "expires_at": entry["expires_at"]
+                    })
                     item_result["count"] += 1
 
                 processed.append(item_result)
@@ -1600,7 +1682,7 @@ def bloquear_ip_api():
                 errors.append({"index": idx, "error": str(e)})
 
         # Guardar feed si cambió
-        save_lines(lines)
+        save_lines(lines, FEED_FILE)
 
         resp = {
             "status": "partial_ok" if errors and processed else ("error" if errors and not processed else "ok"),
@@ -1625,24 +1707,26 @@ def bloquear_ip_api():
     except Exception:
         return jsonify({"error": "IP inválida"}), 400
 
-    tags = _norm_tags(body.get("tags", []))
+    tags = _filter_allowed_tags(body.get("tags", []))
 
     meta = load_meta()
     entry = meta.get("ip_details", {}).get(ip_txt)
     if not entry:
-        # No hay detalles: si no hay tags => quitar del feed y by_ip por compat
+        # No hay detalles: si no hay tags => quitar del feed(s) por compat
         if not tags:
-            _remove_ip_from_feed(ip_txt)
+            _remove_ip_from_feed(ip_txt, FEED_FILE)
+            _remove_ip_from_feed(ip_txt, FEED_FILE_BPE)
             meta_del_ip(ip_txt)
             return jsonify({"status": "deleted", "ip": ip_txt, "scope": "global"}), 200
         else:
             return jsonify({"status": "not_found", "ip": ip_txt}), 404
 
     if not tags:
-        # borrar de todos los tags + feed + meta
+        # borrar de todos los tags + feeds + meta
         for t in entry.get("tags", []):
             _remove_ip_from_tag_file(t, ip_txt)
-        _remove_ip_from_feed(ip_txt)
+        _remove_ip_from_feed(ip_txt, FEED_FILE)
+        _remove_ip_from_feed(ip_txt, FEED_FILE_BPE)
         meta_del_ip(ip_txt)
         return jsonify({"status": "deleted", "ip": ip_txt, "scope": "global"}), 200
     else:
@@ -1658,8 +1742,18 @@ def bloquear_ip_api():
             "action": "untag",
             "tags_removed": tags
         })
+        # Si se ha quitado BPE de los tags y ya no queda, retirar del feed BPE
+        if "BPE" in tags and "BPE" not in remaining:
+            _remove_ip_from_feed(ip_txt, FEED_FILE_BPE)
+        # Si se quitó Multicliente y ya no queda ningun tag, también del principal
+        if "Multicliente" in tags and "Multicliente" not in remaining:
+            # Retiramos del principal (si ya no está Multicliente)
+            _remove_ip_from_feed(ip_txt, FEED_FILE)
+
         if not remaining:
-            _remove_ip_from_feed(ip_txt)
+            # si ya no quedan tags, limpiar de ambos feeds + meta
+            _remove_ip_from_feed(ip_txt, FEED_FILE)
+            _remove_ip_from_feed(ip_txt, FEED_FILE_BPE)
             meta_del_ip(ip_txt)
             save_meta(meta)
             return jsonify({"status": "deleted", "ip": ip_txt, "scope": "all_tags"}), 200
@@ -1717,7 +1811,8 @@ def api_root():
             "POST   /api/bloquear-ip",
             "DELETE /api/bloquear-ip",
             "GET    /api/estado/<ip>",
-            "GET    /api/lista/<tag>"
+            "GET    /api/lista/<tag>",
+            "GET    /feed/ioc-feed-bpe.txt"
         ]
     }), 200
 
