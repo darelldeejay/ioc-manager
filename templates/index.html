@@ -1302,18 +1302,29 @@
       const tr = document.createElement('tr');
       const ttlText = (row.ttl === 0 || row.ttl === '0') ? '∞' : String(row.ttl);
       tr.innerHTML = `
-        <td><input type="checkbox" class="row-chk" value="${escapeHtml(row.ip)}"></td>
-        <td>${escapeHtml(row.ip)}</td>
-        <td>${escapeHtml(row.fecha_alta || '')}</td>
-        <td>${escapeHtml(ttlText)}</td>
-        <td><!-- Tags (no vienen en JSON) --><span class="text-muted">—</span></td>
-        <td>
-          <form method="POST" onsubmit="return confirm('¿Eliminar ${escapeHtml(row.ip)}?');">
-            <input type="hidden" name="delete_ip" value="${escapeHtml(row.ip)}">
-            <button type="submit" class="btn btn-sm btn-outline-danger">Eliminar</button>
-          </form>
-        </td>
-      `;
+function tagBadge(t){
+  // Colores simples por tipo de tag; puedes ajustar si quieres
+  const cls = (t === 'BPE') ? 'text-bg-warning' : 'text-bg-primary';
+  return `<span class="badge ${cls}" style="margin-right:6px;">${escapeHtml(t)}</span>`;
+}
+
+tr.innerHTML = `
+  <td><input type="checkbox" class="row-chk" value="${escapeHtml(row.ip)}"></td>
+  <td>${escapeHtml(row.ip)}</td>
+  <td>${escapeHtml(row.fecha_alta || '')}</td>
+  <td>${escapeHtml(ttlText)}</td>
+  <td>${
+    (row.tags && row.tags.length)
+      ? row.tags.map(tagBadge).join(' ')
+      : '<span class="text-muted">—</span>'
+  }</td>
+  <td>
+    <form method="POST" onsubmit="return confirm('¿Eliminar ${escapeHtml(row.ip)}?');">
+      <input type="hidden" name="delete_ip" value="${escapeHtml(row.ip)}">
+      <button type="submit" class="btn btn-sm btn-outline-danger">Eliminar</button>
+    </form>
+  </td>
+`;
       tbody.appendChild(tr);
     });
     attachTableSelectionHandlers();
