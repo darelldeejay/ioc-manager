@@ -1233,33 +1233,14 @@ def index():
             }
         )
 
-    # === NUEVO: preparar tags para la plantilla ===
-    meta_details = load_meta().get("ip_details", {})
-    ip_tags = {}
-    for line in lines:
-        ip_txt = line.split("|", 1)[0].strip()
-        ip_tags[ip_txt] = meta_details.get(ip_txt, {}).get("tags", [])
-
-        # --- construir mapa IP -> lista de tags (para mostrar en la tabla) ---
-    meta = load_meta()
-    meta_details = meta.get("ip_details", {})
-    tags_by_ip = {}
-    for l in lines:
-        ip_txt = l.split("|", 1)[0].strip()
-        tags_by_ip[ip_txt] = meta_details.get(ip_txt, {}).get("tags", [])
-
-    return render_template(
-        "index.html",
-        ips=lines,                       # lista de strings "IP|YYYY-MM-DD|TTL"
-        ip_tags=ip_tags,                 # mapping {ip: [tags]}
-        error=error,
-        total_ips=len(lines),
-        contador_manual=live_manual,
-        contador_csv=live_csv,
-        messages=messages,
-        request_actions=request_actions
-        tags_by_ip=tags_by_ip
-    )
+    return render_template("index.html",
+                           ips=lines,
+                           error=error,
+                           total_ips=len(lines),
+                           contador_manual=live_manual,
+                           contador_csv=live_csv,
+                           messages=messages,
+                           request_actions=request_actions)
 
 
 @app.route("/feed/ioc-feed.txt")
@@ -1625,22 +1606,6 @@ def api_root():
 # Registrar blueprint
 app.register_blueprint(api)
 
-# === Colores consistentes para tags (Opción 2) ===
-def tag_color(tag_name: str) -> str:
-    """
-    Genera un color HEX legible y consistente basado en el nombre del tag.
-    Evita colores demasiado oscuros o chillones.
-    """
-    import hashlib
-    h = hashlib.md5(tag_name.encode("utf-8")).hexdigest()
-    # Valores base suavizados (80–207 aprox)
-    r = int(h[0:2], 16) // 2 + 80
-    g = int(h[2:4], 16) // 2 + 80
-    b = int(h[4:6], 16) // 2 + 80
-    return f"#{r:02x}{g:02x}{b:02x}"
-
-# Exponer en Jinja
-app.jinja_env.globals['tag_color'] = tag_color
 
 if __name__ == "__main__":
     app.run(debug=True, host="0.0.0.0", port=5000)
