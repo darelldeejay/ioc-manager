@@ -222,12 +222,25 @@
         <button type="button" class="btn btn-danger" data-bs-toggle="modal" data-bs-target="#confirmDeleteAll">Eliminar todas</button>
       </div>
 
-      <!-- Tags manuales -->
+      <!-- Tags manuales (OBLIGATORIO) -->
       <div class="col-12">
-        <label class="form-label small mb-1">Tags a aplicar (opcional)</label>
-        <input type="text" class="form-control" name="tags_manual" placeholder="Ej: Demo, BPE, MultiCliente" list="knownTags">
+        <label class="form-label small mb-1">Aplicar a</label>
+        <div id="tagManualGroup" class="d-flex flex-wrap align-items-center gap-3">
+          <div class="form-check">
+            <input class="form-check-input tag-manual" type="checkbox" value="Multicliente" id="tagManualMulti">
+            <label class="form-check-label" for="tagManualMulti">Multicliente</label>
+          </div>
+          <div class="form-check">
+            <input class="form-check-input tag-manual" type="checkbox" value="BPE" id="tagManualBpe">
+            <label class="form-check-label" for="tagManualBpe">BPE</label>
+          </div>
+          <input type="hidden" id="tagsManualInput" name="tags_manual" value="">
+        </div>
+        <div id="tagManualFeedback" class="invalid-feedback" style="display:none;">
+          Selecciona al menos un tag (Multicliente y/o BPE).
+        </div>
         <div class="form-text">
-          Separa varios tags con comas. Los tags existentes aparecerán como sugerencias.
+          Obligatorio: elige a quién aplicar el bloqueo.
         </div>
       </div>
     </div>
@@ -257,22 +270,25 @@
         <a href="/static/plantilla.csv" class="btn btn-outline-secondary w-100" download>Descargar plantilla</a>
       </div>
 
-      <!-- Tags CSV -->
+      <!-- Tags CSV (OPCIONAL) -->
       <div class="col-12">
-        <label class="form-label small mb-1">Tags a aplicar a todas las filas (opcional)</label>
-        <input type="text" class="form-control" name="tags_csv" placeholder="Ej: Demo, BPE, MultiCliente" list="knownTags">
+        <label class="form-label small mb-1">Aplicar a (todas las filas)</label>
+        <div id="tagCsvGroup" class="d-flex flex-wrap align-items-center gap-3">
+          <div class="form-check">
+            <input class="form-check-input tag-csv" type="checkbox" value="Multicliente" id="tagCsvMulti">
+            <label class="form-check-label" for="tagCsvMulti">Multicliente</label>
+          </div>
+          <div class="form-check">
+            <input class="form-check-input tag-csv" type="checkbox" value="BPE" id="tagCsvBpe">
+            <label class="form-check-label" for="tagCsvBpe">BPE</label>
+          </div>
+          <input type="hidden" id="tagsCsvInput" name="tags_csv" value="">
+        </div>
         <div class="form-text">
-          Separa varios tags con comas. Si tu CSV ya trae columna de tags, el backend puede combinar/mezclar.
+          Opcional: aplica estos tags a todas las filas del archivo.
         </div>
       </div>
     </div>
-
-    <!-- Sugerencias de tags conocidas (si el backend las pasa) -->
-    <datalist id="knownTags">
-      {% for t in (known_tags or []) %}
-        <option value="{{ t }}"></option>
-      {% endfor %}
-    </datalist>
 
     <!-- Acciones avanzadas -->
     <div class="row g-3 mb-4">
@@ -675,6 +691,30 @@
     });
   })();
 
+  /* ----------------- Helpers Tags (manual y csv) ----------------- */
+  function selectedTags(cls){
+    return Array.from(document.querySelectorAll('.' + cls + ':checked')).map(el => el.value);
+  }
+  function syncHiddenTags(){
+    const man = selectedTags('tag-manual');
+    const csv = selectedTags('tag-csv');
+    const manInput = document.getElementById('tagsManualInput');
+    const csvInput = document.getElementById('tagsCsvInput');
+    if (manInput) manInput.value = man.join(',');
+    if (csvInput) csvInput.value = csv.join(',');
+  }
+  document.querySelectorAll('.tag-manual, .tag-csv').forEach(el=>{
+    el.addEventListener('change', syncHiddenTags);
+  });
+
+  function showManualTagError(show){
+    const fb = document.getElementById('tagManualFeedback');
+    const hidden = document.getElementById('tagsManualInput');
+    if (!fb || !hidden) return;
+    fb.style.display = show ? 'block' : 'none';
+    hidden.classList.toggle('is-invalid', !!show);
+  }
+
   const setLoading = (btn, textWhileLoading) => {
     if (!btn) return;
     btn.dataset.originalHtml = btn.innerHTML;
@@ -686,10 +726,29 @@
   };
 
   document.getElementById('mainForm')?.addEventListener('submit', (ev) => {
-    if (ev.defaultPrevented) return;
+    // --- Validación de tags (manual obligatorio) ---
+    syncHiddenTags();
+    const fileHasValue = !!document.querySelector('input[type="file"][name="file"]')?.value;
+    if (!fileHasValue) { // flujo MANUAL
+      const man = selectedTags('tag-manual');
+      if (man.length === 0) {
+        ev.preventDefault();
+        ev.stopPropagation();
+        showManualTagError(true);
+        // foco al primer checkbox
+        const first = document.querySelector('.tag-manual');
+        first && first.focus && first.focus();
+        return;
+      } else {
+        showManualTagError(false);
+      }
+    } else {
+      showManualTagError(false);
+    }
+
+    // Spinners
     const manualBtn = document.getElementById('addManualBtn');
     const csvBtn = document.getElementById('uploadCsvBtn');
-    const fileHasValue = !!document.querySelector('input[type="file"][name="file"]')?.value;
 
     if (fileHasValue) {
       setLoading(csvBtn, 'Subiendo…');
