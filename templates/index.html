@@ -407,9 +407,9 @@
             <td>{{ '∞' if parts[2] == '0' else parts[2] }}</td>
             <td>
               <td class="tags-cell">
-  {% if item.tags and item.tags|length > 0 %}
-    {% for t in item.tags %}
-      <span class="tag-pill">
+             {% if item.tags and item.tags|length > 0 %}
+             {% for t in item.tags %}
+              <span class="tag-pill">
                   <span class="badge" style="background-color: {{ tag_color(t) }}; color:#fff; margin-right:6px;">
                     {{ t }}
                   </span>
