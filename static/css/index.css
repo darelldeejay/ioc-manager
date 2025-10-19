@@ -1,831 +1,316 @@
-/* ============================================================
-   PROPUESTA 2 CORREGIDA: CYBERSEC PRO
-   Dashboard de Seguridad QUE RESPETA EL TOGGLE DE TEMA
-   ============================================================
-   Añade estas reglas AL FINAL de tu index.css existente
-   NO fuerza modo oscuro - respeta tu botón de toggle
-   ============================================================ */
-
-/* === Variables del tema cybersecurity === */
-:root {
-  --cyber-surface: #151a2e;
-  --cyber-surface-elevated: #1a2038;
-  --cyber-border: rgba(0, 217, 255, 0.15);
-  --cyber-border-active: rgba(0, 217, 255, 0.5);
-  
-  --accent-cyan: #00d9ff;
-  --accent-green: #00ff88;
-  --accent-red: #ff0055;
-  --accent-yellow: #ffdd00;
-  
-  --glow-cyan: 0 0 20px rgba(0, 217, 255, 0.3);
-  --glow-green: 0 0 20px rgba(0, 255, 136, 0.3);
-  --glow-red: 0 0 20px rgba(255, 0, 85, 0.3);
-  
-  --transition-cyber: all 0.3s cubic-bezier(0.25, 0.8, 0.25, 1);
+/* =========================
+   Logo de esquina (dashboard)
+   ========================= */
+#corner-logo {
+  width: 110px;
+  height: 110px;
+  position: fixed;        /* fijo en la esquina aunque hagas scroll */
+  bottom: 15px;
+  right: 15px;
+  margin: 0;
+  z-index: 9999;
+  user-select: none;
+  pointer-events: none;   /* no bloquea clicks sobre la UI */
+  opacity: .95;
 }
 
-/* === MODO CLARO: Estilo corporativo limpio === */
-body:not(.bg-dark) {
-  background: linear-gradient(180deg, #f8f9fa 0%, #e9ecef 100%);
+/* Opcional: más pequeño en móviles */
+@media (max-width: 576px) {
+  #corner-logo { width: 72px; height: 72px; }
 }
 
-/* === MODO OSCURO: Estilo cybersecurity === */
-body.bg-dark,
-html[data-theme="dark"] body {
-  background-color: #0a0e27;
-  background-image: 
-    linear-gradient(rgba(0, 217, 255, 0.03) 1px, transparent 1px),
-    linear-gradient(90deg, rgba(0, 217, 255, 0.03) 1px, transparent 1px);
-  background-size: 50px 50px;
+/* Duplicado específico muy pequeño */
+@media (max-width: 576px) {
+  #corner-logo {
+    width: 60px;
+    height: 60px;
+    bottom: 10px;
+    right: 10px;
+  }
 }
 
-/* === Header estilo moderno === */
-body:not(.bg-dark) .container > .d-flex.justify-content-between.align-items-center.mb-3:first-child {
-  background: linear-gradient(135deg, #667eea 0%, #764ba2 100%);
-  border-radius: 0 0 1rem 1rem;
-  padding: 1rem 1.5rem;
-  margin-bottom: 2rem;
-  box-shadow: 0 4px 20px rgba(102, 126, 234, 0.3);
+
+/* =========================
+   Modo oscuro: inputs y placeholders
+   ========================= */
+body.bg-dark ::placeholder {
+  color: #bbb !important;   /* gris claro más visible */
+  opacity: 1;               /* asegura visibilidad */
 }
 
-body.bg-dark .container > .d-flex.justify-content-between.align-items-center.mb-3:first-child,
-html[data-theme="dark"] .container > .d-flex:first-child {
-  background: var(--cyber-surface);
-  border: 1px solid var(--cyber-border);
-  border-radius: 0.5rem;
-  padding: 1rem 1.5rem;
-  margin-bottom: 2rem;
-  box-shadow: var(--glow-cyan);
-  position: relative;
-}
-
-body.bg-dark .container > .d-flex:first-child::before,
-html[data-theme="dark"] .container > .d-flex:first-child::before {
-  content: '';
-  position: absolute;
-  top: 0;
-  left: 0;
-  right: 0;
-  height: 2px;
-  background: linear-gradient(90deg, 
-    transparent 0%, 
-    var(--accent-cyan) 50%, 
-    transparent 100%);
-}
-
-/* Botones del header */
-body:not(.bg-dark) .container > .d-flex:first-child button,
-body:not(.bg-dark) .container > .d-flex:first-child a {
-  backdrop-filter: blur(10px);
-  background: rgba(255, 255, 255, 0.2) !important;
-  border-color: rgba(255, 255, 255, 0.4) !important;
-  color: white !important;
-  transition: var(--transition-cyber);
-}
-
-body.bg-dark .container > .d-flex:first-child button,
-body.bg-dark .container > .d-flex:first-child a,
-html[data-theme="dark"] .container > .d-flex:first-child button,
-html[data-theme="dark"] .container > .d-flex:first-child a {
-  background: transparent !important;
-  border: 1px solid var(--cyber-border) !important;
-  color: var(--accent-cyan) !important;
-  font-family: 'Courier New', monospace;
-  font-weight: 600;
-  transition: var(--transition-cyber);
-  text-transform: uppercase;
-  font-size: 0.85rem;
-  letter-spacing: 0.05em;
-}
-
-body.bg-dark .container > .d-flex:first-child button:hover,
-body.bg-dark .container > .d-flex:first-child a:hover,
-html[data-theme="dark"] .container > .d-flex:first-child button:hover,
-html[data-theme="dark"] .container > .d-flex:first-child a:hover {
-  background: var(--accent-cyan) !important;
-  color: #0a0e27 !important;
-  border-color: var(--accent-cyan) !important;
-  box-shadow: var(--glow-cyan);
-}
-
-/* === Título principal === */
-.text-center.mb-3 h2 {
-  font-size: 2.5rem;
-  font-weight: 900;
-  letter-spacing: 0.02em;
-  margin-bottom: 1rem;
-}
-
-body:not(.bg-dark) .text-center.mb-3 .title-gestor {
-  background: linear-gradient(135deg, #667eea 0%, #764ba2 100%);
-  -webkit-background-clip: text;
-  -webkit-text-fill-color: transparent;
-  background-clip: text;
-}
-
-body.bg-dark .text-center.mb-3 h2,
-html[data-theme="dark"] .text-center.mb-3 h2 {
-  font-family: 'Courier New', monospace;
-  text-transform: uppercase;
-}
-
-body.bg-dark .text-center.mb-3 .title-ioc,
-html[data-theme="dark"] .text-center.mb-3 .title-ioc {
-  color: var(--accent-cyan);
-  text-shadow: var(--glow-cyan);
-}
-
-body.bg-dark .text-center.mb-3 > div[style*="background"],
-html[data-theme="dark"] .text-center.mb-3 > div[style*="background"] {
-  background: linear-gradient(90deg, 
-    transparent 0%, 
-    var(--accent-cyan) 50%, 
-    transparent 100%) !important;
-  box-shadow: var(--glow-cyan);
-}
-
-body.bg-dark .text-center.mb-3 p.text-muted,
-html[data-theme="dark"] .text-center.mb-3 p.text-muted {
-  font-family: 'Courier New', monospace;
-  text-transform: uppercase;
-  letter-spacing: 0.1em;
-}
-
-/* === Alert de estadísticas === */
-body:not(.bg-dark) .alert.alert-info {
-  background: linear-gradient(135deg, rgba(102, 126, 234, 0.1) 0%, rgba(118, 75, 162, 0.1) 100%);
-  border: 2px solid rgba(102, 126, 234, 0.3);
-  border-radius: 1rem;
-  padding: 2rem;
-}
-
-body:not(.bg-dark) .alert.alert-info strong {
-  color: #667eea;
-  font-size: 1.5rem;
-  font-weight: 800;
-}
-
-body.bg-dark .alert.alert-info,
-html[data-theme="dark"] .alert.alert-info {
-  background: var(--cyber-surface);
-  border: 2px solid var(--cyber-border);
-  border-radius: 0.75rem;
-  padding: 2rem;
-  box-shadow: var(--glow-cyan);
-  position: relative;
-}
-
-body.bg-dark .alert.alert-info::before,
-html[data-theme="dark"] .alert.alert-info::before {
-  content: '//';
-  position: absolute;
-  left: 1rem;
-  top: 0.5rem;
-  color: var(--accent-green);
-  font-family: 'Courier New', monospace;
-  font-size: 0.85rem;
-  opacity: 0.5;
-}
-
-body.bg-dark .alert.alert-info strong,
-html[data-theme="dark"] .alert.alert-info strong {
-  color: var(--accent-cyan);
-  font-size: 2rem;
-  font-weight: 900;
-  font-family: 'Courier New', monospace;
-  text-shadow: var(--glow-cyan);
-  display: inline-block;
-  padding: 0 0.5rem;
-  background: rgba(0, 217, 255, 0.1);
-  border-radius: 0.25rem;
-}
-
-/* === Cards === */
-body:not(.bg-dark) #mainForm > .row,
-body:not(.bg-dark) .table-responsive,
-body:not(.bg-dark) .toolbar-grid {
-  background: rgba(255, 255, 255, 0.8);
-  backdrop-filter: blur(10px);
-  border: 1px solid rgba(209, 213, 219, 0.3);
-  border-radius: 1rem;
-  padding: 1.5rem;
-  box-shadow: 0 4px 20px rgba(0, 0, 0, 0.08);
-  transition: var(--transition-cyber);
-}
-
-body.bg-dark #mainForm > .row,
-body.bg-dark .table-responsive,
-body.bg-dark .toolbar-grid,
-html[data-theme="dark"] #mainForm > .row,
-html[data-theme="dark"] .table-responsive,
-html[data-theme="dark"] .toolbar-grid {
-  background: var(--cyber-surface);
-  border: 1px solid var(--cyber-border);
-  border-radius: 0.75rem;
-  padding: 1.5rem;
-  box-shadow: 0 4px 20px rgba(0, 0, 0, 0.3);
-  transition: var(--transition-cyber);
-}
-
-body.bg-dark #mainForm > .row:hover,
-body.bg-dark .toolbar-grid:hover,
-html[data-theme="dark"] #mainForm > .row:hover,
-html[data-theme="dark"] .toolbar-grid:hover {
-  border-color: var(--cyber-border-active);
-  box-shadow: var(--glow-cyan);
-}
-
-/* === Inputs === */
 body.bg-dark .form-control,
-body.bg-dark .form-select,
-html[data-theme="dark"] .form-control,
-html[data-theme="dark"] .form-select {
-  font-family: 'Courier New', monospace;
+body.bg-dark .form-select {
+  background-color: #1f1f1f;
+  color: #e9ecef;
+  border-color: #495057;
 }
 
 body.bg-dark .form-control:focus,
-body.bg-dark .form-select:focus,
-html[data-theme="dark"] .form-control:focus,
-html[data-theme="dark"] .form-select:focus {
-  background: rgba(0, 217, 255, 0.05);
-  border-color: var(--accent-cyan);
-  box-shadow: 0 0 0 3px rgba(0, 217, 255, 0.1), var(--glow-cyan);
+body.bg-dark .form-select:focus {
+  background-color: #1c1c1c;
+  color: #fff;
+  border-color: #6ea8fe;
+  box-shadow: 0 0 0 .25rem rgba(110,168,254,.25);
 }
 
-/* === Botones === */
-.btn {
-  border-radius: 0.75rem;
-  padding: 0.65rem 1.25rem;
-  font-weight: 600;
-  transition: var(--transition-cyber);
-  letter-spacing: 0.02em;
-  position: relative;
-  overflow: hidden;
+
+/* =========================
+   Tabla en modo oscuro (Bootstrap 5)
+   ========================= */
+body.bg-dark .table,
+body.bg-dark .table th,
+body.bg-dark .table td {
+  background-color: #121212 !important;
+  color: #e9ecef !important;
+  border-color: #2b2b2b !important;
 }
 
-.btn::before {
-  content: '';
-  position: absolute;
-  top: 0;
-  left: -100%;
-  width: 100%;
-  height: 100%;
-  background: linear-gradient(90deg, transparent, rgba(255,255,255,0.2), transparent);
-  transition: left 0.5s;
+/* Cabecera de tabla */
+body.bg-dark table thead th {
+  background-color: #1a1a1a !important;
+  color: #e9ecef !important;
 }
 
-.btn:hover::before {
-  left: 100%;
+/* Rayado (striped) sutil en oscuro */
+body.bg-dark .table-striped > tbody > tr:nth-of-type(odd) > * {
+  background-color: rgba(255,255,255,0.03) !important;
 }
 
-.btn:hover:not(:disabled) {
-  transform: translateY(-2px);
-  box-shadow: 0 4px 12px rgba(0, 0, 0, 0.15);
+/* Hover sutil en oscuro */
+body.bg-dark .table-hover > tbody > tr:hover > * {
+  background-color: rgba(255,255,255,0.06) !important;
 }
 
-body.bg-dark .btn,
-html[data-theme="dark"] .btn {
-  font-family: 'Courier New', monospace;
-  text-transform: uppercase;
-  letter-spacing: 0.05em;
-  font-weight: 700;
+/* Botones "Eliminar" dentro de filas oscuras */
+body.bg-dark .table .btn-outline-danger {
+  border-color: #ff6b6b;
+  color: #ff6b6b;
+}
+body.bg-dark .table .btn-outline-danger:hover {
+  background-color: #ff6b6b;
+  color: #121212;
 }
 
-.btn-success {
-  background: linear-gradient(135deg, #10b981 0%, #059669 100%);
-}
 
-body.bg-dark .btn-success,
-html[data-theme="dark"] .btn-success {
-  background: linear-gradient(135deg, #00ff88 0%, #00cc70 100%);
-  color: #0a0e27;
-  box-shadow: var(--glow-green);
+/* =========================
+   Modales y Offcanvas en oscuro
+   ========================= */
+body.bg-dark .modal-content {
+  background-color: #1f1f1f;
+  color: #e9ecef;
+  border-color: #2b2b2b;
 }
-
-body.bg-dark .btn-success:hover,
-html[data-theme="dark"] .btn-success:hover {
-  box-shadow: var(--glow-green), 0 0 30px rgba(0, 255, 136, 0.5);
-}
-
-.btn-primary {
-  background: linear-gradient(135deg, #667eea 0%, #764ba2 100%);
-}
-
-body.bg-dark .btn-primary,
-html[data-theme="dark"] .btn-primary {
-  background: linear-gradient(135deg, var(--accent-cyan) 0%, #0099cc 100%);
-  color: #0a0e27;
-  box-shadow: var(--glow-cyan);
-}
-
-body.bg-dark .btn-primary:hover,
-html[data-theme="dark"] .btn-primary:hover {
-  box-shadow: var(--glow-cyan), 0 0 30px rgba(0, 217, 255, 0.5);
-}
-
-.btn-danger {
-  background: linear-gradient(135deg, #ef4444 0%, #dc2626 100%);
-}
-
-body.bg-dark .btn-danger,
-html[data-theme="dark"] .btn-danger {
-  background: linear-gradient(135deg, var(--accent-red) 0%, #cc0044 100%);
-  box-shadow: var(--glow-red);
-}
-
-body.bg-dark .btn-danger:hover,
-html[data-theme="dark"] .btn-danger:hover {
-  box-shadow: var(--glow-red), 0 0 30px rgba(255, 0, 85, 0.5);
-}
-
-body.bg-dark .btn-outline-primary,
-html[data-theme="dark"] .btn-outline-primary {
-  border-color: var(--accent-cyan);
-  color: var(--accent-cyan);
-}
-
-body.bg-dark .btn-outline-primary:hover,
-html[data-theme="dark"] .btn-outline-primary:hover {
-  background: var(--accent-cyan);
-  color: #0a0e27;
-  box-shadow: var(--glow-cyan);
-}
-
-body.bg-dark .btn-outline-danger,
-html[data-theme="dark"] .btn-outline-danger {
-  border-color: var(--accent-red);
-  color: var(--accent-red);
-}
-
-body.bg-dark .btn-outline-danger:hover,
-html[data-theme="dark"] .btn-outline-danger:hover {
-  background: var(--accent-red);
-  color: white;
-  box-shadow: var(--glow-red);
-}
-
-/* === Tabla === */
-.table {
-  border-radius: 0.75rem;
-  overflow: hidden;
-}
-
-body:not(.bg-dark) .table thead th {
-  background: linear-gradient(135deg, #667eea 0%, #764ba2 100%);
-  color: white;
-  font-weight: 600;
-  text-transform: uppercase;
-  font-size: 0.85rem;
-  letter-spacing: 0.05em;
-  border: none;
-  padding: 1rem;
-}
-
-body.bg-dark .table thead th,
-html[data-theme="dark"] .table thead th {
-  background: linear-gradient(135deg, var(--cyber-surface-elevated) 0%, var(--cyber-surface) 100%);
-  color: var(--accent-cyan);
-  text-transform: uppercase;
-  letter-spacing: 0.1em;
-  font-weight: 700;
-  border: none;
-  border-bottom: 2px solid var(--accent-cyan);
-  padding: 1rem;
-  font-size: 0.85rem;
-  font-family: 'Courier New', monospace;
-}
-
-.table tbody tr {
-  transition: var(--transition-cyber);
-}
-
-body:not(.bg-dark) .table tbody tr:hover {
-  background-color: rgba(102, 126, 234, 0.08) !important;
-  transform: scale(1.005);
-}
-
-body.bg-dark .table tbody tr:hover,
-html[data-theme="dark"] .table tbody tr:hover {
-  background: rgba(0, 217, 255, 0.05) !important;
-  box-shadow: inset 0 0 0 1px var(--accent-cyan);
-}
-
-body.bg-dark .table tbody tr,
-html[data-theme="dark"] .table tbody tr {
-  border-bottom: 1px solid var(--cyber-border);
-  font-family: 'Courier New', monospace;
-  font-size: 0.9rem;
-}
-
-/* === Badges === */
-.badge {
-  padding: 0.5rem 0.85rem;
-  border-radius: 0.5rem;
-  font-weight: 600;
-  font-size: 0.85rem;
-  letter-spacing: 0.02em;
-  box-shadow: 0 2px 4px rgba(0, 0, 0, 0.1);
-}
-
-body.bg-dark .badge,
-html[data-theme="dark"] .badge {
-  font-family: 'Courier New', monospace;
-  text-transform: uppercase;
-  letter-spacing: 0.05em;
-  border: 1px solid currentColor;
-}
-
-/* === Hint box === */
-body:not(.bg-dark) .hint-box {
-  background: rgba(102, 126, 234, 0.05);
-  border: 2px dashed rgba(102, 126, 234, 0.3);
-  border-radius: 0.75rem;
-  padding: 1rem;
-}
-
-body.bg-dark .hint-box,
-html[data-theme="dark"] .hint-box {
-  background: rgba(255, 221, 0, 0.05);
-  border: 1px solid rgba(255, 221, 0, 0.3);
-  border-left: 4px solid var(--accent-yellow);
-  border-radius: 0.5rem;
-  padding: 1rem;
-}
-
-body.bg-dark .hint-box strong,
-html[data-theme="dark"] .hint-box strong {
-  color: var(--accent-yellow);
-  font-family: 'Courier New', monospace;
-}
-
-body.bg-dark .hint-box code,
-html[data-theme="dark"] .hint-box code {
-  background: rgba(0, 0, 0, 0.3);
-  padding: 0.2rem 0.5rem;
-  border-radius: 0.25rem;
-  color: var(--accent-cyan);
-  font-size: 0.9rem;
-}
-
-/* === Modales === */
-.modal-content {
-  border-radius: 1.25rem;
-  border: none;
-  box-shadow: 0 20px 60px rgba(0, 0, 0, 0.3);
-  overflow: hidden;
-}
-
-body:not(.bg-dark) .modal-header {
-  background: linear-gradient(135deg, #667eea 0%, #764ba2 100%);
-  color: white;
-  border: none;
-  padding: 1.5rem;
-}
-
 body.bg-dark .modal-header,
-html[data-theme="dark"] .modal-header {
-  background: linear-gradient(135deg, var(--cyber-surface-elevated) 0%, var(--cyber-surface) 100%);
-  border-bottom: 2px solid var(--accent-cyan);
+body.bg-dark .modal-footer {
+  border-color: #2b2b2b;
 }
 
-body.bg-dark .modal-title,
-html[data-theme="dark"] .modal-title {
-  color: var(--accent-cyan);
-  font-family: 'Courier New', monospace;
-  text-transform: uppercase;
-  letter-spacing: 0.1em;
-  font-weight: 700;
+body.bg-dark .offcanvas {
+  background-color: #1f1f1f;
+  color: #e9ecef;
 }
 
-.modal-body {
-  padding: 2rem;
+body.bg-dark .offcanvas .list-group-item {
+  background-color: transparent;
+  color: #e9ecef;
+  border-color: #2b2b2b;
 }
 
-body.bg-dark .modal-footer,
-html[data-theme="dark"] .modal-footer {
-  border-top: 1px solid var(--cyber-border);
+
+/* =========================
+   Botón Notificaciones + badge
+   ========================= */
+body.bg-dark #notif-btn.btn-outline-primary {
+  /* Sobrescribe variables internas del botón (Bootstrap 5.3) */
+  --bs-btn-color: #66b2ff;
+  --bs-btn-border-color: #66b2ff;
+  --bs-btn-hover-color: #121212;
+  --bs-btn-hover-bg: #66b2ff;
+  --bs-btn-hover-border-color: #66b2ff;
+  --bs-btn-active-color: #121212;
+  --bs-btn-active-bg: #66b2ff;
+  --bs-btn-active-border-color: #66b2ff;
+  --bs-btn-focus-shadow-rgb: 102,178,255;
+
+  /* Fallback directo */
+  border-color: #66b2ff !important;
+  color: #66b2ff !important;
 }
 
-/* === Toasts === */
-.toast {
-  border-radius: 1rem;
-  backdrop-filter: blur(10px);
-  box-shadow: 0 8px 24px rgba(0, 0, 0, 0.25);
+body.bg-dark #notif-btn.btn-outline-primary:hover,
+body.bg-dark #notif-btn.btn-outline-primary:focus,
+body.bg-dark #notif-btn.btn-outline-primary:active {
+  background-color: #66b2ff !important;
+  border-color: #66b2ff !important;
+  color: #121212 !important;
 }
 
-body.bg-dark .toast.text-bg-success,
-html[data-theme="dark"] .toast.text-bg-success {
-  background: linear-gradient(135deg, rgba(0, 255, 136, 0.2) 0%, var(--cyber-surface) 100%);
-  border: 2px solid var(--accent-green);
-  box-shadow: var(--glow-green);
+/* Burbuja roja visible en ambos temas */
+body.bg-dark #notif-badge {
+  background-color: #ff6b6b !important;
+  color: #fff !important;
 }
 
-body.bg-dark .toast.text-bg-warning,
-html[data-theme="dark"] .toast.text-bg-warning {
-  background: linear-gradient(135deg, rgba(255, 221, 0, 0.2) 0%, var(--cyber-surface) 100%);
-  border: 2px solid var(--accent-yellow);
-  box-shadow: 0 0 20px rgba(255, 221, 0, 0.3);
+
+/* =========================
+   Hints / cajas informativas en oscuro
+   ========================= */
+body.bg-dark .hint-box {
+  border-color: #495057;
+  background: #1f1f1f;
+  color: #e9ecef;
+}
+/* Ajuste botón Notificaciones en modo oscuro */
+body.bg-dark #notif-btn.btn-primary {
+  background-color: #0d6efd;   /* azul Bootstrap */
+  border-color: #0d6efd;
+  color: #fff;
 }
 
-body.bg-dark .toast.text-bg-danger,
-html[data-theme="dark"] .toast.text-bg-danger {
-  background: linear-gradient(135deg, rgba(255, 0, 85, 0.2) 0%, var(--cyber-surface) 100%);
-  border: 2px solid var(--accent-red);
-  box-shadow: var(--glow-red);
+body.bg-dark #notif-btn.btn-primary:hover {
+  background-color: #0b5ed7;
+  border-color: #0a58ca;
+}
+/* Notificaciones en modo oscuro */
+body.bg-dark #notifList .border {
+  background-color: #1f1f1f !important;  /* fondo oscuro */
+  color: #e9ecef;                        /* texto claro */
+  border-color: #343a40 !important;      /* borde gris oscuro */
 }
 
-body.bg-dark .toast-body,
-html[data-theme="dark"] .toast-body {
-  font-family: 'Courier New', monospace;
-  font-weight: 600;
+body.bg-dark #notifList .small.text-muted {
+  color: #adb5bd !important;             /* texto secundario más visible */
+}
+/* Paginación de notificaciones en modo oscuro */
+body.bg-dark #notifPagination .page-link {
+  background-color: #1f1f1f;
+  border-color: #343a40;
+  color: #e9ecef;
 }
 
-/* === Offcanvas === */
-.offcanvas {
-  border-radius: 1rem 0 0 1rem;
-  box-shadow: -10px 0 40px rgba(0, 0, 0, 0.2);
+body.bg-dark #notifPagination .page-link:hover {
+  background-color: #343a40;
+  border-color: #495057;
+  color: #fff;
 }
 
-body:not(.bg-dark) .offcanvas-header {
-  background: linear-gradient(135deg, #667eea 0%, #764ba2 100%);
-  color: white;
-  padding: 1.5rem;
+body.bg-dark #notifPagination .page-item.active .page-link {
+  background-color: #0d6efd;  /* azul Bootstrap */
+  border-color: #0d6efd;
+  color: #fff;
 }
 
-body.bg-dark .offcanvas-header,
-html[data-theme="dark"] .offcanvas-header {
-  background: var(--cyber-surface-elevated);
-  border-bottom: 2px solid var(--accent-cyan);
-  padding: 1.5rem;
+body.bg-dark #notifPagination .page-item.disabled .page-link {
+  background-color: #212529;
+  border-color: #343a40;
+  color: #6c757d;
+}
+/* Inputs de filtros en modo oscuro */
+body.bg-dark #offcanvasNotifs .form-select,
+body.bg-dark #offcanvasNotifs .form-control {
+  background-color: #1f1f1f;
+  border-color: #495057;
+  color: #e9ecef;
 }
 
-body.bg-dark .offcanvas-header h5,
-html[data-theme="dark"] .offcanvas-header h5 {
-  color: var(--accent-cyan);
-  font-family: 'Courier New', monospace;
-  text-transform: uppercase;
-  letter-spacing: 0.1em;
-  font-weight: 700;
+body.bg-dark #offcanvasNotifs .form-select:focus,
+body.bg-dark #offcanvasNotifs .form-control:focus {
+  background-color: #212529;
+  border-color: #0d6efd;
+  color: #fff;
+  box-shadow: 0 0 0 .25rem rgba(13,110,253,.25); /* efecto azul bootstrap */
+}
+/* Texto de conteo de notificaciones en modo oscuro */
+body.bg-dark #notifCountInfo {
+  color: #adb5bd !important;  /* gris claro */
+}
+/* Botones en el offcanvas de notificaciones (modo oscuro) */
+body.bg-dark #offcanvasNotifs .btn-outline-primary {
+  color: #66b2ff;
+  border-color: #3399ff;
+}
+body.bg-dark #offcanvasNotifs .btn-outline-primary:hover {
+  background-color: #3399ff;
+  color: #fff;
 }
 
-/* === Notificaciones en lista === */
-body.bg-dark #notifList > div,
-html[data-theme="dark"] #notifList > div {
-  position: relative;
-  overflow: hidden;
+body.bg-dark #offcanvasNotifs .btn-outline-secondary {
+  color: #ccc;
+  border-color: #666;
+}
+body.bg-dark #offcanvasNotifs .btn-outline-secondary:hover {
+  background-color: #666;
+  color: #fff;
+}
+/* Inputs y selects dentro del offcanvas en modo oscuro */
+body.bg-dark #offcanvasNotifs .form-control,
+body.bg-dark #offcanvasNotifs .form-select {
+  background-color: #1f1f1f;
+  color: #e9ecef;
+  border-color: #495057;
 }
 
-body.bg-dark #notifList > div::before,
-html[data-theme="dark"] #notifList > div::before {
-  content: '';
-  position: absolute;
-  left: 0;
-  top: 0;
-  bottom: 0;
-  width: 3px;
-  background: var(--accent-cyan);
+body.bg-dark #offcanvasNotifs .form-control:focus,
+body.bg-dark #offcanvasNotifs .form-select:focus {
+  background-color: #2a2a2a;
+  border-color: #66b2ff;
+  color: #fff;
+  box-shadow: none;
+}
+/* Respaldo: si el HTML viene marcado como dark desde el head, asegura colores base */
+html[data-theme="dark"] body {
+  background-color: #121212;
+  color: #e9ecef;
+}
+/* Si por un instante queda body.bg-light pero el tema es dark, forzamos dark */
+html[data-theme="dark"] body.bg-light {
+  background-color: #121212 !important;
+  color: #e9ecef !important;
+}
+#tablaIps td:first-child, #tablaIps th:first-child { width: 36px; }
+}
+/* === Filas seleccionadas manualmente === */
+tr.table-active-selected,
+tr.table-active-selected > td,
+tr.table-active-selected > th {
+  background-color: rgba(13,110,253,0.15) !important; /* azul claro */
 }
 
-body.bg-dark #notifList > div:hover,
-html[data-theme="dark"] #notifList > div:hover {
-  border-color: var(--cyber-border-active) !important;
-  box-shadow: var(--glow-cyan);
-  transform: translateX(5px);
+html[data-theme="dark"] tr.table-active-selected,
+html[data-theme="dark"] tr.table-active-selected > td,
+html[data-theme="dark"] tr.table-active-selected > th {
+  background-color: rgba(13,110,253,0.35) !important; /* azul más intenso en oscuro */
+}
+.title-gestor {
+  color: #0d6efd; /* azul bootstrap */
 }
 
-body.bg-dark #notifList .badge,
-html[data-theme="dark"] #notifList .badge {
-  box-shadow: 0 0 10px currentColor;
+.title-ioc {
+  color: #212529; /* gris oscuro por defecto */
 }
 
-/* === Paginación === */
-.pagination .page-link {
-  border-radius: 0.5rem;
-  margin: 0 0.25rem;
-  transition: var(--transition-cyber);
-  font-weight: 600;
+html[data-theme="dark"] .title-ioc {
+  color: #e9ecef; /* gris claro en oscuro */
 }
-
-body:not(.bg-dark) .pagination .page-link:hover {
-  background: #667eea;
-  border-color: #667eea;
-  color: white;
-  transform: translateY(-2px);
+/* Texto secundario (subtítulos) más visible en modo oscuro */
+html[data-theme="dark"] .text-muted {
+  color: #cbd3da !important;  /* gris claro legible */
 }
-
-body.bg-dark .pagination .page-link,
-html[data-theme="dark"] .pagination .page-link {
-  font-family: 'Courier New', monospace;
-  font-weight: 700;
+/* opcional en index.css */
+::placeholder { opacity: .85; }
 }
-
-body.bg-dark .pagination .page-link:hover,
-html[data-theme="dark"] .pagination .page-link:hover {
-  background: var(--accent-cyan);
-  border-color: var(--accent-cyan);
-  color: #0a0e27;
-  box-shadow: var(--glow-cyan);
-  transform: translateY(-2px);
-}
-
-body.bg-dark .pagination .page-item.active .page-link,
-html[data-theme="dark"] .pagination .page-item.active .page-link {
-  background: linear-gradient(135deg, var(--accent-cyan) 0%, #0099cc 100%);
-  border-color: var(--accent-cyan);
-  box-shadow: var(--glow-cyan);
-}
-
-/* === Checkboxes personalizados === */
-body.bg-dark input[type="checkbox"],
-html[data-theme="dark"] input[type="checkbox"] {
-  appearance: none;
-  width: 1.25rem;
-  height: 1.25rem;
-  border: 2px solid var(--cyber-border);
-  border-radius: 0.25rem;
-  background: rgba(0, 0, 0, 0.3);
-  cursor: pointer;
-  position: relative;
-  transition: var(--transition-cyber);
-}
-
-body.bg-dark input[type="checkbox"]:hover,
-html[data-theme="dark"] input[type="checkbox"]:hover {
-  border-color: var(--accent-cyan);
-  box-shadow: var(--glow-cyan);
-}
-
-body.bg-dark input[type="checkbox"]:checked,
-html[data-theme="dark"] input[type="checkbox"]:checked {
-  background: var(--accent-cyan);
-  border-color: var(--accent-cyan);
-  box-shadow: var(--glow-cyan);
-}
-
-body.bg-dark input[type="checkbox"]:checked::after,
-html[data-theme="dark"] input[type="checkbox"]:checked::after {
-  content: '✓';
-  position: absolute;
-  top: 50%;
-  left: 50%;
-  transform: translate(-50%, -50%);
-  color: #0a0e27;
-  font-weight: 900;
-  font-size: 0.9rem;
-}
-
-/* === Labels === */
-body.bg-dark .form-label,
-html[data-theme="dark"] .form-label {
-  color: var(--accent-cyan);
-  font-family: 'Courier New', monospace;
-  font-weight: 700;
-  font-size: 0.85rem;
-  text-transform: uppercase;
-  letter-spacing: 0.05em;
-}
-
-/* === Form text === */
-body.bg-dark .form-text,
+/* Mejorar contraste de hints en modo oscuro */
 html[data-theme="dark"] .form-text {
-  font-family: 'Courier New', monospace;
-  font-size: 0.85rem;
+  color: #cbd3da !important; /* gris claro legible */
+}
+/* Hints (form-text) legibles en modo oscuro */
+html[data-theme="dark"] .form-text,
+html[data-theme="dark"] .form-text * {
+  color: #cbd3da !important;
 }
 
-body.bg-dark .form-text code,
-html[data-theme="dark"] .form-text code {
-  background: rgba(0, 217, 255, 0.1);
-  color: var(--accent-cyan);
-  padding: 0.2rem 0.4rem;
-  border-radius: 0.25rem;
-}
-
-/* === Botón de notificaciones === */
-body.bg-dark #notif-badge,
-html[data-theme="dark"] #notif-badge {
-  box-shadow: var(--glow-red);
-  animation: pulse-badge 2s infinite;
-}
-
-@keyframes pulse-badge {
-  0%, 100% { transform: scale(1); }
-  50% { transform: scale(1.1); }
-}
-
-/* === Logo === */
-body.bg-dark #corner-logo,
-html[data-theme="dark"] #corner-logo {
-  filter: drop-shadow(0 0 10px rgba(0, 217, 255, 0.3));
-  transition: var(--transition-cyber);
-}
-
-body.bg-dark #corner-logo:hover,
-html[data-theme="dark"] #corner-logo:hover {
-  filter: drop-shadow(0 0 20px rgba(0, 217, 255, 0.6));
-  transform: scale(1.05);
-}
-
-/* === Animación de carga === */
-@keyframes slideInFromBottom {
-  from {
-    opacity: 0;
-    transform: translateY(30px);
-  }
-  to {
-    opacity: 1;
-    transform: translateY(0);
-  }
-}
-
-.container > * {
-  animation: slideInFromBottom 0.6s cubic-bezier(0.25, 0.8, 0.25, 1) backwards;
-}
-
-.container > *:nth-child(1) { animation-delay: 0.05s; }
-.container > *:nth-child(2) { animation-delay: 0.1s; }
-.container > *:nth-child(3) { animation-delay: 0.15s; }
-.container > *:nth-child(4) { animation-delay: 0.2s; }
-.container > *:nth-child(5) { animation-delay: 0.25s; }
-
-/* === Scrollbar personalizado (solo oscuro) === */
-body.bg-dark ::-webkit-scrollbar,
-html[data-theme="dark"] ::-webkit-scrollbar {
-  width: 10px;
-  height: 10px;
-}
-
-body.bg-dark ::-webkit-scrollbar-track,
-html[data-theme="dark"] ::-webkit-scrollbar-track {
-  background: #0a0e27;
-}
-
-body.bg-dark ::-webkit-scrollbar-thumb,
-html[data-theme="dark"] ::-webkit-scrollbar-thumb {
-  background: var(--accent-cyan);
-  border-radius: 5px;
-  box-shadow: var(--glow-cyan);
-}
-
-body.bg-dark ::-webkit-scrollbar-thumb:hover,
-html[data-theme="dark"] ::-webkit-scrollbar-thumb:hover {
-  background: #00ffff;
-}
-
-/* === Validación === */
-body.bg-dark .form-control.is-valid,
-html[data-theme="dark"] .form-control.is-valid {
-  border-color: var(--accent-green);
-  box-shadow: 0 0 0 3px rgba(0, 255, 136, 0.1);
-}
-
-body.bg-dark .form-control.is-invalid,
-html[data-theme="dark"] .form-control.is-invalid {
-  border-color: var(--accent-red);
-  box-shadow: 0 0 0 3px rgba(255, 0, 85, 0.1);
-}
-
-body.bg-dark .invalid-feedback,
-html[data-theme="dark"] .invalid-feedback {
-  color: var(--accent-red);
-  font-family: 'Courier New', monospace;
-  font-weight: 600;
-}
-
-/* === Toolbar === */
-body.bg-dark .toolbar-grid::before,
-html[data-theme="dark"] .toolbar-grid::before {
-  content: '// FILTROS';
-  position: absolute;
-  top: -0.75rem;
-  left: 1rem;
-  background: var(--cyber-surface);
-  padding: 0 0.5rem;
-  color: var(--accent-green);
-  font-family: 'Courier New', monospace;
-  font-size: 0.75rem;
-  font-weight: 700;
-}
-
-/* === Responsive === */
-@media (max-width: 768px) {
-  .text-center.mb-3 h2 {
-    font-size: 2rem;
-  }
-  
-  body.bg-dark .alert.alert-info strong,
-  html[data-theme="dark"] .alert.alert-info strong {
-    font-size: 1.5rem;
-  }
-  
-  #mainForm > .row,
-  .table-responsive,
-  .toolbar-grid {
-    padding: 1rem;
-  }
-  
-  .btn {
-    padding: 0.6rem 1rem;
-    font-size: 0.85rem;
-  }
+/* Por si el body usa bg-dark además del data-theme */
+.bg-dark .form-text,
+.bg-dark .form-text * {
+  color: #cbd3da !important;
 }
