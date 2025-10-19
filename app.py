@@ -12,6 +12,7 @@ from functools import wraps
 import threading
 import time
 import math
+import hashlib
 
 app = Flask(__name__)
 app.secret_key = 'clave-secreta'
@@ -333,6 +334,7 @@ def filter_lines_delete_pattern(lines, pattern):
             kept.append(line)
             continue
 
+    # ... check match
         match = False
         if kind == "single":
             match = ip_obj == obj
@@ -431,7 +433,7 @@ def log(accion, ip):
 
 
 # =========================
-#  Tags helpers (compartidos con API)
+#  Tags helpers (compartidos con API y UI)
 # =========================
 def _norm_tags(tags):
     if not tags:
@@ -452,7 +454,6 @@ def _norm_tags(tags):
 def _parse_tags_field(val: str):
     if not val:
         return []
-    # separa por coma o espacio, tolerante
     items = re.split(r"[,\s]+", val.strip())
     return _norm_tags([x for x in items if x])
 
@@ -566,11 +567,9 @@ def add_ips_validated(lines, existentes, iterable_ips, ttl_val, origin=None, con
             # Aunque ya esté, si hay tags nuevos los fusionamos en meta/tag files
             if tags:
                 entry = _merge_meta_tags(ip_str, tags, expires_at_dt, origin or "manual", note="web")
-                # escribir líneas solo para tags añadidos
-                old = set(entry.get("history", [{}])[-1].get("tags_added", []))  # aprox
+                # Escribir líneas por tag añadido
                 for t in tags:
-                    if t in old:
-                        _write_tag_line(t, ip_str, _now_utc(), ttl_seconds, expires_at_dt, origin or "manual", entry["tags"])
+                    _write_tag_line(t, ip_str, _now_utc(), ttl_seconds, expires_at_dt, origin or "manual", entry["tags"])
             rechazadas += 1
             continue
 
@@ -815,7 +814,7 @@ def _set_last_action(action_type, payload_items):
         "type": action_type,  # 'add' | 'delete' | 'delete_bulk' | 'delete_all'
         "timestamp": datetime.utcnow().isoformat() + "Z",
         "expires_sec": UNDO_TTL_SECONDS,
-        "payload": {"items": payload_items},  # para add: líneas completas; para delete: líneas completas eliminadas
+        "payload": {"items": payload_items},
     }
 
 
@@ -886,6 +885,71 @@ def _undo_last_action():
         return True, mensaje
 
     return False, "Tipo de acción no soportado"
+
+
+# =========================
+#  Helpers de UI: colores de tags + known_tags
+# =========================
+def _tag_color_hsl(tag: str) -> str:
+    """Color estable por tag (HSL -> hex) para usar en la UI."""
+    if not tag:
+        return "#6c757d"
+    h = int(hashlib.sha256(tag.encode("utf-8")).hexdigest(), 16) % 360
+    s = 60
+    l = 45
+    # convertir HSL simple a RGB (aprox) y a hex
+    def hue2rgb(p, q, t):
+        if t < 0: t += 1
+        if t > 1: t -= 1
+        if t < 1/6: return p + (q - p) * 6 * t
+        if t < 1/2: return q
+        if t < 2/3: return p + (q - p) * (2/3 - t) * 6
+        return p
+    h_ = h / 360.0
+    s_ = s / 100.0
+    l_ = l / 100.0
+    if s_ == 0:
+        r = g = b = l_
+    else:
+        q = l_ * (1 + s_) if l_ < 0.5 else l_ + s_ - l_ * s_
+        p = 2 * l_ - q
+        r = hue2rgb(p, q, h_ + 1/3)
+        g = hue2rgb(p, q, h_)
+        b = hue2rgb(p, q, h_ - 1/3)
+    return "#{:02x}{:02x}{:02x}".format(int(r*255), int(g*255), int(b*255))
+
+@app.context_processor
+def inject_helpers():
+    return {
+        "tag_color": _tag_color_hsl
+    }
+
+
+def _collect_known_tags():
+    """Devuelve lista ordenada de tags conocidos de ficheros y meta."""
+    seen = set()
+    out = []
+    # de ficheros
+    try:
+        if os.path.isdir(TAGS_DIR):
+            for name in os.listdir(TAGS_DIR):
+                if name.endswith(".txt"):
+                    t = name[:-4]
+                    if t and t not in seen:
+                        seen.add(t); out.append(t)
+    except Exception:
+        pass
+    # de meta
+    try:
+        meta = load_meta()
+        for entry in (meta.get("ip_details") or {}).values():
+            for t in entry.get("tags", []) or []:
+                if t and t not in seen:
+                    seen.add(t); out.append(t)
+    except Exception:
+        pass
+    out.sort(key=lambda x: x.lower())
+    return out
 
 
 # =========================
@@ -967,14 +1031,12 @@ def index():
             log("Eliminadas", "todas las IPs")
             guardar_notif("warning", "Se eliminaron todas las IPs")
             flash("Se eliminaron todas las IPs", "warning")
-            # registrar UNDO
             _set_last_action("delete_all", all_lines)
             return redirect(url_for("index"))
 
         # Eliminar individual
         if "delete_ip" in request.form:
             ip_to_delete = request.form.get("delete_ip")
-            # capturar línea original para UNDO
             orig_line = next((l for l in lines if l.startswith(ip_to_delete + "|")), None)
             new_lines = [l for l in lines if not l.startswith(ip_to_delete + "|")]
             save_lines(new_lines)
@@ -1004,12 +1066,11 @@ def index():
         # Subida CSV/TXT
         file = request.files.get("file")
         if file and file.filename:
-            # Resolver TTL CSV aunque haya 2 selects "ttl" en el form:
-            ttl_list = request.form.getlist("ttl") or []
-            ttl_csv_sel = (ttl_list[-1] if ttl_list else "permanente")
+            # TTL CSV desde el select de la UI
+            ttl_csv_sel = request.form.get("ttl_csv", "permanente")
             ttl_csv_val = "0" if ttl_csv_sel == "permanente" else ttl_csv_sel
-            # Tags CSV (si el HTML aún no lo envía, quedará vacío)
-            tags_csv = _parse_tags_field(request.form.get("tags_csv", "")) or _parse_tags_field((request.form.getlist("tags") or [""])[-1] if request.form.getlist("tags") else "")
+            # Tags CSV (opcional)
+            tags_csv = _parse_tags_field(request.form.get("tags_csv", ""))
 
             valid_ips_total = 0
             rejected_total = 0
@@ -1045,7 +1106,6 @@ def index():
             if valid_ips_total:
                 guardar_notif("success", f"{valid_ips_total} IPs añadidas (CSV)")
                 flash(f"{valid_ips_total} IP(s) añadida(s) correctamente (CSV)", "success")
-                # UNDO para todas las líneas añadidas en esta subida
                 if added_lines_acc:
                     _set_last_action("add", added_lines_acc)
             if rejected_total:
@@ -1056,13 +1116,12 @@ def index():
         # Alta manual
         raw_input = request.form.get("ip", "").strip()
 
-        # Resolver TTL MANUAL aunque haya 2 selects "ttl" en el form:
-        ttl_list = request.form.getlist("ttl") or []
-        ttl_man_sel = (ttl_list[0] if ttl_list else "permanente")
+        # TTL manual desde el select de la UI
+        ttl_man_sel = request.form.get("ttl_manual", "permanente")
         ttl_val = "0" if ttl_man_sel == "permanente" else ttl_man_sel
 
-        # Tags manual (si el HTML aún no lo envía, quedará vacío)
-        tags_manual = _parse_tags_field(request.form.get("tags_manual", "")) or _parse_tags_field((request.form.getlist("tags") or [""])[0] if request.form.getlist("tags") else "")
+        # Tags manuales (opcional)
+        tags_manual = _parse_tags_field(request.form.get("tags_manual", ""))
 
         if raw_input:
             try:
@@ -1097,7 +1156,6 @@ def index():
                     else:
                         guardar_notif("success", f"{add_ok} IPs añadidas")
                         flash(f"{add_ok} IP(s) añadida(s) correctamente", "success")
-                    # UNDO
                     if added_lines:
                         _set_last_action("add", added_lines)
                 else:
@@ -1146,7 +1204,6 @@ def index():
     meta = load_meta()
     ip_tags = {}
     try:
-        # Solo para IPs activas del feed
         active_ips = {l.split("|",1)[0] for l in lines}
         for ip, entry in (meta.get("ip_details") or {}).items():
             if ip in active_ips:
@@ -1174,9 +1231,7 @@ def index():
                 "ip": r["ip"],
                 "ttl": 0 if r["ttl"] is None else r["ttl"],
                 "origen": r.get("origen"),
-                "fecha_alta": r["fecha"] if r["fecha"] else None,
-                # si en el futuro quieres tags en JSON, descomenta:
-                # "tags": (meta.get("ip_details", {}).get(r["ip"], {}).get("tags", []))
+                "fecha_alta": r["fecha"] if r["fecha"] else None
             })
 
         notices = [{"time": datetime.utcnow().isoformat()+"Z", "category": c, "message": m} for c, m in request_actions]
@@ -1198,6 +1253,9 @@ def index():
             }
         )
 
+    # known tags para el datalist de la UI
+    known_tags = _collect_known_tags()
+
     return render_template("index.html",
                            ips=lines,
                            error=error,
@@ -1206,7 +1264,8 @@ def index():
                            contador_csv=live_csv,
                            messages=messages,
                            request_actions=request_actions,
-                           ip_tags=ip_tags)
+                           ip_tags=ip_tags,
+                           known_tags=known_tags)
 
 
 @app.route("/feed/ioc-feed.txt")
@@ -1321,8 +1380,6 @@ def metrics():
 @app.route("/notifications/read-all", methods=["POST"])
 @login_required
 def notifications_read_all():
-    # Si en el futuro guardamos 'read' server-side, aquí lo marcaríamos.
-    # De momento, devolvemos OK para que el front pueda limpiar el badge local.
     return json_response_ok(notices=[{"time": datetime.utcnow().isoformat()+"Z", "category": "info", "message": "Notificaciones marcadas como leídas"}])
 
 
@@ -1602,7 +1659,6 @@ def bloquear_ip_api():
             "tags_removed": tags
         })
         if not remaining:
-            # si ya no quedan tags, borramos completamente
             _remove_ip_from_feed(ip_txt)
             meta_del_ip(ip_txt)
             save_meta(meta)
