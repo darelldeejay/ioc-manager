@@ -11,3 +11,40 @@ body {
 html[data-theme="dark"] .table-active-selected {
     background-color: rgba(13, 110, 253, 0.22) !important;
 }
+/* === Estilos visuales para los TAGS === */
+.tags-cell {
+  max-width: 360px;
+}
+
+.tag-pill {
+  display: inline-flex;
+  align-items: center;
+  gap: .4rem;
+  padding: .25rem .55rem;
+  border-radius: 999px;
+  font-size: .8rem;
+  line-height: 1rem;
+  background: #f2f4f7;
+  border: 1px solid #e5e7eb;
+  white-space: nowrap;
+}
+
+.tag-dot {
+  width: .55rem;
+  height: .55rem;
+  border-radius: 50%;
+  display: inline-block;
+  border: 1px solid rgba(0,0,0,.08);
+}
+
+/* Modo oscuro opcional */
+@media (prefers-color-scheme: dark) {
+  .tag-pill {
+    background: #1f2937;
+    border-color: #374151;
+    color: #e5e7eb;
+  }
+  .tag-dot {
+    border-color: rgba(255,255,255,.12);
+  }
+}
