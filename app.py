@@ -561,16 +561,16 @@ def _already_same(entry, tags, expires_at):
 
 
 # =========================
-#  Alta de IPs (helper)  >>> actualizado para TAGS y expiración meta
+#  Alta de IPs (helper)  >>> actualizado para TAGS y feeds separados
 # =========================
 def add_ips_validated(lines, existentes, iterable_ips, ttl_val, origin=None, contador_ruta=None, tags=None):
     """
     ttl_val: '0' para permanente o número de días (str/int)
-    tags: lista de tags (opcional)
+    tags: lista de tags (OBLIGATORIA: Multicliente y/o BPE)
     """
     añadidas = 0
     rechazadas = 0
-    added_lines = []  # para UNDO
+    added_lines = []  # para UNDO (solo de FEED_FILE si aplica)
     tags = _norm_tags(tags or [])
     # preparar expiración para meta/tag-files
     try:
@@ -581,7 +581,14 @@ def add_ips_validated(lines, existentes, iterable_ips, ttl_val, origin=None, con
     expires_at_dt = (_now_utc() + timedelta(days=ttl_days)) if ttl_days > 0 else (_now_utc() + timedelta(days=365*100))
     ttl_seconds = ttl_days * 86400 if ttl_days > 0 else 0
 
+    allow_multi = "Multicliente" in tags
+    allow_bpe = "BPE" in tags
+
     for ip_str in iterable_ips:
+        if not (allow_multi or allow_bpe):
+            rechazadas += 1
+            continue
+
         if not is_allowed_ip(ip_str):
             rechazadas += 1
             continue
@@ -593,33 +600,43 @@ def add_ips_validated(lines, existentes, iterable_ips, ttl_val, origin=None, con
             rechazadas += 1
             continue
 
+        # Si ya está en el feed principal
         if ip_str in existentes:
-            # Aunque ya esté, si hay tags nuevos los fusionamos en meta/tag files
-            if tags:
-                entry = _merge_meta_tags(ip_str, tags, expires_at_dt, origin or "manual", note="web")
-                # Escribir líneas por tag añadido
-                for t in tags:
-                    _write_tag_line(t, ip_str, _now_utc(), ttl_seconds, expires_at_dt, origin or "manual", entry["tags"])
-            rechazadas += 1
-            continue
-
-        fecha = datetime.now().strftime("%Y-%m-%d")
-        line_txt = f"{ip_str}|{fecha}|{ttl_val}"
-        lines.append(line_txt)
-        existentes.add(ip_str)
-        log("Añadida", ip_str)
-        guardar_notif("success", f"IP añadida: {ip_str}")
-
-        if origin in ("manual", "csv", "api"):
-            meta_set_origin(ip_str, origin)
-
-        # meta + tag files
-        if tags:
+            # fusionar tags en meta/tag files aunque esté duplicada
             entry = _merge_meta_tags(ip_str, tags, expires_at_dt, origin or "manual", note="web")
             for t in tags:
                 _write_tag_line(t, ip_str, _now_utc(), ttl_seconds, expires_at_dt, origin or "manual", entry["tags"])
+            rechazadas += 1  # se considera duplicada para el feed principal
+            # asegurar reflejo BPE si aplica
+            if allow_bpe:
+                fecha = datetime.now().strftime("%Y-%m-%d")
+                _append_line_unique(FEED_FILE_BPE, f"{ip_str}|{fecha}|{ttl_val}")
+            continue
 
-        if contador_ruta:
+        # Nueva IP
+        fecha = datetime.now().strftime("%Y-%m-%d")
+
+        # FEED Multicliente (principal) solo si tiene ese tag
+        if allow_multi:
+            line_txt = f"{ip_str}|{fecha}|{ttl_val}"
+            lines.append(line_txt)
+            existentes.add(ip_str)
+            added_lines.append(line_txt)
+            meta_set_origin(ip_str, origin or "manual")
+
+        # FEED BPE si corresponde
+        if allow_bpe:
+            _append_line_unique(FEED_FILE_BPE, f"{ip_str}|{fecha}|{ttl_val}")
+
+        # meta + tag files
+        entry = _merge_meta_tags(ip_str, tags, expires_at_dt, origin or "manual", note="web")
+        for t in tags:
+            _write_tag_line(t, ip_str, _now_utc(), ttl_seconds, expires_at_dt, origin or "manual", entry["tags"])
+
+        log("Añadida", ip_str)
+        guardar_notif("success", f"IP añadida: {ip_str}")
+
+        if contador_ruta and allow_multi:
             try:
                 val = read_counter(contador_ruta)
                 write_counter(contador_ruta, val + 1)
@@ -627,7 +644,7 @@ def add_ips_validated(lines, existentes, iterable_ips, ttl_val, origin=None, con
                 pass
 
         añadidas += 1
-        added_lines.append(line_txt)
+
     return añadidas, rechazadas, added_lines
 
 
@@ -1098,9 +1115,13 @@ def index():
         if file and file.filename:
             ttl_csv_sel = request.form.get("ttl_csv", "permanente")
             ttl_csv_val = "0" if ttl_csv_sel == "permanente" else ttl_csv_sel
-            # Tags CSV (opcional, mantenemos opcionalidad)
+            # Tags CSV (OBLIGATORIO)
             raw_tags_csv = _parse_tags_field(request.form.get("tags_csv", ""))
             tags_csv = _filter_allowed_tags(raw_tags_csv)
+
+            if not tags_csv:
+                flash("Debes seleccionar al menos un tag válido (Multicliente y/o BPE) para el CSV.", "danger")
+                return redirect(url_for("index"))
 
             valid_ips_total = 0
             rejected_total = 0
@@ -1128,13 +1149,6 @@ def index():
                     lines, existentes, expanded, ttl_val=ttl_csv_val,
                     origin="csv", contador_ruta=COUNTER_CSV, tags=tags_csv
                 )
-                # Si incluye BPE, reflejar también en FEED_FILE_BPE
-                if "BPE" in (tags_csv or []):
-                    fecha = datetime.now().strftime("%Y-%m-%d")
-                    for ip_str in expanded:
-                        if is_allowed_ip(ip_str):
-                            line_txt = f"{ip_str}|{fecha}|{ttl_csv_val}"
-                            _append_line_unique(FEED_FILE_BPE, line_txt)
 
                 valid_ips_total += add_ok
                 rejected_total += add_bad
@@ -1189,14 +1203,6 @@ def index():
                     lines, existentes, expanded, ttl_val=ttl_val,
                     origin="manual", contador_ruta=COUNTER_MANUAL, tags=tags_manual
                 )
-
-                # Si incluye BPE, reflejar también en FEED_FILE_BPE (aunque ya existiera en principal)
-                if "BPE" in (tags_manual or []):
-                    fecha = datetime.now().strftime("%Y-%m-%d")
-                    for ip_str in expanded:
-                        if is_allowed_ip(ip_str):
-                            line_txt = f"{ip_str}|{fecha}|{ttl_val}"
-                            _append_line_unique(FEED_FILE_BPE, line_txt)
 
                 if add_ok > 0:
                     save_lines(lines, FEED_FILE)
@@ -1589,7 +1595,7 @@ def bloquear_ip_api():
         origin = payload.get("origen") or payload.get("origin") or "api"
         force = bool(payload.get("force", False))
 
-        # Estado actual del feed
+        # Estado actual del feed principal
         lines = load_lines(FEED_FILE)
         existentes = {l.split("|", 1)[0] for l in lines}
 
@@ -1603,6 +1609,10 @@ def bloquear_ip_api():
                 ttl_days = 0 if ttl_s == 0 else max(1, math.ceil(ttl_s / 86400.0))
 
                 tags = _filter_allowed_tags(it.get("tags", []))
+                if not tags:
+                    errors.append({"index": idx, "error": "missing_tags"})
+                    continue
+
                 note = str(it.get("nota", "") or it.get("note", "")).strip()
 
                 # soportar inputs: ip / cidr / range / "ip máscara"
@@ -1624,6 +1634,8 @@ def bloquear_ip_api():
                     raise ValueError("No se obtuvieron IPs válidas y públicas del item")
 
                 item_result = {"count": 0, "ips": []}
+                want_multi = "Multicliente" in tags
+                want_bpe = "BPE" in tags
 
                 for ip_str in targets:
                     if ip_str == "0.0.0.0":
@@ -1648,9 +1660,10 @@ def bloquear_ip_api():
                             item_result["ips"].append({"ip": ip_str, "status": "already_exists"})
                             continue
 
-                    # Append en feed principal (mantener compat de UI)
-                    if ip_str not in existentes:
-                        fecha = datetime.now().strftime("%Y-%m-%d")
+                    fecha = datetime.now().strftime("%Y-%m-%d")
+
+                    # FEED principal solo si Multicliente
+                    if want_multi and ip_str not in existentes:
                         line_txt = f"{ip_str}|{fecha}|{ttl_days}"
                         lines.append(line_txt)
                         existentes.add(ip_str)
@@ -1664,8 +1677,7 @@ def bloquear_ip_api():
                         _write_tag_line(t, ip_str, _now_utc(), ttl_s, expires_at, origin, entry["tags"])
 
                     # Reflejar en feed BPE si corresponde
-                    if "BPE" in (tags or []):
-                        fecha = datetime.now().strftime("%Y-%m-%d")
+                    if want_bpe:
                         line_txt_bpe = f"{ip_str}|{fecha}|{ttl_days}"
                         _append_line_unique(FEED_FILE_BPE, line_txt_bpe)
 
