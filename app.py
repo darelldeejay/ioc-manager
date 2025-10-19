@@ -1240,6 +1240,14 @@ def index():
         ip_txt = line.split("|", 1)[0].strip()
         ip_tags[ip_txt] = meta_details.get(ip_txt, {}).get("tags", [])
 
+        # --- construir mapa IP -> lista de tags (para mostrar en la tabla) ---
+    meta = load_meta()
+    meta_details = meta.get("ip_details", {})
+    tags_by_ip = {}
+    for l in lines:
+        ip_txt = l.split("|", 1)[0].strip()
+        tags_by_ip[ip_txt] = meta_details.get(ip_txt, {}).get("tags", [])
+
     return render_template(
         "index.html",
         ips=lines,                       # lista de strings "IP|YYYY-MM-DD|TTL"
@@ -1250,6 +1258,7 @@ def index():
         contador_csv=live_csv,
         messages=messages,
         request_actions=request_actions
+        tags_by_ip=tags_by_ip
     )
 
 
