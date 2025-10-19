@@ -431,12 +431,125 @@ def log(accion, ip):
 
 
 # =========================
-#  Alta de IPs (helper)
+#  Tags helpers (compartidos con API)
 # =========================
-def add_ips_validated(lines, existentes, iterable_ips, ttl_val, origin=None, contador_ruta=None):
+def _norm_tags(tags):
+    if not tags:
+        return []
+    if isinstance(tags, str):
+        tags = [tags]
+    out = []
+    seen = set()
+    for t in tags:
+        s = str(t).strip()
+        if not s:
+            continue
+        if s not in seen:
+            out.append(s)
+            seen.add(s)
+    return out
+
+def _parse_tags_field(val: str):
+    if not val:
+        return []
+    # separa por coma o espacio, tolerante
+    items = re.split(r"[,\s]+", val.strip())
+    return _norm_tags([x for x in items if x])
+
+def _write_tag_line(tag, ip, created_at, ttl_s, expires_at, source, tags):
+    os.makedirs(TAGS_DIR, exist_ok=True)
+    path = os.path.join(TAGS_DIR, f"{tag}.txt")
+    line = f"{ip}|{_iso(created_at)}|{ttl_s}|{_iso(expires_at)}|{source}|{','.join(tags)}"
+    with open(path, "a", encoding="utf-8") as f:
+        f.write(line + "\n")
+
+def _remove_ip_from_tag_file(tag, ip):
+    path = os.path.join(TAGS_DIR, f"{tag}.txt")
+    if not os.path.exists(path):
+        return
+    new_lines = []
+    with open(path, "r", encoding="utf-8") as f:
+        for line in f:
+            if not line.strip():
+                continue
+            ip_line = line.split("|", 1)[0].strip()
+            if ip_line != ip:
+                new_lines.append(line.rstrip("\n"))
+    with open(path, "w", encoding="utf-8") as f:
+        for l in new_lines:
+            f.write(l + "\n")
+
+def _remove_ip_from_feed(ip):
+    lines = load_lines()
+    new_lines = [l for l in lines if not l.startswith(ip + "|")]
+    if len(new_lines) != len(lines):
+        save_lines(new_lines)
+
+def _merge_meta_tags(ip, new_tags, expires_at, source, note):
+    """Fusiona tags y actualiza expiración en META_FILE.ip_details"""
+    meta = load_meta()
+    details = meta.get("ip_details", {})
+    entry = details.get(ip, {
+        "ip": ip, "tags": [], "expires_at": None, "source": source,
+        "history": [], "last_update": _iso(_now_utc())
+    })
+    old_tags = set(entry.get("tags", []))
+    add_tags = set(new_tags)
+    merged = sorted(list(old_tags.union(add_tags)))
+
+    # expiración: conservar la más lejana
+    old_exp = entry.get("expires_at")
+    old_dt = datetime.fromisoformat(old_exp.replace("Z","+00:00")) if old_exp else None
+    best_exp = expires_at if not old_dt or expires_at > old_dt else old_dt
+
+    entry["tags"] = merged
+    entry["expires_at"] = _iso(best_exp)
+    entry["source"] = source
+    entry["last_update"] = _iso(_now_utc())
+    entry["history"].append({
+        "ts": _iso(_now_utc()),
+        "action": "upsert",
+        "tags_added": sorted(list(add_tags - old_tags)),
+        "expires_at": _iso(best_exp),
+        "note": note or "",
+        "source": source
+    })
+    details[ip] = entry
+    meta["ip_details"] = details
+    save_meta(meta)
+    return entry
+
+def _already_same(entry, tags, expires_at):
+    try:
+        same_tags = set(entry.get("tags", [])) == set(tags)
+        cur_exp = datetime.fromisoformat(entry["expires_at"].replace("Z","+00:00"))
+        same_exp = abs((cur_exp - expires_at).total_seconds()) <= 1
+        return same_tags and same_exp
+    except Exception:
+        return False
+
+
+# =========================
+#  Alta de IPs (helper)  >>> actualizado para TAGS y expiración meta
+# =========================
+def add_ips_validated(lines, existentes, iterable_ips, ttl_val, origin=None, contador_ruta=None, tags=None):
+    """
+    ttl_val: '0' para permanente o número de días (str/int)
+    tags: lista de tags (opcional)
+    """
     añadidas = 0
     rechazadas = 0
     added_lines = []  # para UNDO
+    tags = _norm_tags(tags or [])
+    # preparar expiración para meta/tag-files
+    try:
+        ttl_days = int(ttl_val)
+    except Exception:
+        ttl_days = 0
+    # si permanente: fija una fecha muy lejana para meta
+    expires_at_dt = (_now_utc() + timedelta(days=ttl_days)) if ttl_days > 0 else (_now_utc() + timedelta(days=365*100))
+    ttl_seconds = ttl_days * 86400 if ttl_days > 0 else 0
+
     for ip_str in iterable_ips:
         if not is_allowed_ip(ip_str):
             rechazadas += 1
@@ -450,6 +563,14 @@ def add_ips_validated(lines, existentes, iterable_ips, ttl_val, origin=None, con
             continue
 
         if ip_str in existentes:
+            # Aunque ya esté, si hay tags nuevos los fusionamos en meta/tag files
+            if tags:
+                entry = _merge_meta_tags(ip_str, tags, expires_at_dt, origin or "manual", note="web")
+                # escribir líneas solo para tags añadidos
+                old = set(entry.get("history", [{}])[-1].get("tags_added", []))  # aprox
+                for t in tags:
+                    if t in old:
+                        _write_tag_line(t, ip_str, _now_utc(), ttl_seconds, expires_at_dt, origin or "manual", entry["tags"])
             rechazadas += 1
             continue
 
@@ -462,6 +583,12 @@ def add_ips_validated(lines, existentes, iterable_ips, ttl_val, origin=None, con
 
         if origin in ("manual", "csv", "api"):
             meta_set_origin(ip_str, origin)
+
+        # meta + tag files
+        if tags:
+            entry = _merge_meta_tags(ip_str, tags, expires_at_dt, origin or "manual", note="web")
+            for t in tags:
+                _write_tag_line(t, ip_str, _now_utc(), ttl_seconds, expires_at_dt, origin or "manual", entry["tags"])
 
         if contador_ruta:
             try:
@@ -762,195 +889,6 @@ def _undo_last_action():
 
 
 # =========================
-#  Funciones auxiliares API (tags)
-# =========================
-def _auth_ok():
-    if not TOKEN_API:
-        return False
-    auth = request.headers.get("Authorization", "")
-    if not auth.startswith("Bearer "):
-        return False
-    return auth.split(" ", 1)[1].strip() == TOKEN_API
-
-def _client_ip():
-    xff = request.headers.get("X-Forwarded-For", "")
-    if xff:
-        return xff.split(",")[0].strip()
-    return request.remote_addr or "0.0.0.0"
-
-def _allowlist_ok():
-    if not API_ALLOWLIST:
-        return True
-    src = _client_ip()
-    try:
-        ip_src = ipaddress.ip_address(src)
-    except Exception:
-        return False
-    for cidr in API_ALLOWLIST.split(","):
-        cidr = cidr.strip()
-        if not cidr:
-            continue
-        try:
-            if ip_src in ipaddress.ip_network(cidr, strict=False):
-                return True
-        except Exception:
-            continue
-    return False
-
-def _rate_ok():
-    auth = request.headers.get("Authorization", "")
-    now = time.time()
-    with _rate_lock:
-        hist = _rate_hist.setdefault(auth, [])
-        hist = [t for t in hist if now - t < 60]
-        if len(hist) >= RATE_LIMIT_PER_MIN:
-            _rate_hist[auth] = hist
-            return False
-        hist.append(now)
-        _rate_hist[auth] = hist
-        return True
-
-def _idem_get(key):
-    if not key:
-        return None
-    now = time.time()
-    with _idem_lock:
-        v = _idem_cache.get(key)
-        if not v:
-            return None
-        ts, payload = v
-        if now - ts > IDEM_TTL_SECONDS:
-            _idem_cache.pop(key, None)
-            return None
-        return payload
-
-def _idem_put(key, payload):
-    if not key:
-        return
-    with _idem_lock:
-        _idem_cache[key] = (time.time(), payload)
-
-def _norm_tags(tags):
-    if not tags:
-        return []
-    if isinstance(tags, str):
-        tags = [tags]
-    out = []
-    seen = set()
-    for t in tags:
-        s = str(t).strip()
-        if not s:
-            continue
-        if s not in seen:
-            out.append(s)
-            seen.add(s)
-    return out
-
-def _parse_ttl_seconds(obj) -> int:
-    # Admite 'ttl_seconds' o 'ttl' con sufijo s/m/h/d o número pelado
-    if isinstance(obj, dict):
-        if "ttl_seconds" in obj:
-            try:
-                v = int(obj["ttl_seconds"])
-                if v > 0:
-                    return v
-            except Exception:
-                pass
-        ttl = obj.get("ttl")
-    else:
-        ttl = None
-
-    if ttl:
-        t = str(ttl).lower().strip()
-        try:
-            if t.endswith("s"):
-                return max(1, int(t[:-1]))
-            if t.endswith("m"):
-                return max(60, int(t[:-1]) * 60)
-            if t.endswith("h"):
-                return max(3600, int(t[:-1]) * 3600)
-            if t.endswith("d"):
-                return max(86400, int(t[:-1]) * 86400)
-            return max(1, int(t))
-        except Exception:
-            pass
-    # por defecto: 24h
-    return 86400
-
-def _write_tag_line(tag, ip, created_at, ttl_s, expires_at, source, tags):
-    os.makedirs(TAGS_DIR, exist_ok=True)
-    path = os.path.join(TAGS_DIR, f"{tag}.txt")
-    line = f"{ip}|{_iso(created_at)}|{ttl_s}|{_iso(expires_at)}|{source}|{','.join(tags)}"
-    with open(path, "a", encoding="utf-8") as f:
-        f.write(line + "\n")
-
-def _remove_ip_from_tag_file(tag, ip):
-    path = os.path.join(TAGS_DIR, f"{tag}.txt")
-    if not os.path.exists(path):
-        return
-    new_lines = []
-    with open(path, "r", encoding="utf-8") as f:
-        for line in f:
-            if not line.strip():
-                continue
-            ip_line = line.split("|", 1)[0].strip()
-            if ip_line != ip:
-                new_lines.append(line.rstrip("\n"))
-    with open(path, "w", encoding="utf-8") as f:
-        for l in new_lines:
-            f.write(l + "\n")
-
-def _remove_ip_from_feed(ip):
-    lines = load_lines()
-    new_lines = [l for l in lines if not l.startswith(ip + "|")]
-    if len(new_lines) != len(lines):
-        save_lines(new_lines)
-
-def _merge_meta_tags(ip, new_tags, expires_at, source, note):
-    """Fusiona tags y actualiza expiración en META_FILE.ip_details"""
-    meta = load_meta()
-    details = meta.get("ip_details", {})
-    entry = details.get(ip, {
-        "ip": ip, "tags": [], "expires_at": None, "source": source,
-        "history": [], "last_update": _iso(_now_utc())
-    })
-    old_tags = set(entry.get("tags", []))
-    add_tags = set(new_tags)
-    merged = sorted(list(old_tags.union(add_tags)))
-
-    # expiración: conservar la más lejana
-    old_exp = entry.get("expires_at")
-    old_dt = datetime.fromisoformat(old_exp.replace("Z","+00:00")) if old_exp else None
-    best_exp = expires_at if not old_dt or expires_at > old_dt else old_dt
-
-    entry["tags"] = merged
-    entry["expires_at"] = _iso(best_exp)
-    entry["source"] = source
-    entry["last_update"] = _iso(_now_utc())
-    entry["history"].append({
-        "ts": _iso(_now_utc()),
-        "action": "upsert",
-        "tags_added": sorted(list(add_tags - old_tags)),
-        "expires_at": _iso(best_exp),
-        "note": note or "",
-        "source": source
-    })
-    details[ip] = entry
-    meta["ip_details"] = details
-    save_meta(meta)
-    return entry
-
-def _already_same(entry, tags, expires_at):
-    try:
-        same_tags = set(entry.get("tags", [])) == set(tags)
-        cur_exp = datetime.fromisoformat(entry["expires_at"].replace("Z","+00:00"))
-        same_exp = abs((cur_exp - expires_at).total_seconds()) <= 1
-        return same_tags and same_exp
-    except Exception:
-        return False
-
-
-# =========================
 #  Rutas
 # =========================
 @app.after_request
@@ -1066,6 +1004,13 @@ def index():
         # Subida CSV/TXT
         file = request.files.get("file")
         if file and file.filename:
+            # Resolver TTL CSV aunque haya 2 selects "ttl" en el form:
+            ttl_list = request.form.getlist("ttl") or []
+            ttl_csv_sel = (ttl_list[-1] if ttl_list else "permanente")
+            ttl_csv_val = "0" if ttl_csv_sel == "permanente" else ttl_csv_sel
+            # Tags CSV (si el HTML aún no lo envía, quedará vacío)
+            tags_csv = _parse_tags_field(request.form.get("tags_csv", "")) or _parse_tags_field((request.form.getlist("tags") or [""])[-1] if request.form.getlist("tags") else "")
+
             valid_ips_total = 0
             rejected_total = 0
             added_lines_acc = []
@@ -1089,8 +1034,8 @@ def index():
                         continue
 
                 add_ok, add_bad, added_lines = add_ips_validated(
-                    lines, existentes, expanded, ttl_val="0",
-                    origin="csv", contador_ruta=COUNTER_CSV
+                    lines, existentes, expanded, ttl_val=ttl_csv_val,
+                    origin="csv", contador_ruta=COUNTER_CSV, tags=tags_csv
                 )
                 valid_ips_total += add_ok
                 rejected_total += add_bad
@@ -1110,8 +1055,14 @@ def index():
 
         # Alta manual
         raw_input = request.form.get("ip", "").strip()
-        ttl_sel = request.form.get("ttl", "permanente")
-        ttl_val = "0" if ttl_sel == "permanente" else ttl_sel
+
+        # Resolver TTL MANUAL aunque haya 2 selects "ttl" en el form:
+        ttl_list = request.form.getlist("ttl") or []
+        ttl_man_sel = (ttl_list[0] if ttl_list else "permanente")
+        ttl_val = "0" if ttl_man_sel == "permanente" else ttl_man_sel
+
+        # Tags manual (si el HTML aún no lo envía, quedará vacío)
+        tags_manual = _parse_tags_field(request.form.get("tags_manual", "")) or _parse_tags_field((request.form.getlist("tags") or [""])[0] if request.form.getlist("tags") else "")
 
         if raw_input:
             try:
@@ -1136,7 +1087,7 @@ def index():
 
                 add_ok, add_bad, added_lines = add_ips_validated(
                     lines, existentes, expanded, ttl_val=ttl_val,
-                    origin="manual", contador_ruta=COUNTER_MANUAL
+                    origin="manual", contador_ruta=COUNTER_MANUAL, tags=tags_manual
                 )
                 if add_ok > 0:
                     save_lines(lines)
@@ -1191,6 +1142,18 @@ def index():
     lines = load_lines()
     live_manual, live_csv = compute_live_counters(lines)
 
+    # Construye map de tags para la tabla server-rendered
+    meta = load_meta()
+    ip_tags = {}
+    try:
+        # Solo para IPs activas del feed
+        active_ips = {l.split("|",1)[0] for l in lines}
+        for ip, entry in (meta.get("ip_details") or {}).items():
+            if ip in active_ips:
+                ip_tags[ip] = entry.get("tags", [])
+    except Exception:
+        ip_tags = {}
+
     # JSON mode (paginación/ordenación/filtros)
     if request.args.get("format", "").lower() == "json":
         records = _feed_to_records(lines)
@@ -1211,7 +1174,9 @@ def index():
                 "ip": r["ip"],
                 "ttl": 0 if r["ttl"] is None else r["ttl"],
                 "origen": r.get("origen"),
-                "fecha_alta": r["fecha"] if r["fecha"] else None
+                "fecha_alta": r["fecha"] if r["fecha"] else None,
+                # si en el futuro quieres tags en JSON, descomenta:
+                # "tags": (meta.get("ip_details", {}).get(r["ip"], {}).get("tags", []))
             })
 
         notices = [{"time": datetime.utcnow().isoformat()+"Z", "category": c, "message": m} for c, m in request_actions]
@@ -1240,7 +1205,8 @@ def index():
                            contador_manual=live_manual,
                            contador_csv=live_csv,
                            messages=messages,
-                           request_actions=request_actions)
+                           request_actions=request_actions,
+                           ip_tags=ip_tags)
 
 
 @app.route("/feed/ioc-feed.txt")
@@ -1374,6 +1340,103 @@ def _api_guard():
         return jsonify({"error": "Forbidden by allowlist"}), 403
     if not _rate_ok():
         return jsonify({"error": "Rate limit exceeded"}), 429
+
+def _auth_ok():
+    if not TOKEN_API:
+        return False
+    auth = request.headers.get("Authorization", "")
+    if not auth.startswith("Bearer "):
+        return False
+    return auth.split(" ", 1)[1].strip() == TOKEN_API
+
+def _client_ip():
+    xff = request.headers.get("X-Forwarded-For", "")
+    if xff:
+        return xff.split(",")[0].strip()
+    return request.remote_addr or "0.0.0.0"
+
+def _allowlist_ok():
+    if not API_ALLOWLIST:
+        return True
+    src = _client_ip()
+    try:
+        ip_src = ipaddress.ip_address(src)
+    except Exception:
+        return False
+    for cidr in API_ALLOWLIST.split(","):
+        cidr = cidr.strip()
+        if not cidr:
+            continue
+        try:
+            if ip_src in ipaddress.ip_network(cidr, strict=False):
+                return True
+        except Exception:
+            continue
+    return False
+
+def _rate_ok():
+    auth = request.headers.get("Authorization", "")
+    now = time.time()
+    with _rate_lock:
+        hist = _rate_hist.setdefault(auth, [])
+        hist = [t for t in hist if now - t < 60]
+        if len(hist) >= RATE_LIMIT_PER_MIN:
+            _rate_hist[auth] = hist
+            return False
+        hist.append(now)
+        _rate_hist[auth] = hist
+        return True
+
+def _idem_get(key):
+    if not key:
+        return None
+    now = time.time()
+    with _idem_lock:
+        v = _idem_cache.get(key)
+        if not v:
+            return None
+        ts, payload = v
+        if now - ts > IDEM_TTL_SECONDS:
+            _idem_cache.pop(key, None)
+            return None
+        return payload
+
+def _idem_put(key, payload):
+    if not key:
+        return
+    with _idem_lock:
+        _idem_cache[key] = (time.time(), payload)
+
+def _parse_ttl_seconds(obj) -> int:
+    # Admite 'ttl_seconds' o 'ttl' con sufijo s/m/h/d o número pelado
+    if isinstance(obj, dict):
+        if "ttl_seconds" in obj:
+            try:
+                v = int(obj["ttl_seconds"])
+                if v > 0:
+                    return v
+            except Exception:
+                pass
+        ttl = obj.get("ttl")
+    else:
+        ttl = None
+
+    if ttl:
+        t = str(ttl).lower().strip()
+        try:
+            if t.endswith("s"):
+                return max(1, int(t[:-1]))
+            if t.endswith("m"):
+                return max(60, int(t[:-1]) * 60)
+            if t.endswith("h"):
+                return max(3600, int(t[:-1]) * 3600)
+            if t.endswith("d"):
+                return max(86400, int(t[:-1]) * 86400)
+            return max(1, int(t))
+        except Exception:
+            pass
+    # por defecto: 24h
+    return 86400
 
 @api.route("/bloquear-ip", methods=["POST", "DELETE"])
 def bloquear_ip_api():
