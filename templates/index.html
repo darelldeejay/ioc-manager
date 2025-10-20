@@ -1411,5 +1411,21 @@ tr.innerHTML = `
 
 </script>
 
+  <script>
+document.addEventListener("DOMContentLoaded", function() {
+  const checkboxes = document.querySelectorAll(".tag-manual");
+  const hiddenInput = document.getElementById("tagsManualInput");
+
+  function updateTagsManual() {
+    const selected = Array.from(checkboxes)
+      .filter(chk => chk.checked)
+      .map(chk => chk.value);
+    hiddenInput.value = selected.join(","); // ejemplo: "Multicliente,BPE"
+  }
+
+  checkboxes.forEach(chk => chk.addEventListener("change", updateTagsManual));
+});
+</script>
+  
 </body>
 </html>
