@@ -1349,7 +1349,19 @@ def index():
 
     # JSON mode (paginación/ordenación/filtros)
     if request.args.get("format", "").lower() == "json":
-        records = _feed_to_records(lines)
+        # Unir feeds: Multicliente (principal) + BPE
+        lines_main = load_lines(FEED_FILE)       # ya tenías 'lines', pero recargamos por seguridad
+        lines_bpe  = load_lines(FEED_FILE_BPE)
+
+        rec_main = {r["ip"]: r for r in _feed_to_records(lines_main)}
+        rec_bpe  = {r["ip"]: r for r in _feed_to_records(lines_bpe)}
+
+        # Preferimos el registro del principal si existe; añadimos los BPE-only
+        merged_records = list(rec_main.values())
+        for ip, r in rec_bpe.items():
+            if ip not in rec_main:
+                merged_records.append(r)
+
         q = request.args.get("q")
         date_param = request.args.get("date")
         sort_key = request.args.get("sort", "fecha")
@@ -1357,9 +1369,10 @@ def index():
         page = request.args.get("page", 1)
         page_size = request.args.get("page_size", DEFAULT_PAGE_SIZE)
 
-        filtered = _apply_filters(records, q=q, date_param=date_param)
+        filtered = _apply_filters(merged_records, q=q, date_param=date_param)
         ordered = _apply_sort(filtered, sort_key=sort_key, order=order)
         paged, p, ps, total = _paginate(ordered, page=page, page_size=page_size)
+
         meta = load_meta()
         ip_details = meta.get("ip_details", {})
 
@@ -1373,7 +1386,12 @@ def index():
                 "tags": (ip_details.get(r["ip"], {}) or {}).get("tags", [])
             })
 
-        notices = [{"time": datetime.utcnow().isoformat()+"Z", "category": c, "message": m} for c, m in request_actions]
+        notices = [{"time": datetime.utcnow().isoformat()+"Z", "category": c, "message": m}
+                   for c, m in request_actions]
+
+        # Counters: mantenemos manual/csv sobre el principal; 'total' ahora es el total mostrado (unión)
+        live_manual, live_csv = compute_live_counters(lines_main)
+
         return json_response_ok(
             notices=notices,
             extra={
@@ -1385,7 +1403,7 @@ def index():
                 "order": order,
                 "filters": {"q": q, "date": date_param},
                 "counters": {
-                    "total": len(lines),
+                    "total": len(merged_records),   # total visibles (Multi + BPE)
                     "manual": live_manual,
                     "csv": live_csv
                 }
