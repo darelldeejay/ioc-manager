@@ -1177,88 +1177,89 @@ def index():
                 flash(f"{rejected_total} entradas rechazadas (inválidas/privadas/duplicadas/no permitidas)", "danger")
             return redirect(url_for("index"))
 
-········# Alta manual (Tag OBLIGATORIO: Multicliente y/o BPE)
-········raw_input = request.form.get("ip", "").strip()
+        # Alta manual (Tag OBLIGATORIO: Multicliente y/o BPE)
+        raw_input = request.form.get("ip", "").strip()
 
-········ttl_man_sel = request.form.get("ttl_manual", "permanente")
-········ttl_val = "0" if ttl_man_sel == "permanente" else ttl_man_sel
+        ttl_man_sel = request.form.get("ttl_manual", "permanente")
+        ttl_val = "0" if ttl_man_sel == "permanente" else ttl_man_sel
 
-········raw_tags_manual = _parse_tags_field(request.form.get("tags_manual", ""))
-········tags_manual = _filter_allowed_tags(raw_tags_manual)
+        raw_tags_manual = _parse_tags_field(request.form.get("tags_manual", ""))
+        tags_manual = _filter_allowed_tags(raw_tags_manual)
 
-········if not tags_manual:
-············flash("Debes seleccionar al menos un tag válido (Multicliente y/o BPE).", "danger")
-············return redirect(url_for("index"))
+        if not tags_manual:
+            flash("Debes seleccionar al menos un tag válido (Multicliente y/o BPE).", "danger")
+            return redirect(url_for("index"))
 
-········if raw_input:
-············try:
-················expanded = expand_input_to_ips(raw_input)
+        if raw_input:
+            try:
+                expanded = expand_input_to_ips(raw_input)
 
-················# Si no se obtuvieron IPs públicas (privadas/loopback/0.0.0.0/etc.), informar y salir
-················if not expanded:
-····················raw_first = raw_input.strip().split(" ", 1)[0]
-····················reason = ip_block_reason(raw_first)
-····················msg = f"IP rechazada: {raw_first} — {reason}" if reason else \
-························"Entrada inválida: no se obtuvieron IPs públicas"
-····················flash(msg, "danger")
-····················guardar_notif("danger", msg)
-····················return redirect(url_for("index"))
+                # Si no se obtuvieron IPs públicas (privadas/loopback/0.0.0.0/etc.), informar y salir
+                if not expanded:
+                    raw_first = raw_input.strip().split(" ", 1)[0]
+                    reason = ip_block_reason(raw_first)
+                    msg = f"IP rechazada: {raw_first} — {reason}" if reason else \
+                          "Entrada inválida: no se obtuvieron IPs públicas"
+                    flash(msg, "danger")
+                    guardar_notif("danger", msg)
+                    return redirect(url_for("index"))
 
-················single_input = len(expanded) == 1
-················single_ip = expanded[0] if single_input else None
-················pre_notified = False
+                single_input = len(expanded) == 1
+                single_ip = expanded[0] if single_input else None
+                pre_notified = False
 
-················if single_input and single_ip in existentes:
-····················msg = f"IP duplicada: {single_ip}"
-····················flash(msg, "danger")
-····················guardar_notif("danger", msg)
-····················pre_notified = True
-················elif single_input:
-····················reason = ip_block_reason(single_ip)
-····················if reason:
-························msg = f"IP rechazada: {single_ip} — {reason}"
-························flash(msg, "danger")
-························guardar_notif("danger", msg)
-························pre_notified = True
+                if single_input and single_ip in existentes:
+                    msg = f"IP duplicada: {single_ip}"
+                    flash(msg, "danger")
+                    guardar_notif("danger", msg)
+                    pre_notified = True
+                elif single_input:
+                    reason = ip_block_reason(single_ip)
+                    if reason:
+                        msg = f"IP rechazada: {single_ip} — {reason}"
+                        flash(msg, "danger")
+                        guardar_notif("danger", msg)
+                        pre_notified = True
 
-················add_ok, add_bad, added_lines = add_ips_validated(
-····················lines, existentes, expanded, ttl_val=ttl_val,
-····················origin="manual", contador_ruta=COUNTER_MANUAL, tags=tags_manual
-················)
+                add_ok, add_bad, added_lines = add_ips_validated(
+                    lines, existentes, expanded, ttl_val=ttl_val,
+                    origin="manual", contador_ruta=COUNTER_MANUAL, tags=tags_manual
+                )
 
-················if add_ok > 0:
-····················save_lines(lines, FEED_FILE)
-····················if single_input:
-························guardar_notif("success", f"IP añadida: {single_ip}")
-························flash(f"IP añadida: {single_ip}", "success")
-····················else:
-························guardar_notif("success", f"{add_ok} IPs añadidas")
-························flash(f"{add_ok} IP(s) añadida(s) correctamente", "success")
-····················if added_lines:
-························_set_last_action("add", added_lines)
-················else:
-····················if not (single_input and pre_notified):
-························flash("Nada que añadir (todas inválidas/privadas/duplicadas/no permitidas)", "danger")
-························guardar_notif("danger", "Nada que añadir (todas inválidas/privadas/duplicadas/no permitidas)")
+                if add_ok > 0:
+                    save_lines(lines, FEED_FILE)
+                    if single_input:
+                        guardar_notif("success", f"IP añadida: {single_ip}")
+                        flash(f"IP añadida: {single_ip}", "success")
+                    else:
+                        guardar_notif("success", f"{add_ok} IPs añadidas")
+                        flash(f"{add_ok} IP(s) añadida(s) correctamente", "success")
+                    if added_lines:
+                        _set_last_action("add", added_lines)
+                else:
+                    if not (single_input and pre_notified):
+                        flash("Nada que añadir (todas inválidas/privadas/duplicadas/no permitidas)", "danger")
+                        guardar_notif("danger", "Nada que añadir (todas inválidas/privadas/duplicadas/no permitidas)")
 
-················if add_bad > 0 and not (single_input and pre_notified):
-····················flash(f"{add_bad} entradas rechazadas (inválidas/privadas/duplicadas/no permitidas)", "danger")
-····················guardar_notif("danger", f"{add_bad} entradas rechazadas (manual)")
+                if add_bad > 0 and not (single_input and pre_notified):
+                    flash(f"{add_bad} entradas rechazadas (inválidas/privadas/duplicadas/no permitidas)", "danger")
+                    guardar_notif("danger", f"{add_bad} entradas rechazadas (manual)")
 
-············except ValueError as e:
-················if str(e) == "accion_no_permitida":
-····················flash("⚠️ Acción no permitida: bloqueo de absolutamente todo", "accion_no_permitida")
-····················guardar_notif("accion_no_permitida", "Intento de bloqueo global (manual)")
-················else:
-····················flash(str(e), "danger")
-····················guardar_notif("danger", str(e))
-············except Exception as e:
-················flash(f"Error inesperado: {str(e)}", "danger")
-················guardar_notif("danger", f"Error inesperado: {str(e)}")
+            except ValueError as e:
+                if str(e) == "accion_no_permitida":
+                    flash("⚠️ Acción no permitida: bloqueo de absolutamente todo", "accion_no_permitida")
+                    guardar_notif("accion_no_permitida", "Intento de bloqueo global (manual)")
+                else:
+                    flash(str(e), "danger")
+                    guardar_notif("danger", str(e))
+            except Exception as e:
+                flash(f"Error inesperado: {str(e)}", "danger")
+                guardar_notif("danger", f"Error inesperado: {str(e)}")
 
-············return redirect(url_for("index"))
-········else:
-············error = "Debes introducir una IP, red CIDR, rango A-B o IP con máscara"
+            return redirect(url_for("index"))
+        else:
+            error = "Debes introducir una IP, red CIDR, rango A-B o IP con máscara"
+
     
     # ----- GET (vista HTML o JSON paginado) -----
     # 1) Flashes de esta petición (para TOASTS y burbuja)
