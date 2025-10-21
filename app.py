@@ -1117,6 +1117,19 @@ def index():
         # Eliminar individual (quitar de ambos feeds)
         if "delete_ip" in request.form:
             ip_to_delete = request.form.get("delete_ip")
+            orig_line = next((l for l in lines if l.startswith(ip_to_delete + "|")), None)
+            new_lines = [l for l in lines if not l.startswith(ip_to_delete + "|")]
+            save_lines(new_lines, FEED_FILE)
+
+            # NUEVO: si la IP existía solo en BPE, quítala de ese feed también
+            _remove_ip_from_feed(ip_to_delete, FEED_FILE_BPE)
+
+            meta_del_ip(ip_to_delete)
+            guardar_notif("warning", f"IP eliminada (Multicliente): {ip_to_delete}")
+            flash(f"IP eliminada: {ip_to_delete}", "warning")
+            if orig_line:
+                _set_last_action("delete", [orig_line])
+            return redirect(url_for("index"))
 
             # Guardamos la línea del feed principal para UNDO (si existía)
             orig_line = next((l for l in lines if l.startswith(ip_to_delete + "|")), None)
