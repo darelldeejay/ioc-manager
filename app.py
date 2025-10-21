@@ -528,6 +528,21 @@ def _remove_ip_from_feed(ip, feed_path=FEED_FILE):
     if len(new_lines) != len(lines):
         save_lines(new_lines, feed_path)
 
+def _remove_bulk_from_feed(ips, feed_path):
+    """Elimina en bloque una lista de IPs de un feed dado."""
+    if not ips or not os.path.exists(feed_path):
+        return
+    lines = load_lines(feed_path)
+    targets = set(ips)
+    new_lines = [l for l in lines if l.split("|", 1)[0].strip() not in targets]
+    if len(new_lines) != len(lines):
+        save_lines(new_lines, feed_path)
+
+def _remove_ip_from_all_feeds(ip):
+    """Elimina una IP de ambos feeds (principal y BPE)."""
+    _remove_ip_from_feed(ip, FEED_FILE)       # principal
+    _remove_ip_from_feed(ip, FEED_FILE_BPE)   # BPE
+
 def _merge_meta_tags(ip, new_tags, expires_at, source, note):
     """Fusiona tags y actualiza expiración en META_FILE.ip_details"""
     meta = load_meta()
