@@ -70,7 +70,7 @@ After=network.target
 
 [Service]
 User=admin
-Group=darelldeejay
+Group=admin
 WorkingDirectory=/home/admin/ioc-manager
 ExecStart=/home/admin/ioc-manager/.venv/bin/gunicorn --chdir /home/admin/ioc-manager --config gunicorn_config.py app:app
 Restart=always
