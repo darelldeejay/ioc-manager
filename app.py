@@ -1096,20 +1096,23 @@ def index():
 
     # ----- Mutaciones (POST) -----
     if request.method == "POST":
-    # Eliminar todas (sólo feed principal; evitamos impactos en BPE desde la tabla actual)
-    if "delete-all" in request.form:
-    all_lines = list(lines)  # guardar para UNDO
-    all_ips = [l.split("|", 1)[0].strip() for l in lines]
-    save_lines([], FEED_FILE)
+        # Eliminar todas (sólo feed principal; evitamos impactos en BPE desde la tabla actual)
+        if "delete-all" in request.form:
+            all_lines = list(lines)  # guardar para UNDO
+            all_ips = [l.split("|", 1)[0].strip() for l in lines]
 
-    _remove_bulk_from_feed(all_ips, FEED_FILE_BPE)
+            # limpiar feeds
+            save_lines([], FEED_FILE)
+            _remove_bulk_from_feed(all_ips, FEED_FILE_BPE)  # NEW: limpia también BPE
 
-    meta_bulk_del(all_ips)
-    log("Eliminadas", "todas las IPs (Multicliente)")
-    guardar_notif("warning", "Se eliminaron todas las IPs (Multicliente)")
-    flash("Se eliminaron todas las IPs (Multicliente)", "warning")
-    _set_last_action("delete_all", all_lines)
-    return redirect(url_for("index"))
+            # meta/tag-files
+            meta_bulk_del(all_ips)
+
+            log("Eliminadas", "todas las IPs (Multicliente)")
+            guardar_notif("warning", "Se eliminaron todas las IPs (Multicliente)")
+            flash("Se eliminaron todas las IPs (Multicliente)", "warning")
+            _set_last_action("delete_all", all_lines)
+            return redirect(url_for("index"))
 
         # Eliminar individual (quitar de ambos feeds)
         if "delete_ip" in request.form:
