@@ -1108,17 +1108,27 @@ def index():
             _set_last_action("delete_all", all_lines)
             return redirect(url_for("index"))
 
-        # Eliminar individual (sólo del listado principal)
+        # Eliminar individual (quitar de ambos feeds)
         if "delete_ip" in request.form:
             ip_to_delete = request.form.get("delete_ip")
+
+            # Guardamos la línea del feed principal para UNDO (si existía)
             orig_line = next((l for l in lines if l.startswith(ip_to_delete + "|")), None)
-            new_lines = [l for l in lines if not l.startswith(ip_to_delete + "|")]
-            save_lines(new_lines, FEED_FILE)
-            meta_del_ip(ip_to_delete)  # meta/tag-files coherentes
-            guardar_notif("warning", f"IP eliminada (Multicliente): {ip_to_delete}")
+
+            # 1) Quitar de ambos feeds (principal y BPE)
+            _remove_ip_from_all_feeds(ip_to_delete)
+
+            # 2) Limpiar meta + tag-files
+            meta_del_ip(ip_to_delete)
+
+            # 3) Notificaciones/UI
+            guardar_notif("warning", f"IP eliminada: {ip_to_delete}")
             flash(f"IP eliminada: {ip_to_delete}", "warning")
+
+            # 4) UNDO: solo podemos restaurar la línea del feed principal
             if orig_line:
                 _set_last_action("delete", [orig_line])
+
             return redirect(url_for("index"))
 
         # Eliminar por patrón (sólo feed principal)
