@@ -1211,6 +1211,15 @@ def index():
                             guardar_notif("danger", msg)
                             pre_notified = True
 
+                # Si no se obtuvo ninguna IP (p.ej., privada/loopback/multicast), explica el motivo
+                if not expanded:
+                reason = ip_block_reason(raw_input.strip())
+                if reason:
+                    msg = f"IP rechazada: {raw_input.strip()} — {reason}"
+                    flash(msg, "danger")
+                    guardar_notif("danger", msg)
+                    pre_notified = True
+
                 add_ok, add_bad, added_lines = add_ips_validated(
                     lines, existentes, expanded, ttl_val=ttl_val,
                     origin="manual", contador_ruta=COUNTER_MANUAL, tags=tags_manual
