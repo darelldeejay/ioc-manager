@@ -1194,7 +1194,18 @@ def index():
             try:
                 expanded = expand_input_to_ips(raw_input)
 
-                # --- NUEVO: si no se obtuvo ninguna IP (privadas/loopback/multicast/reservadas) ---
+                # --- NUEVO: bloquear entradas que no producen IPs públicas ---
+        if not expanded:
+            raw_first = raw_input.strip().split(" ", 1)[0]
+            reason = ip_block_reason(raw_first)
+            msg = f"IP rechazada: {raw_first} — {reason}" if reason else \
+                  "Entrada inválida: no se obtuvieron IPs públicas"
+            flash(msg, "danger")
+            guardar_notif("danger", msg)
+            return redirect(url_for("index"))
+        # --- FIN NUEVO ---
+
+        # --- NUEVO: si no se obtuvo ninguna IP (privadas/loopback/multicast/reservadas) ---
         if not expanded:
                 # si el usuario puso "IP máscara", quédate con el primer token para diagnosticar
         raw_first = raw_input.strip().split(" ", 1)[0]
