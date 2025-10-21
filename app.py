@@ -1131,18 +1131,30 @@ def index():
 
             return redirect(url_for("index"))
 
-        # Eliminar por patrón (sólo feed principal)
+        # Eliminar por patrón (ambos feeds)
         if "delete-net" in request.form:
             patron = request.form.get("delete_net_input", "").strip()
             try:
+                # 1) Aplicar al feed principal (como ya hacíamos)
                 new_lines, removed, removed_ips, removed_lines = filter_lines_delete_pattern(lines, patron)
                 save_lines(new_lines, FEED_FILE)
+
+                # 2) Quitar también del feed BPE cualquier IP eliminada
                 if removed_ips:
+                    bpe_lines = load_lines(FEED_FILE_BPE)
+                    bpe_new = [l for l in bpe_lines if l.split("|",1)[0] not in set(removed_ips)]
+                    if len(bpe_new) != len(bpe_lines):
+                        save_lines(bpe_new, FEED_FILE_BPE)
+
+                    # 3) Limpiar meta/tag-files de todas las IPs eliminadas
                     meta_bulk_del(removed_ips)
-                guardar_notif("warning", f"Eliminadas por patrón (Multicliente) {patron}: {removed}")
+
+                # 4) Notifs + UI + UNDO (undo solo repone el principal)
+                guardar_notif("warning", f"Eliminadas por patrón {patron}: {removed}")
                 flash(f"Eliminadas por patrón {patron}: {removed}", "warning")
                 if removed_lines:
                     _set_last_action("delete_bulk", removed_lines)
+
             except Exception as e:
                 flash(str(e), "danger")
             return redirect(url_for("index"))
