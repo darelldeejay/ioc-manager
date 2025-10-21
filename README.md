@@ -69,13 +69,13 @@ Description=IOC Manager - Flask on 5000
 After=network.target
 
 [Service]
-User=darelldeejay
+User=admin
 Group=darelldeejay
-WorkingDirectory=/home/darelldeejay/ioc-manager
-ExecStart=/home/darelldeejay/ioc-manager/.venv/bin/gunicorn --chdir /home/darelldeejay/ioc-manager --config gunicorn_config.py app:app
+WorkingDirectory=/home/admin/ioc-manager
+ExecStart=/home/admin/ioc-manager/.venv/bin/gunicorn --chdir /home/admin/ioc-manager --config gunicorn_config.py app:app
 Restart=always
 RestartSec=3
-Environment="PATH=/home/darelldeejay/ioc-manager/.venv/bin:/usr/local/bin:/usr/bin"
+Environment="PATH=/home/admin/ioc-manager/.venv/bin:/usr/local/bin:/usr/bin"
 Environment="PYTHONUNBUFFERED=1"
 StandardOutput=journal
 StandardError=journal
