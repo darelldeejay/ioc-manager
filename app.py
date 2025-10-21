@@ -1102,7 +1102,7 @@ def index():
     all_ips = [l.split("|", 1)[0].strip() for l in lines]
     save_lines([], FEED_FILE)
 
-    _remove_bulk_from_feed(all_ips, FEED_FILE_BPE)  # NEW: limpiar también BPE para esas IPs
+    _remove_bulk_from_feed(all_ips, FEED_FILE_BPE)
 
     meta_bulk_del(all_ips)
     log("Eliminadas", "todas las IPs (Multicliente)")
