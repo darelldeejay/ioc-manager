@@ -215,7 +215,7 @@
 
   <!-- Tags (obligatorio) -->
   <div class="col-lg-3">
-    <label class="form-label small mb-1 mb-lg-2">Aplicar a</label>
+    <label class="form-label small mb-1">Aplicar a</label>
     <div id="tagManualGroup" class="d-flex flex-wrap align-items-center gap-3">
       <div class="form-check m-0">
         <input class="form-check-input tag-manual" type="checkbox" value="Multicliente" id="tagManualMulti">
@@ -232,15 +232,18 @@
     </div>
   </div>
 
-  <!-- Añadir -->
+  <!-- Botones -->
   <div class="col-lg-2">
-    <button id="addManualBtn" type="submit" class="btn btn-success w-100">Añadir</button>
-  </div>
-
-  <!-- (Opcional) Botón Eliminar todas: lo bajo a la siguiente fila para no apretar la UI -->
-  <div class="col-12 d-lg-none"></div>
-  <div class="col-lg-2 offset-lg-10 mt-2 d-grid">
-    <button type="button" class="btn btn-danger" data-bs-toggle="modal" data-bs-target="#confirmDeleteAll">
+    <div class="d-flex gap-2">
+      <button id="addManualBtn" type="submit" class="btn btn-success w-100">Añadir</button>
+      <button type="button" class="btn btn-danger d-none d-lg-inline-block"
+              data-bs-toggle="modal" data-bs-target="#confirmDeleteAll">
+        Eliminar todas
+      </button>
+    </div>
+    <!-- Eliminar todas en móvil (debajo para no apretar la fila) -->
+    <button type="button" class="btn btn-danger mt-2 w-100 d-lg-none"
+            data-bs-toggle="modal" data-bs-target="#confirmDeleteAll">
       Eliminar todas
     </button>
   </div>
