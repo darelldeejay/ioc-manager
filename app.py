@@ -1,7 +1,7 @@
 from flask import (
     Flask, render_template, request, redirect, url_for,
     session, flash, make_response, jsonify, get_flashed_messages,
-    send_file, abort, Blueprint
+    send_file, abort, Blueprint, g
 )
 from datetime import datetime, timedelta, timezone
 import ipaddress
@@ -24,6 +24,10 @@ FEED_FILE_BPE = os.path.join(BASE_DIR, 'ioc-feed-bpe.txt')
 
 LOG_FILE = os.path.join(BASE_DIR, 'ioc-log.txt')
 NOTIF_FILE = os.path.join(BASE_DIR, 'notif-log.json')
+
+# Auditoría y caducado diario (nuevos)
+AUDIT_FILE = os.path.join(BASE_DIR, 'audit-log.jsonl')
+EXPIRY_MARK = os.path.join(BASE_DIR, '.expiry_last')
 
 # Carpeta para datos adicionales de la API por tags
 DATA_DIR = os.path.join(BASE_DIR, "data")
@@ -127,6 +131,23 @@ def _now_utc():
 
 def _iso(dt: datetime) -> str:
     return dt.astimezone(timezone.utc).replace(microsecond=0).isoformat().replace("+00:00", "Z")
+
+
+# -------- Auditoría (nuevo) --------
+def _audit(event, actor, scope, details=None):
+    # actor: 'web/<usuario>' | 'api/<ip>' | 'system'
+    rec = {
+        "ts": _iso(_now_utc()),
+        "event": str(event),
+        "actor": str(actor or "unknown"),
+        "scope": str(scope or ""),
+        "details": details or {}
+    }
+    try:
+        with open(AUDIT_FILE, "a", encoding="utf-8") as f:
+            f.write(json.dumps(rec, ensure_ascii=False) + "\n")
+    except Exception:
+        pass
 
 
 # -------- Meta lateral (origen por IP + detalles por IP) --------
@@ -662,6 +683,10 @@ def add_ips_validated(lines, existentes, iterable_ips, ttl_val, origin=None, con
 
         log("Añadida", ip_str)
         guardar_notif("success", f"IP añadida: {ip_str}")
+        _audit("add_manual" if origin == "manual" else f"add_{origin}", f"web/{session.get('username','admin')}" if origin=="manual" else "api/system", ip_str, {
+            "ttl_days": ttl_days,
+            "tags": tags
+        })
 
         if contador_ruta and allow_multi:
             try:
@@ -876,6 +901,14 @@ def _paginate(records, page=1, page_size=DEFAULT_PAGE_SIZE):
     end = start + ps
     return records[start:end], p, ps, total
 
+def _days_left(fecha_dt, ttl_int):
+    """TTL regresivo en días (0 si permanente o sin fecha)."""
+    if not fecha_dt or ttl_int == 0:
+        return 0
+    exp = fecha_dt + timedelta(days=ttl_int)
+    today = datetime.now().date()
+    return max(0, (exp.date() - today).days)
+
 
 # =========================
 #  Gestión de UNDO por sesión
@@ -936,6 +969,7 @@ def _undo_last_action():
         mensaje = f"Deshechas {len(removed_ips)} IP(s) añadidas"
         if removed_ips:
             guardar_notif("warning", mensaje)
+        _audit("undo_add", f"web/{session.get('username','admin')}", {"count": len(removed_ips)}, {"ips": removed_ips})
         session.pop('last_action', None)
         return True, mensaje
 
@@ -953,6 +987,7 @@ def _undo_last_action():
         mensaje = f"Deshechas {repuestos} IP(s) eliminadas"
         if repuestos:
             guardar_notif("warning", mensaje)
+        _audit("undo_delete", f"web/{session.get('username','admin')}", {"count": repuestos}, {})
         session.pop('last_action', None)
         return True, mensaje
 
@@ -1025,6 +1060,36 @@ def _collect_known_tags():
 
 
 # =========================
+#  Expiración diaria con marca (nuevo)
+# =========================
+def perform_daily_expiry_once():
+    today = datetime.now().strftime("%Y-%m-%d")
+    last = None
+    try:
+        if os.path.exists(EXPIRY_MARK):
+            with open(EXPIRY_MARK, "r", encoding="utf-8") as f:
+                last = (f.read() or "").strip()
+    except Exception:
+        last = None
+    if last == today:
+        return  # ya hecho hoy
+
+    # Expirar y sincronizar meta (principal y BPE)
+    vencidas_main = eliminar_ips_vencidas()
+    vencidas_bpe = eliminar_ips_vencidas_bpe()
+    vencidas = list(set((vencidas_main or []) + (vencidas_bpe or [])))
+    if vencidas:
+        meta_bulk_del(vencidas)
+        _audit("expire_ttl", "system", {"count": len(vencidas)}, {"ips": vencidas})
+
+    try:
+        with open(EXPIRY_MARK, "w", encoding="utf-8") as f:
+            f.write(today)
+    except Exception:
+        pass
+
+
+# =========================
 #  Rutas
 # =========================
 @app.after_request
@@ -1083,12 +1148,8 @@ def index():
     # Snapshot diario si hace falta
     perform_daily_backup(keep_days=14)
 
-    # Expirar y sincronizar meta (principal y BPE)
-    vencidas_main = eliminar_ips_vencidas()
-    vencidas_bpe = eliminar_ips_vencidas_bpe()
-    vencidas = list(set((vencidas_main or []) + (vencidas_bpe or [])))
-    if vencidas:
-        meta_bulk_del(vencidas)
+    # Expiración diaria (una vez/día)
+    perform_daily_expiry_once()
 
     error = None
     lines = load_lines(FEED_FILE)
@@ -1112,6 +1173,7 @@ def index():
             guardar_notif("warning", "Se eliminaron todas las IPs (Multicliente)")
             flash("Se eliminaron todas las IPs (Multicliente)", "warning")
             _set_last_action("delete_all", all_lines)
+            _audit("delete_all", f"web/{session.get('username','admin')}", {"count": len(all_ips)}, {})
             return redirect(url_for("index"))
 
         # Eliminar individual (quitar de ambos feeds)
@@ -1135,6 +1197,7 @@ def index():
             if orig_line:
                 _set_last_action("delete", [orig_line])
 
+            _audit("delete_ip", f"web/{session.get('username','admin')}", ip_to_delete, {})
             return redirect(url_for("index"))
 
         # Eliminar por patrón (ambos feeds)
@@ -1160,6 +1223,8 @@ def index():
                 flash(f"Eliminadas por patrón {patron}: {removed}", "warning")
                 if removed_lines:
                     _set_last_action("delete_bulk", removed_lines)
+
+                _audit("delete_pattern", f"web/{session.get('username','admin')}", {"pattern": patron, "removed": removed}, {"ips": removed_ips})
 
             except Exception as e:
                 flash(str(e), "danger")
@@ -1190,6 +1255,7 @@ def index():
                     guardar_notif("danger", "Intento de subida CSV sin tags (rechazado)")
                 except Exception:
                     pass
+                _audit("csv_rejected_no_tags", f"web/{session.get('username','admin')}", {}, {})
                 return redirect(url_for("index"))
 
             # 3) Lectura segura del archivo
@@ -1220,6 +1286,7 @@ def index():
                             guardar_notif("accion_no_permitida", "Intento de bloqueo global (CSV)")
                         except Exception:
                             pass
+                        _audit("csv_policy_denied", f"web/{session.get('username','admin')}", {}, {"line": raw})
                         continue
                     rejected_total += 1
                     continue
@@ -1247,6 +1314,7 @@ def index():
                 flash(f"{valid_ips_total} IP(s) añadida(s) correctamente (CSV)", "success")
                 if added_lines_acc:
                     _set_last_action("add", added_lines_acc)
+                _audit("csv_added", f"web/{session.get('username','admin')}", {"count": valid_ips_total}, {"tags": tags_csv, "ttl": ttl_csv_val})
 
             if rejected_total:
                 try:
@@ -1254,6 +1322,7 @@ def index():
                 except Exception:
                     pass
                 flash(f"{rejected_total} entradas rechazadas (inválidas/privadas/duplicadas/no permitidas)", "danger")
+                _audit("csv_rejected", f"web/{session.get('username','admin')}", {"count": rejected_total}, {})
 
             return redirect(url_for("index"))
         # ------------------ FIN Subida CSV/TXT -------------------
@@ -1268,6 +1337,7 @@ def index():
 
         if not tags_manual:
             flash("Debes seleccionar al menos un tag válido (Multicliente y/o BPE).", "danger")
+            _audit("manual_rejected_no_tags", f"web/{session.get('username','admin')}", {}, {})
             return redirect(url_for("index"))
 
         if raw_input:
@@ -1281,6 +1351,7 @@ def index():
                           "Entrada inválida: no se obtuvieron IPs públicas"
                     flash(msg, "danger")
                     guardar_notif("danger", msg)
+                    _audit("manual_invalid", f"web/{session.get('username','admin')}", {}, {"input": raw_input, "reason": reason})
                     return redirect(url_for("index"))
 
                 single_input = len(expanded) == 1
@@ -1292,6 +1363,7 @@ def index():
                     flash(msg, "danger")
                     guardar_notif("danger", msg)
                     pre_notified = True
+                    _audit("manual_duplicate", f"web/{session.get('username','admin')}", single_ip, {})
                 elif single_input:
                     reason = ip_block_reason(single_ip)
                     if reason:
@@ -1299,6 +1371,7 @@ def index():
                         flash(msg, "danger")
                         guardar_notif("danger", msg)
                         pre_notified = True
+                        _audit("manual_rejected", f"web/{session.get('username','admin')}", single_ip, {"reason": reason})
 
                 add_ok, add_bad, added_lines = add_ips_validated(
                     lines, existentes, expanded, ttl_val=ttl_val,
@@ -1315,25 +1388,31 @@ def index():
                         flash(f"{add_ok} IP(s) añadida(s) correctamente", "success")
                     if added_lines:
                         _set_last_action("add", added_lines)
+                    _audit("manual_added", f"web/{session.get('username','admin')}", {"count": add_ok}, {"tags": tags_manual, "ttl": ttl_val})
                 else:
                     if not (single_input and pre_notified):
                         flash("Nada que añadir (todas inválidas/privadas/duplicadas/no permitidas)", "danger")
                         guardar_notif("danger", "Nada que añadir (todas inválidas/privadas/duplicadas/no permitidas)")
+                        _audit("manual_nothing_added", f"web/{session.get('username','admin')}", {}, {"rejected": add_bad})
 
                 if add_bad > 0 and not (single_input and pre_notified):
                     flash(f"{add_bad} entradas rechazadas (inválidas/privadas/duplicadas/no permitidas)", "danger")
                     guardar_notif("danger", f"{add_bad} entradas rechazadas (manual)")
+                    _audit("manual_rejected_some", f"web/{session.get('username','admin')}", {"count": add_bad}, {})
 
             except ValueError as e:
                 if str(e) == "accion_no_permitida":
                     flash("⚠️ Acción no permitida: bloqueo de absolutamente todo", "accion_no_permitida")
                     guardar_notif("accion_no_permitida", "Intento de bloqueo global (manual)")
+                    _audit("manual_policy_denied", f"web/{session.get('username','admin')}", {}, {})
                 else:
                     flash(str(e), "danger")
                     guardar_notif("danger", str(e))
+                    _audit("manual_error", f"web/{session.get('username','admin')}", {}, {"error": str(e)})
             except Exception as e:
                 flash(f"Error inesperado: {str(e)}", "danger")
                 guardar_notif("danger", f"Error inesperado: {str(e)}")
+                _audit("manual_exception", f"web/{session.get('username','admin')}", {}, {"error": str(e)})
 
             return redirect(url_for("index"))
         else:
@@ -1400,9 +1479,12 @@ def index():
 
         items = []
         for r in paged:
+            # TTL regresivo (nuevo)
+            ttl_remaining = _days_left(r["fecha_dt"], r["ttl"])
             items.append({
                 "ip": r["ip"],
                 "ttl": 0 if r["ttl"] is None else r["ttl"],
+                "ttl_remaining": ttl_remaining,
                 "origen": r.get("origen"),
                 "fecha_alta": r["fecha"] if r["fecha"] else None,
                 "tags": (ip_details.get(r["ip"], {}) or {}).get("tags", [])
@@ -1592,11 +1674,16 @@ api = Blueprint("api", __name__, url_prefix="/api")
 def _api_guard():
     # auth + allowlist + rate
     if not _auth_ok():
+        _audit("api_unauthorized", f"api/{_client_ip()}", request.path, {"method": request.method})
         return jsonify({"error": "Unauthorized"}), 401
     if not _allowlist_ok():
+        _audit("api_forbidden", f"api/{_client_ip()}", request.path, {"method": request.method})
         return jsonify({"error": "Forbidden by allowlist"}), 403
     if not _rate_ok():
+        _audit("api_ratelimit", f"api/{_client_ip()}", request.path, {"method": request.method})
         return jsonify({"error": "Rate limit exceeded"}), 429
+    # actor para auditoría
+    g.api_actor = f"api/{_client_ip()}"
 
 def _auth_ok():
     if not TOKEN_API:
@@ -1702,11 +1789,13 @@ def bloquear_ip_api():
         idem = request.headers.get("Idempotency-Key", "").strip() or None
         cached = _idem_get(idem)
         if cached is not None:
+            _audit("api_post_idempotent_hit", g.get("api_actor","api"), "/api/bloquear-ip", {"idem": idem})
             return jsonify(cached), 200
 
         try:
             payload = request.get_json(force=True, silent=False)
         except Exception:
+            _audit("api_post_invalid_json", g.get("api_actor","api"), "/api/bloquear-ip", {})
             return jsonify({"error": "JSON inválido"}), 400
 
         items = payload.get("items")
@@ -1826,6 +1915,8 @@ def bloquear_ip_api():
         }
         if idem:
             _idem_put(idem, resp)
+
+        _audit("api_post_bloquear", g.get("api_actor","api"), {"status": resp["status"], "items": len(items), "errors": len(errors)}, {})
         return jsonify(resp), (207 if errors and processed else (400 if errors and not processed else 200))
 
     # DELETE: { "ip": "x.y.z.w", "tags": [...] (opcional) }
@@ -1836,10 +1927,12 @@ def bloquear_ip_api():
 
     ip_txt = str(body.get("ip", "")).strip()
     if not ip_txt:
+        _audit("api_delete_missing_ip", g.get("api_actor","api"), "/api/bloquear-ip", {})
         return jsonify({"error": "Campo 'ip' requerido"}), 400
     try:
         ipaddress.ip_address(ip_txt)
     except Exception:
+        _audit("api_delete_invalid_ip", g.get("api_actor","api"), "/api/bloquear-ip", {"ip": ip_txt})
         return jsonify({"error": "IP inválida"}), 400
 
     tags = _filter_allowed_tags(body.get("tags", []))
@@ -1852,8 +1945,10 @@ def bloquear_ip_api():
             _remove_ip_from_feed(ip_txt, FEED_FILE)
             _remove_ip_from_feed(ip_txt, FEED_FILE_BPE)
             meta_del_ip(ip_txt)
+            _audit("api_delete_global", g.get("api_actor","api"), ip_txt, {"detail": "no_meta_global"})
             return jsonify({"status": "deleted", "ip": ip_txt, "scope": "global"}), 200
         else:
+            _audit("api_delete_not_found", g.get("api_actor","api"), ip_txt, {"tags": tags})
             return jsonify({"status": "not_found", "ip": ip_txt}), 404
 
     if not tags:
@@ -1863,6 +1958,7 @@ def bloquear_ip_api():
         _remove_ip_from_feed(ip_txt, FEED_FILE)
         _remove_ip_from_feed(ip_txt, FEED_FILE_BPE)
         meta_del_ip(ip_txt)
+        _audit("api_delete_all_tags", g.get("api_actor","api"), ip_txt, {})
         return jsonify({"status": "deleted", "ip": ip_txt, "scope": "global"}), 200
     else:
         # borrar solo tags indicados
@@ -1882,7 +1978,6 @@ def bloquear_ip_api():
             _remove_ip_from_feed(ip_txt, FEED_FILE_BPE)
         # Si se quitó Multicliente y ya no queda ningun tag, también del principal
         if "Multicliente" in tags and "Multicliente" not in remaining:
-            # Retiramos del principal (si ya no está Multicliente)
             _remove_ip_from_feed(ip_txt, FEED_FILE)
 
         if not remaining:
@@ -1891,9 +1986,11 @@ def bloquear_ip_api():
             _remove_ip_from_feed(ip_txt, FEED_FILE_BPE)
             meta_del_ip(ip_txt)
             save_meta(meta)
+            _audit("api_delete_all_tags_cleanup", g.get("api_actor","api"), ip_txt, {})
             return jsonify({"status": "deleted", "ip": ip_txt, "scope": "all_tags"}), 200
         else:
             save_meta(meta)
+            _audit("api_delete_some_tags", g.get("api_actor","api"), ip_txt, {"remaining": remaining})
             return jsonify({"status": "updated", "ip": ip_txt, "remaining_tags": remaining}), 200
 
 
@@ -1902,16 +1999,20 @@ def estado_api(ip_str):
     try:
         ipaddress.ip_address(ip_str)
     except Exception:
+        _audit("api_estado_invalid_ip", g.get("api_actor","api"), ip_str, {})
         return jsonify({"error": "IP inválida"}), 400
     meta = load_meta()
     entry = meta.get("ip_details", {}).get(ip_str)
     if not entry:
+        _audit("api_estado_not_found", g.get("api_actor","api"), ip_str, {})
         return jsonify({"status": "not_found", "ip": ip_str}), 404
+    _audit("api_estado_ok", g.get("api_actor","api"), ip_str, {})
     return jsonify({"status": "ok", "data": entry}), 200
 
 
 @api.route("/lista/<tag>", methods=["GET"])
 def lista_tag_api(tag):
+    _audit("api_lista_tag", g.get("api_actor","api"), tag, {})
     path = os.path.join(TAGS_DIR, f"{tag}.txt")
     if not os.path.exists(path):
         return jsonify({"status": "not_found", "tag": tag, "entries": []}), 404
@@ -1939,6 +2040,7 @@ def lista_tag_api(tag):
 # Health de la API
 @api.route("/", methods=["GET"])
 def api_root():
+    _audit("api_root", g.get("api_actor","api"), "/", {})
     return jsonify({
         "service": "IOC Manager API",
         "status": "running",
