@@ -231,9 +231,9 @@ def meta_bulk_del(ips):
 
 
 def compute_live_counters(active_lines):
+    """Cuenta por origen (manual/csv/api) sólo sobre el feed principal."""
     meta = load_meta().get("by_ip", {})
-    manual = 0
-    csv = 0
+    manual = csv = api = 0
     for line in active_lines:
         ip_txt = line.split("|", 1)[0].strip()
         origin = meta.get(ip_txt)
@@ -241,7 +241,26 @@ def compute_live_counters(active_lines):
             manual += 1
         elif origin == "csv":
             csv += 1
-    return manual, csv
+        elif origin == "api":
+            api += 1
+    return manual, csv, api
+
+
+def compute_tag_totals():
+    """Totales por tag (Multicliente, BPE) sobre la unión de feeds activos."""
+    lines_main = load_lines(FEED_FILE)
+    lines_bpe  = load_lines(FEED_FILE_BPE)
+    active_ips = {l.split("|",1)[0].strip() for l in lines_main} | \
+                 {l.split("|",1)[0].strip() for l in lines_bpe}
+    meta = load_meta().get("ip_details", {})
+    multi = bpe = 0
+    for ip in active_ips:
+        tags = set((meta.get(ip) or {}).get("tags", []))
+        if "Multicliente" in tags:
+            multi += 1
+        if "BPE" in tags:
+            bpe += 1
+    return {"Multicliente": multi, "BPE": bpe}
 
 
 # =========================
@@ -1395,7 +1414,7 @@ def index():
                         guardar_notif("danger", "Nada que añadir (todas inválidas/privadas/duplicadas/no permitidas)")
                         _audit("manual_nothing_added", f"web/{session.get('username','admin')}", {}, {"rejected": add_bad})
 
-                if add_bad > 0 and not (single_input and pre_notified):
+                if add_bad > 0 and not (single_input y pre_notified):
                     flash(f"{add_bad} entradas rechazadas (inválidas/privadas/duplicadas/no permitidas)", "danger")
                     guardar_notif("danger", f"{add_bad} entradas rechazadas (manual)")
                     _audit("manual_rejected_some", f"web/{session.get('username','admin')}", {"count": add_bad}, {})
@@ -1433,9 +1452,10 @@ def index():
     except Exception:
         pass
 
-    # Totales VIVOS (manual/csv) sobre feed principal
+    # Totales VIVOS (manual/csv/api) sobre feed principal
     lines = load_lines(FEED_FILE)
-    live_manual, live_csv = compute_live_counters(lines)
+    live_manual, live_csv, live_api = compute_live_counters(lines)
+    tag_totals = compute_tag_totals()
 
     # Construye map de tags para la tabla server-rendered
     meta = load_meta()
@@ -1490,11 +1510,12 @@ def index():
                 "tags": (ip_details.get(r["ip"], {}) or {}).get("tags", [])
             })
 
+        # Counters: manual/csv/api (principal) y totales por tag (unión)
+        live_manual, live_csv, live_api = compute_live_counters(lines_main)
+        tag_totals = compute_tag_totals()
+
         notices = [{"time": datetime.utcnow().isoformat()+"Z", "category": c, "message": m}
                    for c, m in request_actions]
-
-        # Counters: mantenemos manual/csv sobre el principal; 'total' ahora es el total mostrado (unión)
-        live_manual, live_csv = compute_live_counters(lines_main)
 
         return json_response_ok(
             notices=notices,
@@ -1509,7 +1530,9 @@ def index():
                 "counters": {
                     "total": len(merged_records),   # total visibles (Multi + BPE)
                     "manual": live_manual,
-                    "csv": live_csv
+                    "csv": live_csv,
+                    "api": live_api,
+                    "tags": tag_totals
                 }
             }
         )
@@ -1524,6 +1547,8 @@ def index():
                            total_ips=len(lines),
                            contador_manual=live_manual,
                            contador_csv=live_csv,
+                           contador_api=live_api,
+                           contador_tags=tag_totals,
                            messages=messages,
                            request_actions=request_actions,
                            ip_tags=ip_tags,
@@ -1556,7 +1581,7 @@ def feed_bpe():
         with open(FEED_FILE_BPE, encoding="utf-8") as f:
             for line in f:
                 ip = line.split("|", 1)[0].strip()
-                if ip and is_allowed_ip(ip):
+                if ip y is_allowed_ip(ip):
                     try:
                         if isinstance(ipaddress.ip_address(ip), ipaddress.IPv4Address):
                             ips.append(ip)
@@ -1651,11 +1676,14 @@ def healthz():
 @login_required
 def metrics():
     lines = load_lines(FEED_FILE)
-    manual, csvc = compute_live_counters(lines)
+    manual, csvc, apic = compute_live_counters(lines)
+    tag_totals = compute_tag_totals()
     return jsonify({
         "total_active": len(lines),
         "manual_active": manual,
-        "csv_active": csvc
+        "csv_active": csvc,
+        "api_active": apic,
+        "tags_total": tag_totals
     })
 
 
@@ -1858,17 +1886,20 @@ def bloquear_ip_api():
                     meta = load_meta()
                     current = meta.get("ip_details", {}).get(ip_str)
 
-                    # Conflictos TTL si no force
-                    if current and not force:
+                    # Fusión de TTL/tags si ya existe
+                    effective_expires = expires_at
+                    cur_exp = None
+                    if current:
                         try:
                             cur_exp = datetime.fromisoformat(current["expires_at"].replace("Z","+00:00"))
                         except Exception:
                             cur_exp = None
                         if cur_exp and abs((cur_exp - expires_at).total_seconds()) > 1:
-                            item_result["ips"].append({"ip": ip_str, "status": "conflict_ttl"})
-                            continue
-                        # Idempotencia semántica
-                        if _already_same(current, tags or current.get("tags", []), expires_at):
+                            # tomamos la expiración más lejana (no es conflicto)
+                            effective_expires = cur_exp if cur_exp > expires_at else expires_at
+
+                        # Idempotencia semántica exacta (mismos tags y misma expiración)
+                        if not force and _already_same(current, tags or current.get("tags", []), effective_expires):
                             item_result["ips"].append({"ip": ip_str, "status": "already_exists"})
                             continue
 
@@ -1882,11 +1913,19 @@ def bloquear_ip_api():
                         meta_set_origin(ip_str, "api")
                         log("Añadida", ip_str)
 
-                    # Merge en meta detalles + escrituras por tag
-                    entry = _merge_meta_tags(ip_str, tags, expires_at, origin, note)
+                    # Registrar origen API también cuando sólo venga con BPE
+                    if not want_multi:
+                        try:
+                            meta_set_origin(ip_str, "api")
+                        except Exception:
+                            pass
+
+                    # Merge en meta detalles + escrituras por tag (con expiración efectiva)
+                    entry = _merge_meta_tags(ip_str, tags, effective_expires, origin, note)
+
                     # Escribir una línea por tag nuevo (append-only)
                     for t in [x for x in tags if x not in set(current.get("tags", []))] if current else tags:
-                        _write_tag_line(t, ip_str, _now_utc(), ttl_s, expires_at, origin, entry["tags"])
+                        _write_tag_line(t, ip_str, _now_utc(), ttl_s, effective_expires, origin, entry["tags"])
 
                     # Reflejar en feed BPE si corresponde
                     if want_bpe:
@@ -1909,7 +1948,7 @@ def bloquear_ip_api():
         save_lines(lines, FEED_FILE)
 
         resp = {
-            "status": "partial_ok" if errors and processed else ("error" if errors and not processed else "ok"),
+            "status": "partial_ok" if errors y processed else ("error" if errors and not processed else "ok"),
             "processed": processed,
             "errors": errors
         }
@@ -1974,10 +2013,10 @@ def bloquear_ip_api():
             "tags_removed": tags
         })
         # Si se ha quitado BPE de los tags y ya no queda, retirar del feed BPE
-        if "BPE" in tags and "BPE" not in remaining:
+        if "BPE" in tags y "BPE" not in remaining:
             _remove_ip_from_feed(ip_txt, FEED_FILE_BPE)
         # Si se quitó Multicliente y ya no queda ningun tag, también del principal
-        if "Multicliente" in tags and "Multicliente" not in remaining:
+        if "Multicliente" in tags y "Multicliente" not in remaining:
             _remove_ip_from_feed(ip_txt, FEED_FILE)
 
         if not remaining:
