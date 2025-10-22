@@ -257,7 +257,6 @@
   <div class="col-lg-5">
     <label class="form-label small mb-1">Seleccionar archivo</label>
     <input class="form-control" type="file" id="file" name="file" accept=".csv,.txt">
-    <div class="form-text small">Solo archivos .csv o .txt con una IP por línea.</div>
   </div>
 
   <!-- TTL global para CSV -->
@@ -286,18 +285,25 @@
       </div>
       <input type="hidden" id="tagsCsvInput" name="tags_csv" value="">
     </div>
-    <div id="tagCsvFeedback" class="invalid-feedback" style="display:none;">
-      Selecciona al menos un tag (Multicliente y/o BPE).
-    </div>
-    <div class="form-text small">Aplica estos tags a todas las filas del archivo.</div>
   </div>
 
   <!-- Botones -->
   <div class="col-lg-2">
+    <!-- label “fantasma” para igualar altura de cabecera -->
+    <label class="form-label small mb-1 d-none d-lg-block">&nbsp;</label>
     <div class="d-flex gap-2">
       <button id="uploadCsvBtn" type="submit" class="btn btn-primary w-100">Subir archivo</button>
-      <a href="{{ url_for('static', filename='plantilla.csv') }}" class="btn btn-secondary w-100" download>Descargar plantilla</a>
+      <a href="{{ url_for('static', filename='plantilla.csv') }}" class="btn btn-secondary w-100" download>
+        Descargar plantilla
+      </a>
     </div>
+  </div>
+</div>
+
+<!-- Nota de ayuda (fuera de la fila para no desalinear) -->
+<div class="row mb-3">
+  <div class="col-12">
+    <div class="form-text small">Solo archivos .csv o .txt con una IP por línea.</div>
   </div>
 </div>
 
