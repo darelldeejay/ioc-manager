@@ -334,3 +334,9 @@ html[data-theme="dark"] .btn-outline-secondary:hover { background: #2b2b2b; }
 /* Tabla: filas seleccionadas */
 .table-active-selected { outline: 2px solid rgba(13,110,253,.35); }
 html[data-theme="dark"] .table-active-selected { outline-color: rgba(13,110,253,.55); }
+
+/* Toasts */
+html[data-theme="dark"] .toast { background-color: #1f1f1f; color: #e9ecef; }
+html[data-theme="dark"] .text-bg-success { background-color: #198754 !important; color: #fff !important; }
+html[data-theme="dark"] .text-bg-warning { background-color: #fd7e14 !important; color: #212529 !important; }
+html[data-theme="dark"] .text-bg-danger  { background-color: #dc3545 !important; color: #fff !important; }
