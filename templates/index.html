@@ -296,7 +296,7 @@
   <div class="col-lg-2">
     <div class="d-flex gap-2">
       <button id="uploadCsvBtn" type="submit" class="btn btn-primary w-100">Subir archivo</button>
-      <a href="{{ url_for('descargar_plantilla') }}" class="btn btn-secondary w-100">Descargar plantilla</a>
+      <a href="{{ url_for('static', filename='plantilla.csv') }}" class="btn btn-secondary w-100" download>Descargar plantilla</a>
     </div>
   </div>
 </div>
