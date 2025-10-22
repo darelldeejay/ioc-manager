@@ -732,6 +732,14 @@
     hidden.classList.toggle('is-invalid', !!show);
   }
 
+  function showCsvTagError(show){
+  const fb = document.getElementById('tagCsvFeedback');
+  const hidden = document.getElementById('tagsCsvInput');
+  if (!fb || !hidden) return;
+  fb.style.display = show ? 'block' : 'none';
+  hidden.classList.toggle('is-invalid', !!show);
+}
+
   const setLoading = (btn, textWhileLoading) => {
     if (!btn) return;
     btn.dataset.originalHtml = btn.innerHTML;
@@ -742,37 +750,42 @@
     `;
   };
 
-  document.getElementById('mainForm')?.addEventListener('submit', (ev) => {
-    // --- Validación de tags (manual obligatorio) ---
-    syncHiddenTags();
-    const fileHasValue = !!document.querySelector('input[type="file"][name="file"]')?.value;
-    if (!fileHasValue) { // flujo MANUAL
-      const man = selectedTags('tag-manual');
-      if (man.length === 0) {
-        ev.preventDefault();
-        ev.stopPropagation();
-        showManualTagError(true);
-        // foco al primer checkbox
-        const first = document.querySelector('.tag-manual');
-        first && first.focus && first.focus();
-        return;
-      } else {
-        showManualTagError(false);
-      }
+document.getElementById('mainForm')?.addEventListener('submit', (ev) => {
+  // --- Validación de tags ---
+  syncHiddenTags();
+  const fileHasValue = !!document.querySelector('input[type="file"][name="file"]')?.value;
+
+  if (!fileHasValue) {            // === Flujo MANUAL ===
+    const man = selectedTags('tag-manual');
+    if (man.length === 0) {
+      ev.preventDefault(); ev.stopPropagation();
+      showManualTagError(true);
+      document.querySelector('.tag-manual')?.focus();
+      return;
     } else {
       showManualTagError(false);
     }
-
-    // Spinners
-    const manualBtn = document.getElementById('addManualBtn');
-    const csvBtn = document.getElementById('uploadCsvBtn');
-
-    if (fileHasValue) {
-      setLoading(csvBtn, 'Subiendo…');
+  } else {                        // === Flujo CSV (OBLIGATORIO) ===
+    const csv = selectedTags('tag-csv');
+    if (csv.length === 0) {
+      ev.preventDefault(); ev.stopPropagation();
+      showCsvTagError(true);
+      document.querySelector('.tag-csv')?.focus();
+      return;
     } else {
-      setLoading(manualBtn, 'Añadiendo…');
+      showCsvTagError(false);
     }
-  });
+  }
+
+  // Spinners (igual que tenías)
+  const manualBtn = document.getElementById('addManualBtn');
+  const csvBtn = document.getElementById('uploadCsvBtn');
+  if (fileHasValue) {
+    setLoading(csvBtn, 'Subiendo…');
+  } else {
+    setLoading(manualBtn, 'Añadiendo…');
+  }
+});
 
   window.addEventListener('pageshow', () => {
     ['addManualBtn','uploadCsvBtn'].forEach(id => {
