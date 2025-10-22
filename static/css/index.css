@@ -314,3 +314,23 @@ html[data-theme="dark"] .form-text * {
 .bg-dark .form-text * {
   color: #cbd3da !important;
 }
+
+/* Compactar vertical en formularios */
+.row.g-3.align-items-end .form-label { margin-bottom: .25rem; }
+
+/* Checkboxes más alineados con inputs */
+#tagManualGroup .form-check-input { margin-top: 0.1rem; }
+#tagManualGroup .form-check { display: flex; align-items: center; gap: .35rem; }
+
+/* Badges de tags con buen contraste en ambos temas */
+.badge-tag { border: 0; font-weight: 600; }
+
+/* Modo oscuro – contrates coherentes */
+html[data-theme="dark"] .form-check-label { color: #e9ecef; }
+html[data-theme="dark"] .text-muted { color: #cbd3da !important; }
+html[data-theme="dark"] .btn-outline-secondary { color: #e9ecef; border-color: #2e2e2e; }
+html[data-theme="dark"] .btn-outline-secondary:hover { background: #2b2b2b; }
+
+/* Tabla: filas seleccionadas */
+.table-active-selected { outline: 2px solid rgba(13,110,253,.35); }
+html[data-theme="dark"] .table-active-selected { outline-color: rgba(13,110,253,.55); }
