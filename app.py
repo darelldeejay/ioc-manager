@@ -1103,7 +1103,7 @@ def index():
 
             # limpiar feeds
             save_lines([], FEED_FILE)
-            _remove_bulk_from_feed(all_ips, FEED_FILE_BPE)  # NEW: limpia también BPE
+            _remove_bulk_from_feed(all_ips, FEED_FILE_BPE)  # limpia también BPE
 
             # meta/tag-files
             meta_bulk_del(all_ips)
@@ -1118,33 +1118,20 @@ def index():
         if "delete_ip" in request.form:
             ip_to_delete = request.form.get("delete_ip")
             orig_line = next((l for l in lines if l.startswith(ip_to_delete + "|")), None)
+
+            # Quitar del feed principal
             new_lines = [l for l in lines if not l.startswith(ip_to_delete + "|")]
             save_lines(new_lines, FEED_FILE)
 
-            # NUEVO: si la IP existía solo en BPE, quítala de ese feed también
+            # Quitar también del feed BPE si estuviera
             _remove_ip_from_feed(ip_to_delete, FEED_FILE_BPE)
 
-            meta_del_ip(ip_to_delete)
-            guardar_notif("warning", f"IP eliminada (Multicliente): {ip_to_delete}")
-            flash(f"IP eliminada: {ip_to_delete}", "warning")
-            if orig_line:
-                _set_last_action("delete", [orig_line])
-            return redirect(url_for("index"))
-
-            # Guardamos la línea del feed principal para UNDO (si existía)
-            orig_line = next((l for l in lines if l.startswith(ip_to_delete + "|")), None)
-
-            # 1) Quitar de ambos feeds (principal y BPE)
-            _remove_ip_from_all_feeds(ip_to_delete)
-
-            # 2) Limpiar meta + tag-files
+            # Limpiar meta + tag-files
             meta_del_ip(ip_to_delete)
 
-            # 3) Notificaciones/UI
+            # Notifs + UNDO
             guardar_notif("warning", f"IP eliminada: {ip_to_delete}")
             flash(f"IP eliminada: {ip_to_delete}", "warning")
-
-            # 4) UNDO: solo podemos restaurar la línea del feed principal
             if orig_line:
                 _set_last_action("delete", [orig_line])
 
@@ -1154,11 +1141,11 @@ def index():
         if "delete-net" in request.form:
             patron = request.form.get("delete_net_input", "").strip()
             try:
-                # 1) Aplicar al feed principal (como ya hacíamos)
+                # 1) Aplicar al feed principal
                 new_lines, removed, removed_ips, removed_lines = filter_lines_delete_pattern(lines, patron)
                 save_lines(new_lines, FEED_FILE)
 
-                # 2) Quitar también del feed BPE cualquier IP eliminada
+                # 2) Quitar del feed BPE cualquier IP eliminada
                 if removed_ips:
                     bpe_lines = load_lines(FEED_FILE_BPE)
                     bpe_new = [l for l in bpe_lines if l.split("|",1)[0] not in set(removed_ips)]
@@ -1178,106 +1165,101 @@ def index():
                 flash(str(e), "danger")
             return redirect(url_for("index"))
 
-# -------------------- Subida CSV/TXT --------------------
-file = request.files.get("file")
-if file and file.filename:
-    # 0) Extensión permitida (defensivo)
-    fname = file.filename.lower()
-    if not (fname.endswith(".csv") or fname.endswith(".txt")):
-        flash("Solo se permiten archivos .csv o .txt.", "danger")
-        return redirect(url_for("index"))
+        # -------------------- Subida CSV/TXT --------------------
+        file = request.files.get("file")
+        if file and file.filename:
+            # 0) Extensión permitida (defensivo)
+            fname = file.filename.lower()
+            if not (fname.endswith(".csv") or fname.endswith(".txt")):
+                flash("Solo se permiten archivos .csv o .txt.", "danger")
+                return redirect(url_for("index"))
 
-    # 1) TTL global
-    ttl_csv_sel = request.form.get("ttl_csv", "permanente")
-    # Valida valores esperados para evitar basura
-    _ttl_allowed = {"permanente", "1", "3", "7", "30"}
-    if ttl_csv_sel not in _ttl_allowed:
-        ttl_csv_sel = "permanente"
-    ttl_csv_val = "0" if ttl_csv_sel == "permanente" else ttl_csv_sel
+            # 1) TTL global
+            ttl_csv_sel = request.form.get("ttl_csv", "permanente")
+            _ttl_allowed = {"permanente", "1", "3", "7", "30"}
+            if ttl_csv_sel not in _ttl_allowed:
+                ttl_csv_sel = "permanente"
+            ttl_csv_val = "0" if ttl_csv_sel == "permanente" else ttl_csv_sel
 
-    # 2) Tags CSV (OBLIGATORIO: GUI y API)
-    raw_tags_csv = _parse_tags_field(request.form.get("tags_csv", ""))
-    tags_csv = _filter_allowed_tags(raw_tags_csv)
-    if not tags_csv:
-        flash("Debes seleccionar al menos un tag válido (Multicliente y/o BPE) para el CSV.", "danger")
-        try:
-            guardar_notif("danger", "Intento de subida CSV sin tags (rechazado)")
-        except Exception:
-            pass
-        return redirect(url_for("index"))
-
-    # 3) Lectura segura del archivo (reinicia puntero y tolera BOM/errores)
-    try:
-        file.stream.seek(0)
-    except Exception:
-        pass
-
-    try:
-        content = file.read().decode("utf-8", errors="ignore").splitlines()
-    except Exception:
-        content = []
-
-    valid_ips_total = 0
-    rejected_total = 0
-    added_lines_acc = []
-
-    for raw in content:
-        raw = (raw or "").strip()
-        if not raw:
-            continue
-
-        try:
-            expanded = expand_input_to_ips(raw)
-        except ValueError as e:
-            # Bloqueo global (0.0.0.0, etc.)
-            if str(e) == "accion_no_permitida":
-                flash("⚠️ Acción no permitida: bloqueo de absolutamente todo", "accion_no_permitida")
+            # 2) Tags CSV (OBLIGATORIO: GUI y API)
+            raw_tags_csv = _parse_tags_field(request.form.get("tags_csv", ""))
+            tags_csv = _filter_allowed_tags(raw_tags_csv)
+            if not tags_csv:
+                flash("Debes seleccionar al menos un tag válido (Multicliente y/o BPE) para el CSV.", "danger")
                 try:
-                    guardar_notif("accion_no_permitida", "Intento de bloqueo global (CSV)")
+                    guardar_notif("danger", "Intento de subida CSV sin tags (rechazado)")
                 except Exception:
                     pass
-                continue
-            # Entrada inválida
-            rejected_total += 1
-            continue
+                return redirect(url_for("index"))
 
-        add_ok, add_bad, added_lines = add_ips_validated(
-            lines, existentes, expanded,
-            ttl_val=ttl_csv_val,
-            origin="csv",
-            contador_ruta=COUNTER_CSV,
-            tags=tags_csv,  # lista ya filtrada
-        )
+            # 3) Lectura segura del archivo
+            try:
+                file.stream.seek(0)
+            except Exception:
+                pass
+            try:
+                content = file.read().decode("utf-8", errors="ignore").splitlines()
+            except Exception:
+                content = []
 
-        valid_ips_total += add_ok
-        rejected_total += add_bad
-        added_lines_acc.extend(added_lines)
+            valid_ips_total = 0
+            rejected_total = 0
+            added_lines_acc = []
 
-    # 4) Persistir feed y notificar
-    save_lines(lines, FEED_FILE)
+            for raw in content:
+                raw = (raw or "").strip()
+                if not raw:
+                    continue
 
-    if valid_ips_total:
-        try:
-            guardar_notif("success", f"{valid_ips_total} IPs añadidas (CSV)")
-        except Exception:
-            pass
-        flash(f"{valid_ips_total} IP(s) añadida(s) correctamente (CSV)", "success")
-        if added_lines_acc:
-            _set_last_action("add", added_lines_acc)
+                try:
+                    expanded = expand_input_to_ips(raw)
+                except ValueError as e:
+                    if str(e) == "accion_no_permitida":
+                        flash("⚠️ Acción no permitida: bloqueo de absolutamente todo", "accion_no_permitida")
+                        try:
+                            guardar_notif("accion_no_permitida", "Intento de bloqueo global (CSV)")
+                        except Exception:
+                            pass
+                        continue
+                    rejected_total += 1
+                    continue
 
-    if rejected_total:
-        try:
-            guardar_notif("danger", f"{rejected_total} entradas rechazadas (CSV)")
-        except Exception:
-            pass
-        flash(f"{rejected_total} entradas rechazadas (inválidas/privadas/duplicadas/no permitidas)", "danger")
+                add_ok, add_bad, added_lines = add_ips_validated(
+                    lines, existentes, expanded,
+                    ttl_val=ttl_csv_val,
+                    origin="csv",
+                    contador_ruta=COUNTER_CSV,
+                    tags=tags_csv,
+                )
 
-    return redirect(url_for("index"))
-# ------------------ FIN Subida CSV/TXT -------------------
+                valid_ips_total += add_ok
+                rejected_total += add_bad
+                added_lines_acc.extend(added_lines)
+
+            # 4) Persistir feed y notificar
+            save_lines(lines, FEED_FILE)
+
+            if valid_ips_total:
+                try:
+                    guardar_notif("success", f"{valid_ips_total} IPs añadidas (CSV)")
+                except Exception:
+                    pass
+                flash(f"{valid_ips_total} IP(s) añadida(s) correctamente (CSV)", "success")
+                if added_lines_acc:
+                    _set_last_action("add", added_lines_acc)
+
+            if rejected_total:
+                try:
+                    guardar_notif("danger", f"{rejected_total} entradas rechazadas (CSV)")
+                except Exception:
+                    pass
+                flash(f"{rejected_total} entradas rechazadas (inválidas/privadas/duplicadas/no permitidas)", "danger")
+
+            return redirect(url_for("index"))
+        # ------------------ FIN Subida CSV/TXT -------------------
 
         # Alta manual (Tag OBLIGATORIO: Multicliente y/o BPE)
         raw_input = request.form.get("ip", "").strip()
-
         ttl_man_sel = request.form.get("ttl_manual", "permanente")
         ttl_val = "0" if ttl_man_sel == "permanente" else ttl_man_sel
 
@@ -1292,7 +1274,6 @@ if file and file.filename:
             try:
                 expanded = expand_input_to_ips(raw_input)
 
-                # Si no se obtuvieron IPs públicas (privadas/loopback/0.0.0.0/etc.), informar y salir
                 if not expanded:
                     raw_first = raw_input.strip().split(" ", 1)[0]
                     reason = ip_block_reason(raw_first)
@@ -1357,7 +1338,6 @@ if file and file.filename:
             return redirect(url_for("index"))
         else:
             error = "Debes introducir una IP, red CIDR, rango A-B o IP con máscara"
-
     
     # ----- GET (vista HTML o JSON paginado) -----
     # 1) Flashes de esta petición (para TOASTS y burbuja)
