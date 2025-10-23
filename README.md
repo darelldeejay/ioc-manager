@@ -24,6 +24,7 @@ Pensada para integrarse con **Fortinet FortiGate** mediante conectores externos,
 
 ```bash
 sudo apt update && sudo apt install -y python3 python3-venv python3-pip gunicorn
+sudo apt install git
 ```
 
 ---
