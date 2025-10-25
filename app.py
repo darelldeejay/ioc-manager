@@ -294,7 +294,7 @@ def compute_source_and_tag_counters_union():
 
     for ip in active_ips:
         entry = details.get(ip) or {}
-        src = (by_ip.get(ip) or entry.get("source") or "").lower()
+        src = (entry.get("source") or by_ip.get(ip) or "").lower()
         if src not in counters_by_source:
             if src in ("manual", "csv", "api"):
                 pass
@@ -1609,18 +1609,18 @@ def index():
                 "order": order,
                 "filters": {"q": q, "date": date_param},
                 "counters": {
-                    "total": len(merged_records),   # total visibles (Multi + BPE)
-                    "manual": live_manual,          # principal (compat)
-                    "csv": live_csv,
-                    "api": live_api,
-                    "tags": tag_totals,             # unión por tag (compat)
-                    "union": {                      # NUEVOS: unión completa
                         "total": total_union,
-                        "by_source": src_union,
-                        "by_tag": tag_union,
-                        "by_source_tag": src_tag_union
-                    }
-                }
+                        "manual": src_union.get("manual", 0),
+                        "csv": src_union.get("csv", 0),
+                        "api": src_union.get("api", 0),
+                        "tags": tag_totals,
+                        "union": {
+                         "total": total_union,
+                         "by_source": src_union,
+                         "by_tag": tag_union,
+                         "by_source_tag": src_tag_union
+                     }
+                 }
             }
         )
 
@@ -1631,10 +1631,10 @@ def index():
     return render_template("index.html",
                            ips=lines,
                            error=error,
-                           total_ips=len(merged_records),
-                           contador_manual=live_manual,
-                           contador_csv=live_csv,
-                           contador_api=live_api,
+                           total_ips=total_union,
+                           contador_manual=src_union.get("manual", 0),
+                           contador_csv=src_union.get("csv", 0),
+                           contador_api=src_union.get("api", 0),
                            contador_tags=tag_totals,
                            # NUEVOS resúmenes (unión feeds)
                            union_total=total_union,
