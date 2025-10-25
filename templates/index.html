@@ -165,10 +165,32 @@
   </p>
 </div>
 
-  <div class="alert alert-info text-center">
-    📊 Total de IPs activas: <strong id="totalCount">{{ total_ips }}</strong><br>
-    ℹ️ Añadidas: Manual (<strong id="manualCount">{{ contador_manual }}</strong>) · CSV (<strong id="csvCount">{{ contador_csv }}</strong>)
+  <!-- ======= RESUMEN AMPLIADO ======= -->
+  <div class="row g-3 mb-3">
+    <div class="col-12">
+      <div class="alert alert-info text-center mb-0">
+        <div class="fw-semibold mb-1">📊 Resumen</div>
+        <div>
+          Total activas: <strong id="totalCount">{{ total_ips }}</strong>
+        </div>
+        <div class="mt-1">
+          Fuentes → Manual
+          (<strong id="manualCount">{{ contador_manual }}</strong>)
+          · CSV
+          (<strong id="csvCount">{{ contador_csv }}</strong>)
+          · API
+          (<strong id="apiCount">{{ contador_api }}</strong>)
+        </div>
+        <div class="mt-1">
+          Tags → Multicliente
+          (<strong id="tagMultiCount">{{ (contador_tags or {}).get('Multicliente', 0) }}</strong>)
+          · BPE
+          (<strong id="tagBpeCount">{{ (contador_tags or {}).get('BPE', 0) }}</strong>)
+        </div>
+      </div>
+    </div>
   </div>
+  <!-- ======= FIN RESUMEN AMPLIADO ======= -->
 
   <!-- Botones de backup -->
   <div class="d-flex gap-2 justify-content-center mb-3">
@@ -1368,14 +1390,24 @@ document.getElementById('mainForm')?.addEventListener('submit', (ev) => {
     nextBtn.disabled = (state.page >= pages);
   }
 
+  // ===>> Actualiza totales globales (incluye API y Tags)
   function updateCounters(counters){
     if (!counters) return;
     const t = document.getElementById('totalCount');
     const m = document.getElementById('manualCount');
     const c = document.getElementById('csvCount');
-    if (t) t.textContent = counters.total ?? t.textContent;
-    if (m) m.textContent = counters.manual ?? m.textContent;
-    if (c) c.textContent = counters.csv ?? c.textContent;
+    const a = document.getElementById('apiCount');
+    const tm = document.getElementById('tagMultiCount');
+    const tb = document.getElementById('tagBpeCount');
+
+    if (t && counters.total !== undefined) t.textContent = counters.total;
+    if (m && counters.manual !== undefined) m.textContent = counters.manual;
+    if (c && counters.csv !== undefined)    c.textContent = counters.csv;
+    if (a && counters.api !== undefined)    a.textContent = counters.api;
+
+    const tags = (counters.tags || {});
+    if (tm && tags['Multicliente'] !== undefined) tm.textContent = tags['Multicliente'];
+    if (tb && tags['BPE'] !== undefined)          tb.textContent = tags['BPE'];
   }
 
   async function bulkDeleteSelected(){
