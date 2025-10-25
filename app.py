@@ -1609,18 +1609,18 @@ def index():
                 "order": order,
                 "filters": {"q": q, "date": date_param},
                 "counters": {
+                    "total": total_union,
+                    "manual": src_union.get("manual", 0),
+                    "csv":    src_union.get("csv", 0),
+                    "api":    src_union.get("api", 0),
+                    "tags":   tag_union,
+                    "union": {
                         "total": total_union,
-                        "manual": src_union.get("manual", 0),
-                        "csv": src_union.get("csv", 0),
-                        "api": src_union.get("api", 0),
-                        "tags": tag_totals,
-                        "union": {
-                         "total": total_union,
-                         "by_source": src_union,
-                         "by_tag": tag_union,
-                         "by_source_tag": src_tag_union
-                     }
-                 }
+                        "by_source": src_union,
+                        "by_tag": tag_union,
+                        "by_source_tag": src_tag_union
+                    }
+                }
             }
         )
 
