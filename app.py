@@ -263,6 +263,61 @@ def compute_tag_totals():
     return {"Multicliente": multi, "BPE": bpe}
 
 
+# === NUEVOS: unión feeds y matriz fuente×tag ===
+def _active_ip_union():
+    """Devuelve el conjunto de IPs activas uniendo Multicliente y BPE."""
+    lines_main = load_lines(FEED_FILE)
+    lines_bpe = load_lines(FEED_FILE_BPE)
+    return {l.split("|", 1)[0].strip() for l in lines_main} | \
+           {l.split("|", 1)[0].strip() for l in lines_bpe}
+
+def compute_source_and_tag_counters_union():
+    """
+    Contadores en vivo sobre la unión de feeds:
+      - por fuente: manual/csv/api
+      - por tag: Multicliente/BPE
+      - por fuente×tag: matriz
+    Origen: preferimos META['by_ip'][ip] y caemos a entry['source'] si no existe.
+    """
+    active_ips = _active_ip_union()
+    meta = load_meta()
+    by_ip = (meta.get("by_ip") or {})
+    details = (meta.get("ip_details") or {})
+
+    counters_by_source = {"manual": 0, "csv": 0, "api": 0}
+    counters_by_tag = {"Multicliente": 0, "BPE": 0}
+    counters_by_source_tag = {
+        "manual": {"Multicliente": 0, "BPE": 0},
+        "csv": {"Multicliente": 0, "BPE": 0},
+        "api": {"Multicliente": 0, "BPE": 0},
+    }
+
+    for ip in active_ips:
+        entry = details.get(ip) or {}
+        src = (by_ip.get(ip) or entry.get("source") or "").lower()
+        if src not in counters_by_source:
+            if src in ("manual", "csv", "api"):
+                pass
+            else:
+                src = None
+        tags = set(entry.get("tags") or [])
+
+        if "Multicliente" in tags:
+            counters_by_tag["Multicliente"] += 1
+        if "BPE" in tags:
+            counters_by_tag["BPE"] += 1
+
+        if src:
+            counters_by_source[src] += 1
+            if "Multicliente" in tags:
+                counters_by_source_tag[src]["Multicliente"] += 1
+            if "BPE" in tags:
+                counters_by_source_tag[src]["BPE"] += 1
+
+    total_union = len(active_ips)
+    return counters_by_source, counters_by_tag, counters_by_source_tag, total_union
+
+
 # =========================
 #  Utilidades de red
 # =========================
@@ -1061,7 +1116,7 @@ def _collect_known_tags():
             for name in os.listdir(TAGS_DIR):
                 if name.endswith(".txt"):
                     t = name[:-4]
-                    if t and t not in seen:
+                    if t y t not in seen:
                         seen.add(t); out.append(t)
     except Exception:
         pass
@@ -1414,7 +1469,7 @@ def index():
                         guardar_notif("danger", "Nada que añadir (todas inválidas/privadas/duplicadas/no permitidas)")
                         _audit("manual_nothing_added", f"web/{session.get('username','admin')}", {}, {"rejected": add_bad})
 
-                if add_bad > 0 and not (single_input y pre_notified):
+                if add_bad > 0 and not (single_input and pre_notified):
                     flash(f"{add_bad} entradas rechazadas (inválidas/privadas/duplicadas/no permitidas)", "danger")
                     guardar_notif("danger", f"{add_bad} entradas rechazadas (manual)")
                     _audit("manual_rejected_some", f"web/{session.get('username','admin')}", {"count": add_bad}, {})
@@ -1457,13 +1512,16 @@ def index():
     live_manual, live_csv, live_api = compute_live_counters(lines)
     tag_totals = compute_tag_totals()
 
+    # Resumen unión feeds (fuente, tag y fuente×tag)
+    src_union, tag_union, src_tag_union, total_union = compute_source_and_tag_counters_union()
+
     # Construye map de tags para la tabla server-rendered
     meta = load_meta()
     ip_tags = {}
     try:
-        active_ips = {l.split("|",1)[0] for l in lines}
+        active_ips_main = {l.split("|",1)[0] for l in lines}
         for ip, entry in (meta.get("ip_details") or {}).items():
-            if ip in active_ips:
+            if ip in active_ips_main:
                 ip_tags[ip] = entry.get("tags", [])
     except Exception:
         ip_tags = {}
@@ -1471,7 +1529,7 @@ def index():
     # JSON mode (paginación/ordenación/filtros)
     if request.args.get("format", "").lower() == "json":
         # Unir feeds: Multicliente (principal) + BPE
-        lines_main = load_lines(FEED_FILE)       # ya tenías 'lines', pero recargamos por seguridad
+        lines_main = load_lines(FEED_FILE)       # recargamos
         lines_bpe  = load_lines(FEED_FILE_BPE)
 
         rec_main = {r["ip"]: r for r in _feed_to_records(lines_main)}
@@ -1510,9 +1568,10 @@ def index():
                 "tags": (ip_details.get(r["ip"], {}) or {}).get("tags", [])
             })
 
-        # Counters: manual/csv/api (principal) y totales por tag (unión)
+        # Counters (principal + unión):
         live_manual, live_csv, live_api = compute_live_counters(lines_main)
         tag_totals = compute_tag_totals()
+        src_union, tag_union, src_tag_union, total_union = compute_source_and_tag_counters_union()
 
         notices = [{"time": datetime.utcnow().isoformat()+"Z", "category": c, "message": m}
                    for c, m in request_actions]
@@ -1529,10 +1588,16 @@ def index():
                 "filters": {"q": q, "date": date_param},
                 "counters": {
                     "total": len(merged_records),   # total visibles (Multi + BPE)
-                    "manual": live_manual,
+                    "manual": live_manual,          # principal (compat)
                     "csv": live_csv,
                     "api": live_api,
-                    "tags": tag_totals
+                    "tags": tag_totals,             # unión por tag (compat)
+                    "union": {                      # NUEVOS: unión completa
+                        "total": total_union,
+                        "by_source": src_union,
+                        "by_tag": tag_union,
+                        "by_source_tag": src_tag_union
+                    }
                 }
             }
         )
@@ -1549,6 +1614,11 @@ def index():
                            contador_csv=live_csv,
                            contador_api=live_api,
                            contador_tags=tag_totals,
+                           # NUEVOS resúmenes (unión feeds)
+                           union_total=total_union,
+                           union_by_source=src_union,
+                           union_by_tag=tag_union,
+                           union_by_source_tag=src_tag_union,
                            messages=messages,
                            request_actions=request_actions,
                            ip_tags=ip_tags,
@@ -1581,7 +1651,7 @@ def feed_bpe():
         with open(FEED_FILE_BPE, encoding="utf-8") as f:
             for line in f:
                 ip = line.split("|", 1)[0].strip()
-                if ip y is_allowed_ip(ip):
+                if ip and is_allowed_ip(ip):
                     try:
                         if isinstance(ipaddress.ip_address(ip), ipaddress.IPv4Address):
                             ips.append(ip)
@@ -1676,14 +1746,22 @@ def healthz():
 @login_required
 def metrics():
     lines = load_lines(FEED_FILE)
-    manual, csvc, apic = compute_live_counters(lines)
-    tag_totals = compute_tag_totals()
+    manual, csvc, apic = compute_live_counters(lines)   # compat (principal)
+    tag_totals = compute_tag_totals()                   # compat (unión por tag)
+    src_union, tag_union, src_tag_union, total_union = compute_source_and_tag_counters_union()
+
     return jsonify({
-        "total_active": len(lines),
-        "manual_active": manual,
-        "csv_active": csvc,
-        "api_active": apic,
-        "tags_total": tag_totals
+        # Compat anteriores (principal):
+        "total_active_principal": len(lines),
+        "manual_active_principal": manual,
+        "csv_active_principal": csvc,
+        "api_active_principal": apic,
+        "tags_total_union": tag_totals,
+        # Nuevos (unión feeds):
+        "union_total": total_union,
+        "union_by_source": src_union,
+        "union_by_tag": tag_union,
+        "union_by_source_tag": src_tag_union
     })
 
 
@@ -1948,7 +2026,7 @@ def bloquear_ip_api():
         save_lines(lines, FEED_FILE)
 
         resp = {
-            "status": "partial_ok" if errors y processed else ("error" if errors and not processed else "ok"),
+            "status": "partial_ok" if errors and processed else ("error" if errors and not processed else "ok"),
             "processed": processed,
             "errors": errors
         }
@@ -2013,10 +2091,10 @@ def bloquear_ip_api():
             "tags_removed": tags
         })
         # Si se ha quitado BPE de los tags y ya no queda, retirar del feed BPE
-        if "BPE" in tags y "BPE" not in remaining:
+        if "BPE" in tags and "BPE" not in remaining:
             _remove_ip_from_feed(ip_txt, FEED_FILE_BPE)
         # Si se quitó Multicliente y ya no queda ningun tag, también del principal
-        if "Multicliente" in tags y "Multicliente" not in remaining:
+        if "Multicliente" in tags and "Multicliente" not in remaining:
             _remove_ip_from_feed(ip_txt, FEED_FILE)
 
         if not remaining:
