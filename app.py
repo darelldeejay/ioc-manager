@@ -1507,10 +1507,27 @@ def index():
     except Exception:
         pass
 
-    # Totales VIVOS (manual/csv/api) sobre feed principal
-    lines = load_lines(FEED_FILE)
-    live_manual, live_csv, live_api = compute_live_counters(lines)
-    tag_totals = compute_tag_totals()
+    # Unión para contadores / totales de cabecera
+    lines_main = load_lines(FEED_FILE)
+    lines_bpe  = load_lines(FEED_FILE_BPE)
+    rec_main   = {r["ip"]: r for r in _feed_to_records(lines_main)}
+    rec_bpe    = {r["ip"]: r for r in _feed_to_records(lines_bpe)}
+    
+    merged_records = list(rec_main.values())
+    for ip, r in rec_bpe.items():
+        if ip not in rec_main:
+            merged_records.append(r)
+    
+    active_union_ips = {r["ip"] for r in merged_records}
+    meta_by_ip = load_meta().get("by_ip", {})
+    live_manual = sum(1 for ip in active_union_ips if meta_by_ip.get(ip) == "manual")
+    live_csv    = sum(1 for ip in active_union_ips if meta_by_ip.get(ip) == "csv")
+    live_api    = sum(1 for ip in active_union_ips if meta_by_ip.get(ip) == "api")
+    
+    tag_totals = compute_tag_totals()  # ya calcula Multicliente/BPE en la unión
+    
+    # OJO: la tabla sigue mostrando el principal (líneas HTML)
+    lines = lines_main
 
     # Resumen unión feeds (fuente, tag y fuente×tag)
     src_union, tag_union, src_tag_union, total_union = compute_source_and_tag_counters_union()
@@ -1569,8 +1586,13 @@ def index():
             })
 
         # Counters (principal + unión):
-        live_manual, live_csv, live_api = compute_live_counters(lines_main)
-        tag_totals = compute_tag_totals()
+        # Contadores por origen sobre la unión
+        active_union_ips = {r["ip"] for r in merged_records}
+        meta_by_ip = load_meta().get("by_ip", {})
+        live_manual = sum(1 for ip in active_union_ips if meta_by_ip.get(ip) == "manual")
+        live_csv    = sum(1 for ip in active_union_ips if meta_by_ip.get(ip) == "csv")
+        live_api    = sum(1 for ip in active_union_ips if meta_by_ip.get(ip) == "api")
+        tag_totals  = compute_tag_totals()  # ya devuelve totales por tag sobre la unión
         src_union, tag_union, src_tag_union, total_union = compute_source_and_tag_counters_union()
 
         notices = [{"time": datetime.utcnow().isoformat()+"Z", "category": c, "message": m}
@@ -1609,7 +1631,7 @@ def index():
     return render_template("index.html",
                            ips=lines,
                            error=error,
-                           total_ips=len(lines),
+                           total_ips=len(merged_records),
                            contador_manual=live_manual,
                            contador_csv=live_csv,
                            contador_api=live_api,
