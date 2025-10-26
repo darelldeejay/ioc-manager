@@ -736,7 +736,7 @@ def add_ips_validated(lines, existentes, iterable_ips, ttl_val, origin=None, con
     allow_test = "Test" in tags
 
     for ip_str in iterable_ips:
-        if not (allow_multi or allow_bpe):
+        if not (allow_multi or allow_bpe or allow_test):
             rechazadas += 1
             continue
 
@@ -1702,23 +1702,11 @@ def feed():
 # === NUEVO: feed BPE separado ===
 @app.route("/feed/ioc-feed-bpe.txt")
 def feed_bpe():
-    ips = []
-    if os.path.exists(FEED_FILE_BPE):
-        with open(FEED_FILE_BPE, encoding="utf-8") as f:
-            for line in f:
-                ip = line.split("|", 1)[0].strip()
-                if ip and is_allowed_ip(ip):
-                    try:
-                        if isinstance(ipaddress.ip_address(ip), ipaddress.IPv4Address):
-                            ips.append(ip)
-                    except Exception:
-                        continue
-    body = "\n".join(ips) + "\n"
-    resp = make_response(body, 200)
-    resp.headers["Content-Type"] = "text/plain"
+    ...
     return resp
 
-    @app.route("/feed/ioc-feed-test.txt")
+
+@app.route("/feed/ioc-feed-test.txt")
 def feed_test():
     ips = []
     if os.path.exists(FEED_FILE_TEST):
@@ -1735,6 +1723,7 @@ def feed_test():
     resp = make_response(body, 200)
     resp.headers["Content-Type"] = "text/plain"
     return resp
+
 
 @app.route("/preview-delete")
 @login_required
