@@ -291,11 +291,8 @@ def _active_ip_union():
 def compute_source_and_tag_counters_union():
     """
     Contadores en vivo sobre la unión de feeds:
-      - por fuente: manual/csv/api
-      - por tag: Multicliente/BPE
-      - por fuente×tag: matriz
-    Usa ip_details['source'] y, si falta, meta['by_ip'][ip].
-    (Normaliza y hace strip para evitar valores raros).
+      - por fuente (manual/csv/api) usando SOLO meta['by_ip']
+      - por tag (Multicliente/BPE) usando meta['ip_details']
     """
     active_ips = _active_ip_union()
     meta = load_meta()
@@ -311,14 +308,14 @@ def compute_source_and_tag_counters_union():
     }
 
     for ip in active_ips:
-        entry = details.get(ip) or {}
-        # fuente: ip_details.source → by_ip → vacío
-        raw_src = entry.get("source") or by_ip.get(ip) or ""
-        src = str(raw_src).strip().lower()
+        # Fuente solo desde by_ip (es lo que ya usa la tabla)
+        src = str(by_ip.get(ip, "")).strip().lower()
         if src not in ("manual", "csv", "api"):
             src = None
 
-        tags = set(entry.get("tags") or [])
+        # Tags desde ip_details
+        tags = set((details.get(ip) or {}).get("tags") or [])
+
         if "Multicliente" in tags:
             counters_by_tag["Multicliente"] += 1
         if "BPE" in tags:
