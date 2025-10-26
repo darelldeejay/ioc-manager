@@ -294,7 +294,8 @@ def compute_source_and_tag_counters_union():
       - por fuente: manual/csv/api
       - por tag: Multicliente/BPE
       - por fuente×tag: matriz
-    Origen: preferimos META['by_ip'][ip] y caemos a entry['source'] si no existe.
+    Usa ip_details['source'] y, si falta, meta['by_ip'][ip].
+    (Normaliza y hace strip para evitar valores raros).
     """
     active_ips = _active_ip_union()
     meta = load_meta()
@@ -305,20 +306,19 @@ def compute_source_and_tag_counters_union():
     counters_by_tag = {"Multicliente": 0, "BPE": 0}
     counters_by_source_tag = {
         "manual": {"Multicliente": 0, "BPE": 0},
-        "csv": {"Multicliente": 0, "BPE": 0},
-        "api": {"Multicliente": 0, "BPE": 0},
+        "csv":    {"Multicliente": 0, "BPE": 0},
+        "api":    {"Multicliente": 0, "BPE": 0},
     }
 
     for ip in active_ips:
         entry = details.get(ip) or {}
-        src = (entry.get("source") or by_ip.get(ip) or "").lower()
-        if src not in counters_by_source:
-            if src in ("manual", "csv", "api"):
-                pass
-            else:
-                src = None
-        tags = set(entry.get("tags") or [])
+        # fuente: ip_details.source → by_ip → vacío
+        raw_src = entry.get("source") or by_ip.get(ip) or ""
+        src = str(raw_src).strip().lower()
+        if src not in ("manual", "csv", "api"):
+            src = None
 
+        tags = set(entry.get("tags") or [])
         if "Multicliente" in tags:
             counters_by_tag["Multicliente"] += 1
         if "BPE" in tags:
@@ -333,7 +333,6 @@ def compute_source_and_tag_counters_union():
 
     total_union = len(active_ips)
     return counters_by_source, counters_by_tag, counters_by_source_tag, total_union
-
 
 # =========================
 #  Utilidades de red
