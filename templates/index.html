@@ -761,12 +761,12 @@
   }
 
   function showCsvTagError(show){
-  const fb = document.getElementById('tagCsvFeedback');
-  const hidden = document.getElementById('tagsCsvInput');
-  if (!fb || !hidden) return;
-  fb.style.display = show ? 'block' : 'none';
-  hidden.classList.toggle('is-invalid', !!show);
-}
+    const fb = document.getElementById('tagCsvFeedback');
+    const group = document.getElementById('tagCsvGroup');
+    if (!fb || !group) return;
+    fb.style.display = show ? 'block' : 'none';
+    group.classList.toggle('is-invalid', !!show);
+  }
 
   const setLoading = (btn, textWhileLoading) => {
     if (!btn) return;
