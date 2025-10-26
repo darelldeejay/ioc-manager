@@ -267,30 +267,29 @@ def compute_live_counters(active_lines):
 
 
 def compute_tag_totals():
-    """Totales por tag (Multicliente, BPE) sobre la unión de feeds activos."""
     lines_main = load_lines(FEED_FILE)
     lines_bpe  = load_lines(FEED_FILE_BPE)
+    lines_test = load_lines(FEED_FILE_TEST)  # ← AÑADE
     active_ips = {l.split("|",1)[0].strip() for l in lines_main} | \
-                 {l.split("|",1)[0].strip() for l in lines_bpe}
+                 {l.split("|",1)[0].strip() for l in lines_bpe}  | \
+                 {l.split("|",1)[0].strip() for l in lines_test}   # ← AÑADE
     meta = load_meta().get("ip_details", {})
     multi = bpe = test = 0
     for ip in active_ips:
         tags = set((meta.get(ip) or {}).get("tags", []))
-        if "Multicliente" in tags:
-            multi += 1
-        if "BPE" in tags:
-            bpe += 1
-        if "Test" in tags:
-            test += 1
+        if "Multicliente" in tags: multi += 1
+        if "BPE" in tags:          bpe   += 1
+        if "Test" in tags:         test  += 1
     return {"Multicliente": multi, "BPE": bpe, "Test": test}
 
 # === NUEVOS: unión feeds y matriz fuente×tag ===
 def _active_ip_union():
-    """Devuelve el conjunto de IPs activas uniendo Multicliente y BPE."""
     lines_main = load_lines(FEED_FILE)
-    lines_bpe = load_lines(FEED_FILE_BPE)
-    return {l.split("|", 1)[0].strip() for l in lines_main} | \
-           {l.split("|", 1)[0].strip() for l in lines_bpe}
+    lines_bpe  = load_lines(FEED_FILE_BPE)
+    lines_test = load_lines(FEED_FILE_TEST)  # ← AÑADE
+    return {l.split("|",1)[0].strip() for l in lines_main} | \
+           {l.split("|",1)[0].strip() for l in lines_bpe}  | \
+           {l.split("|",1)[0].strip() for l in lines_test}   # ← AÑADE
 
 def compute_source_and_tag_counters_union():
     """
@@ -1183,8 +1182,9 @@ def perform_daily_expiry_once():
 
     # Expirar y sincronizar meta (principal y BPE)
     vencidas_main = eliminar_ips_vencidas()
-    vencidas_bpe = eliminar_ips_vencidas_bpe()
-    vencidas = list(set((vencidas_main or []) + (vencidas_bpe or [])))
+    vencidas_bpe  = eliminar_ips_vencidas_bpe()
+    vencidas_test = eliminar_ips_vencidas_en_feed(FEED_FILE_TEST)  # ← AÑADE
+    vencidas = list(set((vencidas_main or []) + (vencidas_bpe or []) + (vencidas_test or [])))  # ← AÑADE
     if vencidas:
         meta_bulk_del(vencidas)
         _audit("expire_ttl", "system", {"count": len(vencidas)}, {"ips": vencidas})
@@ -1587,10 +1587,13 @@ def index():
         rec_bpe  = {r["ip"]: r for r in _feed_to_records(lines_bpe)}
 
         # Preferimos el registro del principal si existe; añadimos los BPE-only
-        merged_records = list(rec_main.values())
-        for ip, r in rec_bpe.items():
-            if ip not in rec_main:
-                merged_records.append(r)
+    merged_records = list(rec_main.values())
+    for ip, r in rec_bpe.items():
+        if ip not in rec_main:
+            merged_records.append(r)
+    for ip, r in rec_test.items():            # ← AÑADE
+        if ip not in rec_main and ip not in rec_bpe:
+            merged_records.append(r)
 
         q = request.args.get("q")
         date_param = request.args.get("date")
@@ -2016,6 +2019,7 @@ def bloquear_ip_api():
                 item_result = {"count": 0, "ips": []}
                 want_multi = "Multicliente" in tags
                 want_bpe = "BPE" in tags
+                want_test  = "Test" in tags
 
                 for ip_str in targets:
                     if ip_str == "0.0.0.0":
@@ -2071,6 +2075,10 @@ def bloquear_ip_api():
                     if want_bpe:
                         line_txt_bpe = f"{ip_str}|{fecha}|{ttl_days}"
                         _append_line_unique(FEED_FILE_BPE, line_txt_bpe)
+
+                    if want_test:
+                        line_txt_test = f"{ip_str}|{fecha}|{ttl_days}"
+                        _append_line_unique(FEED_FILE_TEST, line_txt_test)
 
                     item_result["ips"].append({
                         "ip": ip_str,
