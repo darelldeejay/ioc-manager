@@ -21,6 +21,8 @@ BASE_DIR = os.path.dirname(os.path.realpath(__file__))
 FEED_FILE = os.path.join(BASE_DIR, 'ioc-feed.txt')
 # === Nuevo feed BPE ===
 FEED_FILE_BPE = os.path.join(BASE_DIR, 'ioc-feed-bpe.txt')
+# === Nuevo feed de pruebas ===
+FEED_FILE_TEST = os.path.join(BASE_DIR, 'ioc-feed-test.txt')
 
 LOG_FILE = os.path.join(BASE_DIR, 'ioc-log.txt')
 NOTIF_FILE = os.path.join(BASE_DIR, 'notif-log.json')
@@ -66,12 +68,13 @@ _idem_cache = {}  # {idem_key: (ts, response)}
 IDEM_TTL_SECONDS = 600
 
 # Tags válidos
-ALLOWED_TAGS = {"Multicliente", "BPE"}
+ALLOWED_TAGS = {"Multicliente", "BPE", "Test"}
 
 # Mapa canónico de tags (case-insensitive)
 CANONICAL_TAGS = {
     "multicliente": "Multicliente",
     "bpe": "BPE",
+    "test": "Test",
 }
 
 # Asegurar carpetas
@@ -270,15 +273,16 @@ def compute_tag_totals():
     active_ips = {l.split("|",1)[0].strip() for l in lines_main} | \
                  {l.split("|",1)[0].strip() for l in lines_bpe}
     meta = load_meta().get("ip_details", {})
-    multi = bpe = 0
+    multi = bpe = test = 0
     for ip in active_ips:
         tags = set((meta.get(ip) or {}).get("tags", []))
         if "Multicliente" in tags:
             multi += 1
         if "BPE" in tags:
             bpe += 1
-    return {"Multicliente": multi, "BPE": bpe}
-
+        if "Test" in tags:
+            test += 1
+    return {"Multicliente": multi, "BPE": bpe, "Test": test}
 
 # === NUEVOS: unión feeds y matriz fuente×tag ===
 def _active_ip_union():
@@ -300,12 +304,12 @@ def compute_source_and_tag_counters_union():
     details = (meta.get("ip_details") or {})
 
     counters_by_source = {"manual": 0, "csv": 0, "api": 0}
-    counters_by_tag = {"Multicliente": 0, "BPE": 0}
+    counters_by_tag = {"Multicliente": 0, "BPE": 0, "Test": 0}
     counters_by_source_tag = {
-        "manual": {"Multicliente": 0, "BPE": 0},
-        "csv":    {"Multicliente": 0, "BPE": 0},
-        "api":    {"Multicliente": 0, "BPE": 0},
-    }
+    "manual": {"Multicliente": 0, "BPE": 0, "Test": 0},
+    "csv": {"Multicliente": 0, "BPE": 0, "Test": 0},
+    "api": {"Multicliente": 0, "BPE": 0, "Test": 0},
+}
 
     for ip in active_ips:
         # Fuente solo desde by_ip (es lo que ya usa la tabla)
@@ -320,6 +324,8 @@ def compute_source_and_tag_counters_union():
             counters_by_tag["Multicliente"] += 1
         if "BPE" in tags:
             counters_by_tag["BPE"] += 1
+        if "Test" in tags:
+            counters_by_tag["Test"] += 1
 
         if src:
             counters_by_source[src] += 1
@@ -327,6 +333,8 @@ def compute_source_and_tag_counters_union():
                 counters_by_source_tag[src]["Multicliente"] += 1
             if "BPE" in tags:
                 counters_by_source_tag[src]["BPE"] += 1
+            if "Test" in tags:
+                counters_by_source_tag[src]["Test"] += 1
 
     total_union = len(active_ips)
     return counters_by_source, counters_by_tag, counters_by_source_tag, total_union
@@ -725,6 +733,7 @@ def add_ips_validated(lines, existentes, iterable_ips, ttl_val, origin=None, con
 
     allow_multi = "Multicliente" in tags
     allow_bpe = "BPE" in tags
+    allow_test = "Test" in tags
 
     for ip_str in iterable_ips:
         if not (allow_multi or allow_bpe):
@@ -769,6 +778,10 @@ def add_ips_validated(lines, existentes, iterable_ips, ttl_val, origin=None, con
         # FEED BPE si corresponde
         if allow_bpe:
             _append_line_unique(FEED_FILE_BPE, f"{ip_str}|{fecha}|{ttl_val}")
+
+        # FEED Test si corresponde
+        if allow_test:
+            _append_line_unique(FEED_FILE_TEST, f"{ip_str}|{fecha}|{ttl_val}")
 
         # meta + tag files
         entry = _merge_meta_tags(ip_str, tags, expires_at_dt, origin or "manual", note="web")
@@ -1705,6 +1718,23 @@ def feed_bpe():
     resp.headers["Content-Type"] = "text/plain"
     return resp
 
+    @app.route("/feed/ioc-feed-test.txt")
+def feed_test():
+    ips = []
+    if os.path.exists(FEED_FILE_TEST):
+        with open(FEED_FILE_TEST, encoding="utf-8") as f:
+            for line in f:
+                ip = line.split("|", 1)[0].strip()
+                if ip and is_allowed_ip(ip):
+                    try:
+                        if isinstance(ipaddress.ip_address(ip), ipaddress.IPv4Address):
+                            ips.append(ip)
+                    except Exception:
+                        continue
+    body = "\n".join(ips) + "\n"
+    resp = make_response(body, 200)
+    resp.headers["Content-Type"] = "text/plain"
+    return resp
 
 @app.route("/preview-delete")
 @login_required
