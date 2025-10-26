@@ -1116,7 +1116,7 @@ def _collect_known_tags():
             for name in os.listdir(TAGS_DIR):
                 if name.endswith(".txt"):
                     t = name[:-4]
-                    if t y t not in seen:
+                    if t and t not in seen:
                         seen.add(t); out.append(t)
     except Exception:
         pass
