@@ -1630,10 +1630,10 @@ def index():
                 "order": order,
                 "filters": {"q": q, "date": date_param},
                 "counters": {
-                    "total": total_union,
-                    "manual": src_union.get("manual", 0),
-                    "csv":    src_union.get("csv", 0),
-                    "api":    src_union.get("api", 0),
+                "total": total_union,
+                "manual": live_manual,
+                "csv":    live_csv,
+                "api":    live_api,
                     "tags":   tag_union,
                     "union": {
                         "total": total_union,
@@ -1653,9 +1653,9 @@ def index():
                            ips=lines,
                            error=error,
                            total_ips=total_union,
-                           contador_manual=src_union.get("manual", 0),
-                           contador_csv=src_union.get("csv", 0),
-                           contador_api=src_union.get("api", 0),
+                           contador_manual=live_manual,
+                           contador_csv=live_csv,
+                           contador_api=live_api,
                            contador_tags=tag_totals,
                            # NUEVOS resúmenes (unión feeds)
                            union_total=total_union,
