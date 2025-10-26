@@ -1579,21 +1579,23 @@ def index():
 
     # JSON mode (paginación/ordenación/filtros)
     if request.args.get("format", "").lower() == "json":
-        # Unir feeds: Multicliente (principal) + BPE
-        lines_main = load_lines(FEED_FILE)       # recargamos
+        # Unir feeds: Multicliente (principal) + BPE + Test
+        lines_main = load_lines(FEED_FILE)
         lines_bpe  = load_lines(FEED_FILE_BPE)
+        lines_test = load_lines(FEED_FILE_TEST)
 
         rec_main = {r["ip"]: r for r in _feed_to_records(lines_main)}
         rec_bpe  = {r["ip"]: r for r in _feed_to_records(lines_bpe)}
+        rec_test = {r["ip"]: r for r in _feed_to_records(lines_test)}
 
-        # Preferimos el registro del principal si existe; añadimos los BPE-only
-    merged_records = list(rec_main.values())
-    for ip, r in rec_bpe.items():
-        if ip not in rec_main:
-            merged_records.append(r)
-    for ip, r in rec_test.items():            # ← AÑADE
-        if ip not in rec_main and ip not in rec_bpe:
-            merged_records.append(r)
+        # Preferimos el registro del principal si existe; añadimos BPE-only y luego Test-only
+        merged_records = list(rec_main.values())
+        for ip, r in rec_bpe.items():
+            if ip not in rec_main:
+                merged_records.append(r)
+        for ip, r in rec_test.items():
+            if ip not in rec_main and ip not in rec_bpe:
+                merged_records.append(r)
 
         q = request.args.get("q")
         date_param = request.args.get("date")
@@ -1611,7 +1613,6 @@ def index():
 
         items = []
         for r in paged:
-            # TTL regresivo (nuevo)
             ttl_remaining = _days_left(r["fecha_dt"], r["ttl"])
             items.append({
                 "ip": r["ip"],
@@ -1622,14 +1623,13 @@ def index():
                 "tags": (ip_details.get(r["ip"], {}) or {}).get("tags", [])
             })
 
-        # Counters (principal + unión):
-        # Contadores por origen sobre la unión
+        # Contadores sobre la unión
         active_union_ips = {r["ip"] for r in merged_records}
         meta_by_ip = load_meta().get("by_ip", {})
         live_manual = sum(1 for ip in active_union_ips if meta_by_ip.get(ip) == "manual")
         live_csv    = sum(1 for ip in active_union_ips if meta_by_ip.get(ip) == "csv")
         live_api    = sum(1 for ip in active_union_ips if meta_by_ip.get(ip) == "api")
-        tag_totals  = compute_tag_totals()  # ya devuelve totales por tag sobre la unión
+        tag_totals  = compute_tag_totals()
         src_union, tag_union, src_tag_union, total_union = compute_source_and_tag_counters_union()
 
         notices = [{"time": datetime.utcnow().isoformat()+"Z", "category": c, "message": m}
@@ -1646,10 +1646,10 @@ def index():
                 "order": order,
                 "filters": {"q": q, "date": date_param},
                 "counters": {
-                "total": total_union,
-                "manual": live_manual,
-                "csv":    live_csv,
-                "api":    live_api,
+                    "total": total_union,
+                    "manual": live_manual,
+                    "csv":    live_csv,
+                    "api":    live_api,
                     "tags":   tag_union,
                     "union": {
                         "total": total_union,
@@ -1705,9 +1705,21 @@ def feed():
 # === NUEVO: feed BPE separado ===
 @app.route("/feed/ioc-feed-bpe.txt")
 def feed_bpe():
-    ...
+    ips = []
+    if os.path.exists(FEED_FILE_BPE):
+        with open(FEED_FILE_BPE, encoding="utf-8") as f:
+            for line in f:
+                ip = line.split("|", 1)[0].strip()
+                if ip and is_allowed_ip(ip):
+                    try:
+                        if isinstance(ipaddress.ip_address(ip), ipaddress.IPv4Address):
+                            ips.append(ip)
+                    except Exception:
+                        continue
+    body = "\n".join(ips) + "\n"
+    resp = make_response(body, 200)
+    resp.headers["Content-Type"] = "text/plain"
     return resp
-
 
 @app.route("/feed/ioc-feed-test.txt")
 def feed_test():
