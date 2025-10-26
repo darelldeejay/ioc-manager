@@ -668,6 +668,13 @@ def _merge_meta_tags(ip, new_tags, expires_at, source, note):
         "source": source
     })
     details[ip] = entry
+    
+    # === NUEVO: asegurar origen en meta['by_ip'] ===
+    src = (source or "").lower()
+    if src in ("manual", "csv", "api"):
+        meta.setdefault("by_ip", {})[ip] = src
+    # ================================================
+    
     meta["ip_details"] = details
     save_meta(meta)
     return entry
