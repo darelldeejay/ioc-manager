@@ -208,6 +208,23 @@ def meta_del_ip(ip_str):
     if changed:
         save_meta(meta)
 
+def repair_meta_sources():
+    """
+    Rellena meta['by_ip'] con el 'source' que ya exista en meta['ip_details'].
+    Sirve para que el contador de API/CSV/Manual cuadre aunque la IP venga solo con tag BPE.
+    """
+    meta = load_meta()
+    by_ip = meta.get("by_ip", {})
+    details = meta.get("ip_details", {})
+    changed = False
+    for ip, e in (details or {}).items():
+        src = (e.get("source") or "").lower()
+        if src in ("manual", "csv", "api") and by_ip.get(ip) != src:
+            by_ip[ip] = src
+            changed = True
+    if changed:
+        meta["by_ip"] = by_ip
+        save_meta(meta)
 
 def meta_bulk_del(ips):
     if not ips:
@@ -1231,6 +1248,7 @@ def index():
 
     # Expiración diaria (una vez/día)
     perform_daily_expiry_once()
+    repair_meta_sources()
 
     error = None
     lines = load_lines(FEED_FILE)
