@@ -431,26 +431,9 @@ body {
   </li>
 </ul>
 
-    <div class="tab-content" id="formsTabsContent">
-  <!-- contenedor alta manual -->
+    <div class="tab-content" id="actionsTabContent">
   <div class="tab-pane fade show active" id="pane-manual" role="tabpanel" aria-labelledby="tab-manual">
-    <!-- aquí irá el contenido del formulario de alta manual -->
-  </div>
-
-  <!-- contenedor carga CSV -->
-  <div class="tab-pane fade" id="pane-csv" role="tabpanel" aria-labelledby="tab-csv">
-    <!-- aquí irá el contenido del formulario de carga CSV/TXT -->
-  </div>
-
-  <!-- contenedor eliminación patrón -->
-  <div class="tab-pane fade" id="pane-delete" role="tabpanel" aria-labelledby="tab-delete">
-    <!-- aquí irá el contenido de la sección de eliminación por patrón -->
-  </div>
-</div>
-    
-<!-- Alta manual -->
-<div class="row g-3 mb-1 align-items-end">
-  <!-- IP -->
+    <!-- IP -->
   <div class="col-lg-5">
     <label for="ipInput" class="form-label small mb-1">IP / Red / Rango / IP+Máscara</label>
     <input id="ipInput" type="text" class="form-control" name="ip" autocomplete="off"
@@ -514,7 +497,20 @@ body {
     </div>
   </div>
 </div>
+  </div>
 
+  <div class="tab-pane fade" id="pane-csv" role="tabpanel" aria-labelledby="tab-csv">
+    <!-- aquí irá el formulario de carga CSV/TXT -->
+  </div>
+
+  <div class="tab-pane fade" id="pane-delete" role="tabpanel" aria-labelledby="tab-delete">
+    <!-- aquí irá la sección de eliminación por patrón -->
+  </div>
+</div>
+    
+<!-- Alta manual -->
+<div class="row g-3 mb-1 align-items-end">
+  
 <!-- Subida por CSV -->
 <div class="row g-3 mb-1 align-items-end">
   <!-- Archivo -->
