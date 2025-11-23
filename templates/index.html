@@ -84,6 +84,17 @@
   color: transparent;
 }
 
+    /* Botón de backup ahora (verde) en la topbar */
+.btn-outline-success {
+  border-color: #22c55e;
+  color: #22c55e;
+}
+
+.btn-outline-success:hover {
+  background-color: #22c55e;
+  color: #0f172a;
+}
+
     /* ====== Barra de paginación bajo la tabla ====== */
 #pagerBar {
   margin-top: 1rem;
@@ -557,13 +568,10 @@ body[data-theme="light"] .offcanvas-notifs .list-group-item {
         </div>
       </div>
 
-      <!-- Lado derecho: tema + notificaciones + logout -->
+            <!-- Lado derecho: tema + notificaciones + backup + logout -->
       <div class="d-flex align-items-center gap-2">
-        <button
-              class="btn btn-outline-light btn-sm"
-              onclick="toggleTheme()"
-              id="themeToggleBtn">
-              ☀️ Claro
+        <button class="btn btn-outline-light btn-sm" onclick="toggleTheme()" id="themeToggleBtn">
+          ☀️ Claro
         </button>
 
         <div class="btn-group">
@@ -577,6 +585,11 @@ body[data-theme="light"] .offcanvas-notifs .list-group-item {
             ✔️
           </button>
         </div>
+
+        <!-- Backup ahora en la barra superior -->
+        <form method="POST" action="/backup/now" class="d-none d-md-inline">
+          <button class="btn btn-outline-success btn-sm" type="submit">💾 Backup ahora</button>
+        </form>
 
         <a href="/logout" class="btn btn-outline-light btn-sm">Logout</a>
       </div>
@@ -672,12 +685,9 @@ body[data-theme="light"] .offcanvas-notifs .list-group-item {
 </div>
   <!-- ======= FIN RESUMEN AMPLIADO ======= -->
 
-  <!-- Botones de backup -->
+   <!-- Botones de backup -->
   <div class="d-flex gap-2 justify-content-center mb-3">
     <a class="btn btn-outline-secondary btn-sm" href="/backup/latest.zip">⬇️ Descargar último backup</a>
-    <form method="POST" action="/backup/now" class="d-inline">
-      <button class="btn btn-outline-primary btn-sm" type="submit">💾 Backup ahora</button>
-    </form>
   </div>
 
   <!-- Solo errores graves si el backend los envía en 'error' -->
