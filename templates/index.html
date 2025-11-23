@@ -33,9 +33,14 @@
 
   <!-- Estilos propios -->
   <link rel="stylesheet" href="{{ url_for('static', filename='css/index.css') }}">
-
+  
   <style>
 
+    /* Fuente global para toda la aplicación */
+body {
+  font-family: 'Inter', -apple-system, BlinkMacSystemFont, 'Segoe UI', Roboto, Helvetica, Arial, sans-serif;
+}
+    
       /* Personalización del botón Añadir */
 #addManualBtn {
   background-color: var(--accent);
@@ -46,6 +51,18 @@
 #addManualBtn:hover {
   filter: brightness(1.05);
 }    
+
+    /* Personalización botón Subir archivo */
+#uploadCsvBtn {
+  background-color: var(--accent);
+  border-color: var(--accent);
+  color: #0f172a; /* contraste con fondo cian */
+}
+
+#uploadCsvBtn:hover {
+  filter: brightness(1.05);
+}
+    
     /* Global design variables for dual theme (light/dark) and accent colors */
 :root {
   --accent: #22d3ee;
