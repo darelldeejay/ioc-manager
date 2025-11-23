@@ -128,6 +128,15 @@
     /* Resaltado de filas seleccionadas (bulk) */
     .table-active-selected { outline: 2px solid rgba(13,110,253,.35); }
     html[data-theme="dark"] .table-active-selected { outline-color: rgba(13,110,253,.55); }
+
+    /* Celda de alertas: texto pequeño para lista de IDs */
+    .alert-ids-list {
+      font-size: 0.8rem;
+      margin-top: 2px;
+      max-width: 260px;
+      word-wrap: break-word;
+      white-space: normal;
+    }
   </style>
 </head>
 <body class="bg-light">
@@ -491,6 +500,7 @@
           <th>Fecha</th>
           <th>TTL</th>
           <th>Tags</th>
+          <th>Alertas</th>
           <th>Acción</th>
         </tr>
       </thead>
@@ -500,6 +510,11 @@
           {% set parts = item.split('|') %}
           {% set ip_txt = parts[0].strip() %}
           {% set tags = (ip_tags.get(ip_txt, []) if ip_tags is defined and ip_tags else []) %}
+          {% if ip_alerts is defined and ip_alerts %}
+            {% set alerts = ip_alerts.get(ip_txt, []) %}
+          {% else %}
+            {% set alerts = [] %}
+          {% endif %}
           <tr>
             <td>
               <input type="checkbox" class="row-chk" value="{{ ip_txt }}">
@@ -514,6 +529,18 @@
                     {{ t }}
                   </span>
                 {% endfor %}
+              {% else %}
+                <span class="text-muted">—</span>
+              {% endif %}
+            </td>
+            <td>
+              {% if alerts %}
+                <span class="badge text-bg-info">
+                  {{ alerts|length }} alerta{{ 's' if alerts|length != 1 else '' }}
+                </span>
+                <div class="alert-ids-list text-muted">
+                  {{ alerts|join(', ') }}
+                </div>
               {% else %}
                 <span class="text-muted">—</span>
               {% endif %}
@@ -545,7 +572,7 @@
         {% endfor %}
       {% else %}
         <tr>
-          <td colspan="6" class="text-center text-muted">—</td>
+          <td colspan="7" class="text-center text-muted">—</td>
         </tr>
       {% endif %}
       </tbody>
@@ -1356,8 +1383,23 @@ document.getElementById('mainForm')?.addEventListener('submit', (ev) => {
 
   function tagBadge(t){
     // Colores simples por tipo de tag
-    const cls = (t === 'BPE') ? 'text-bg-warning' : 'text-bg-primary';
+    const cls = (t === 'BPE') ? 'text-bg-warning' : (t === 'Test' ? 'text-bg-secondary' : 'text-bg-primary');
     return `<span class="badge ${cls}" style="margin-right:6px;">${escapeHtml(t)}</span>`;
+  }
+
+  function alertsCellHtml(row){
+    const ids = row.alert_ids || [];
+    if (!ids.length){
+      return '<span class="text-muted">—</span>';
+    }
+    const count = ids.length;
+    const listPreview = ids.slice(0, 6).map(escapeHtml).join(', ');
+    const more = ids.length > 6 ? ' …' : '';
+    const plural = count === 1 ? '' : 's';
+    return `
+      <span class="badge text-bg-info">${count} alerta${plural}</span>
+      <div class="alert-ids-list text-muted">${listPreview}${more}</div>
+    `;
   }
 
   function renderRows(items){
@@ -1375,6 +1417,7 @@ document.getElementById('mainForm')?.addEventListener('submit', (ev) => {
             ? row.tags.map(tagBadge).join(' ')
             : '<span class="text-muted">—</span>'
         }</td>
+        <td>${alertsCellHtml(row)}</td>
         <td>
           <form method="POST" onsubmit="return confirm('¿Eliminar ${escapeHtml(row.ip)}?');">
             <input type="hidden" name="delete_ip" value="${escapeHtml(row.ip)}">
