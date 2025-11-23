@@ -122,6 +122,54 @@ body {
     body {
     font-family: 'Inter', -apple-system, BlinkMacSystemFont, 'Segoe UI', Roboto, Helvetica, Arial, sans-serif;
 }
+
+    /* Botones generales adaptados a la paleta */
+.btn {
+    border-radius: 999px;
+    font-weight: 500;
+    transition: filter 0.15s ease, transform 0.15s ease;
+}
+
+/* Botón primario: cian (Añadir, Subir CSV si se le pone .btn-primary) */
+.btn-primary {
+    background-color: var(--accent);
+    border-color: var(--accent);
+    color: #0f172a;
+}
+.btn-primary:hover {
+    filter: brightness(1.05);
+}
+
+/* Botón de peligro: rojo para acciones destructivas */
+.btn-danger {
+    background-color: var(--danger);
+    border-color: var(--danger);
+    color: #fff;
+}
+.btn-danger:hover {
+    filter: brightness(1.05);
+}
+
+/* Botón de aviso (poco usado en tu UI actual) */
+.btn-warning {
+    background-color: var(--warning);
+    border-color: var(--warning);
+    color: #111827;
+}
+.btn-warning:hover {
+    filter: brightness(1.05);
+}
+
+/* Botones outlines con tono cian suave */
+.btn-outline-secondary {
+    border-color: var(--accent);
+    color: var(--accent);
+}
+.btn-outline-secondary:hover {
+    background-color: var(--accent-soft);
+    color: #0f172a;
+}
+    
     /* ---------- UI refinements ---------- */
 
     /* Hints legibles también en modo oscuro */
