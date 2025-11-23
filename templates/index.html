@@ -5,14 +5,14 @@
   <title>IOC Manager</title>
   <meta name="viewport" content="width=device-width, initial-scale=1" />
 
-      <!-- Bootstrap 5 -->
-    <link href="https://cdn.jsdelivr.net/npm/bootstrap@5.3.3/dist/css/bootstrap.min.css" rel="stylesheet">
-    <!-- Bootstrap Icons -->
-    <link href="https://cdn.jsdelivr.net/npm/bootstrap-icons@1.11.3/font/bootstrap-icons.css" rel="stylesheet">
-    <!-- Google Font (Inter) -->
-    <link rel="preconnect" href="https://fonts.googleapis.com">
-    <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
-    <link href="https://fonts.googleapis.com/css2?family=Inter:wght@400;500;600;700&display=swap" rel="stylesheet">
+  <!-- Bootstrap 5 -->
+  <link href="https://cdn.jsdelivr.net/npm/bootstrap@5.3.3/dist/css/bootstrap.min.css" rel="stylesheet">
+  <!-- Bootstrap Icons -->
+  <link href="https://cdn.jsdelivr.net/npm/bootstrap-icons@1.11.3/font/bootstrap-icons.css" rel="stylesheet">
+  <!-- Google Font (Inter) -->
+  <link rel="preconnect" href="https://fonts.googleapis.com">
+  <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
+  <link href="https://fonts.googleapis.com/css2?family=Inter:wght@400;500;600;700&display=swap" rel="stylesheet">
 
   <!-- Arranque de tema: evita flash claro si el usuario guardó "dark" -->
   <script>
@@ -31,374 +31,368 @@
   })();
   </script>
 
-  <!-- Bootstrap -->
+  <!-- Bootstrap (no toco tu duplicado por compatibilidad) -->
   <link href="https://cdn.jsdelivr.net/npm/bootstrap@5.3.0/dist/css/bootstrap.min.css" rel="stylesheet">
   <script src="https://cdn.jsdelivr.net/npm/bootstrap@5.3.0/dist/js/bootstrap.bundle.min.js"></script>
 
-  <!-- Google Font Inter for modern typography -->
- <link rel="preconnect" href="https://fonts.googleapis.com">
- <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
- <link href="https://fonts.googleapis.com/css2?family=Inter:wght@400;500;600;700&display=swap" rel="stylesheet">
+  <!-- Google Font Inter for modern typography (repetido pero inofensivo) -->
+  <link rel="preconnect" href="https://fonts.googleapis.com">
+  <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
+  <link href="https://fonts.googleapis.com/css2?family=Inter:wght@400;500;600;700&display=swap" rel="stylesheet">
 
   <!-- Estilos propios -->
   <link rel="stylesheet" href="{{ url_for('static', filename='css/index.css') }}">
   
   <style>
-
     /* ====== Topbar superior con métricas ====== */
-.topbar {
-  background: #020617;
-  color: #e5e7eb;
-  box-shadow: 0 10px 30px rgba(15, 23, 42, 0.9);
-}
+    .topbar {
+      background: #020617;
+      color: #e5e7eb;
+      box-shadow: 0 10px 30px rgba(15, 23, 42, 0.9);
+    }
 
-[data-theme="light"] .topbar {
-  background: #0f172a;
-}
+    [data-theme="light"] .topbar {
+      background: #0f172a;
+    }
 
-/* Métricas en la topbar */
-.topbar-metrics > div {
-  min-width: 90px;
-}
+    /* Métricas en la topbar */
+    .topbar-metrics > div {
+      min-width: 90px;
+    }
 
-.topbar-metrics > div div:first-child {
-  font-size: 0.65rem;
-  letter-spacing: 0.14em;
-  text-transform: uppercase;
-}
+    .topbar-metrics > div div:first-child {
+      font-size: 0.65rem;
+      letter-spacing: 0.14em;
+      text-transform: uppercase;
+    }
 
-.topbar-metrics > div div:last-child {
-  font-size: 0.95rem;
-}
+    .topbar-metrics > div div:last-child {
+      font-size: 0.95rem;
+    }
 
     /* ====== Cabecera principal “Gestor IOC Manager” ====== */
-.title-gestor {
-  font-weight: 500;
-  letter-spacing: 0.12em;
-  text-transform: uppercase;
-  font-size: 0.8rem;
-  color: var(--text-muted-dark);
-}
+    .title-gestor {
+      font-weight: 500;
+      letter-spacing: 0.12em;
+      text-transform: uppercase;
+      font-size: 0.8rem;
+      color: var(--text-muted-dark);
+    }
 
-.title-ioc {
-  display: inline-block;
-  margin-left: 0.4rem;
-  font-size: 1.9rem;
-  font-weight: 700;
-  letter-spacing: 0.06em;
-  text-transform: uppercase;
-  background: linear-gradient(120deg, #22d3ee, #38bdf8, #a855f7);
-  -webkit-background-clip: text;
-  background-clip: text;
-  color: transparent;
-}
+    .title-ioc {
+      display: inline-block;
+      margin-left: 0.4rem;
+      font-size: 1.9rem;
+      font-weight: 700;
+      letter-spacing: 0.06em;
+      text-transform: uppercase;
+      background: linear-gradient(120deg, #22d3ee, #38bdf8, #a855f7);
+      -webkit-background-clip: text;
+      background-clip: text;
+      color: transparent;
+    }
 
     /* Botón de backup ahora (verde) en la topbar */
-.btn-outline-success {
-  border-color: #22c55e;
-  color: #22c55e;
-}
+    .btn-outline-success {
+      border-color: #22c55e;
+      color: #22c55e;
+    }
 
-.btn-outline-success:hover {
-  background-color: #22c55e;
-  color: #0f172a;
-}
+    .btn-outline-success:hover {
+      background-color: #22c55e;
+      color: #0f172a;
+    }
 
     /* ====== Barra de paginación bajo la tabla ====== */
-#pagerBar {
-  margin-top: 1rem;
-  padding: 0.45rem 0.9rem;
-  border-radius: 999px;
-  border: 1px solid rgba(148, 163, 184, 0.35);
-  background: rgba(15, 23, 42, 0.85);
-}
-[data-theme="light"] #pagerBar {
-  border-color: #e5e7eb;
-  background: #ffffff;
-}
+    #pagerBar {
+      margin-top: 1rem;
+      padding: 0.45rem 0.9rem;
+      border-radius: 999px;
+      border: 1px solid rgba(148, 163, 184, 0.35);
+      background: rgba(15, 23, 42, 0.85);
+    }
+    [data-theme="light"] #pagerBar {
+      border-color: #e5e7eb;
+      background: #ffffff;
+    }
 
     /* ====== Título de sección “IPs bloqueadas” ====== */
-.section-title {
-  margin-top: 1.5rem;
-  margin-bottom: 0.75rem;
-  font-size: 0.95rem;
-  font-weight: 600;
-  letter-spacing: 0.18em;
-  text-transform: uppercase;
-  color: var(--text-muted-dark);
-}
+    .section-title {
+      margin-top: 1.5rem;
+      margin-bottom: 0.75rem;
+      font-size: 0.95rem;
+      font-weight: 600;
+      letter-spacing: 0.18em;
+      text-transform: uppercase;
+      color: var(--text-muted-dark);
+    }
 
-[data-theme="light"] .section-title {
-  color: var(--text-muted-light);
-}
+    [data-theme="light"] .section-title {
+      color: var(--text-muted-light);
+    }
 
     /* ====== Barra de selección masiva ====== */
-.bulkbar {
-    border-radius: 0.75rem;
-    border: 1px solid rgba(148, 163, 184, 0.25);
-    background: rgba(15, 23, 42, 0.65);
-}
+    .bulkbar {
+      border-radius: 0.75rem;
+      border: 1px solid rgba(148, 163, 184, 0.25);
+      background: rgba(15, 23, 42, 0.65);
+    }
 
-[data-theme="light"] .bulkbar {
-    border-color: #e5e7eb;
-    background: #ffffff;
-}
+    [data-theme="light"] .bulkbar {
+      border-color: #e5e7eb;
+      background: #ffffff;
+    }
 
-/* Contador "X seleccionada(s)" */
-.bulkbar #bulkSelectedCount {
-    font-weight: 600;
-    color: var(--accent);
-    font-size: 1rem;
-}
+    /* Contador "X seleccionada(s)" */
+    .bulkbar #bulkSelectedCount {
+      font-weight: 600;
+      color: var(--accent);
+      font-size: 1rem;
+    }
 
-/* Botón Eliminar seleccionadas */
-#bulkDeleteBtn {
-    border-color: var(--danger);
-    color: var(--danger);
-    border-radius: 999px;
-}
+    /* Botón Eliminar seleccionadas */
+    #bulkDeleteBtn {
+      border-color: var(--danger);
+      color: var(--danger);
+      border-radius: 999px;
+    }
 
-#bulkDeleteBtn:hover:not(:disabled) {
-    background-color: var(--danger);
-    color: #fff;
-}
+    #bulkDeleteBtn:hover:not(:disabled) {
+      background-color: var(--danger);
+      color: #fff;
+    }
 
-/* Texto "Página X de Y — N IPs" */
-#pageInfo {
-  font-size: 0.8rem;
-  opacity: 0.85;
-}
+    /* Texto "Página X de Y — N IPs" */
+    #pageInfo {
+      font-size: 0.8rem;
+      opacity: 0.85;
+    }
 
-/* Botones « y » un poco más cómodos */
-#pagerBar .btn-group .btn {
-  min-width: 2.3rem;
-  padding-inline: 0.6rem;
-}
+    /* Botones « y » un poco más cómodos */
+    #pagerBar .btn-group .btn {
+      min-width: 2.3rem;
+      padding-inline: 0.6rem;
+    }
 
-/* Ajuste de colores en modo claro */
-[data-theme="light"] .title-gestor {
-  color: var(--text-muted-light);
-}
+    /* Ajuste de colores en modo claro */
+    [data-theme="light"] .title-gestor {
+      color: var(--text-muted-light);
+    }
 
-/* Subtítulo bajo el título principal */
-.text-center p.text-muted.mt-2 {
-  font-size: 0.9rem;
-  opacity: 0.85;
-}
+    /* Subtítulo bajo el título principal */
+    .text-center p.text-muted.mt-2 {
+      font-size: 0.9rem;
+      opacity: 0.85;
+    }
 
-      /* Personalización del botón Añadir */
-#addManualBtn {
-  background-color: var(--accent);
-  border-color: var(--accent);
-  color: #0f172a; /* texto oscuro para buen contraste */
-}
+    /* Personalización del botón Añadir */
+    #addManualBtn {
+      background-color: var(--accent);
+      border-color: var(--accent);
+      color: #0f172a;
+    }
 
-#addManualBtn:hover {
-  filter: brightness(1.05);
-}    
+    #addManualBtn:hover {
+      filter: brightness(1.05);
+    }    
 
     /* Personalización botón Subir archivo */
-#uploadCsvBtn {
-  background-color: var(--accent);
-  border-color: var(--accent);
-  color: #0f172a; /* contraste con fondo cian */
-}
+    #uploadCsvBtn {
+      background-color: var(--accent);
+      border-color: var(--accent);
+      color: #0f172a;
+    }
 
-#uploadCsvBtn:hover {
-  filter: brightness(1.05);
-}
+    #uploadCsvBtn:hover {
+      filter: brightness(1.05);
+    }
 
     /* Fuente global para toda la aplicación */
-body {
-  font-family: 'Inter', -apple-system, BlinkMacSystemFont, 'Segoe UI', Roboto, Helvetica, Arial, sans-serif;
-}
+    body {
+      font-family: 'Inter', -apple-system, BlinkMacSystemFont, 'Segoe UI', Roboto, Helvetica, Arial, sans-serif;
+    }
 
     .metric-card {
-  border-radius: 1rem;
-  border: 1px solid rgba(148, 163, 184, 0.25); /* oscuro */
-  background: rgba(15, 23, 42, 0.85);         /* oscuro */
-  box-shadow: 0 18px 35px rgba(15, 23, 42, 0.85);
-}
-[data-theme="light"] .metric-card {
-  border-color: #e5e7eb; 
-  background: #ffffff;
-  box-shadow: 0 14px 30px rgba(15, 23, 42, 0.08);
-}
+      border-radius: 1rem;
+      border: 1px solid rgba(148, 163, 184, 0.25);
+      background: rgba(15, 23, 42, 0.85);
+      box-shadow: 0 18px 35px rgba(15, 23, 42, 0.85);
+    }
+    [data-theme="light"] .metric-card {
+      border-color: #e5e7eb; 
+      background: #ffffff;
+      box-shadow: 0 14px 30px rgba(15, 23, 42, 0.08);
+    }
 
     /* Personalización Previsualizar */
-#btnPreviewDelete {
-    background-color: var(--accent-soft);
-    border-color: var(--accent);
-    color: var(--accent);
-}
-#btnPreviewDelete:hover {
-    background-color: var(--accent);
-    color: #0f172a;
-}
+    #btnPreviewDelete {
+      background-color: var(--accent-soft);
+      border-color: var(--accent);
+      color: var(--accent);
+    }
+    #btnPreviewDelete:hover {
+      background-color: var(--accent);
+      color: #0f172a;
+    }
 
-/* Personalización Eliminar por patrón */
-#btnDeletePattern {
-    background-color: var(--danger);
-    border-color: var(--danger);
-    color: #fff;
-}
-#btnDeletePattern:hover {
-    filter: brightness(1.05);
-}
+    /* Personalización Eliminar por patrón */
+    #btnDeletePattern {
+      background-color: var(--danger);
+      border-color: var(--danger);
+      color: #fff;
+    }
+    #btnDeletePattern:hover {
+      filter: brightness(1.05);
+    }
 
-/* Personalización Eliminar todas */
-#btnDeleteAll {
-    background-color: rgba(239, 68, 68, 0.1); /* rojo suave */
-    border-color: var(--danger);
-    color: var(--danger);
-}
-#btnDeleteAll:hover {
-    background-color: var(--danger);
-    color: #fff;
-}
+    /* Personalización Eliminar todas */
+    #btnDeleteAll {
+      background-color: rgba(239, 68, 68, 0.1);
+      border-color: var(--danger);
+      color: var(--danger);
+    }
+    #btnDeleteAll:hover {
+      background-color: var(--danger);
+      color: #fff;
+    }
 
     /* Contenedor de tabla estilizado */
-.table-responsive {
-    border-radius: 1rem;
-    border: 1px solid var(--border-subtle-dark);
-    background: rgba(15, 23, 42, 0.85);
-    box-shadow: 0 18px 35px rgba(15, 23, 42, 0.85);
-}
-[data-theme="light"] .table-responsive {
-    border-color: #e5e7eb;
-    background: #ffffff;
-    box-shadow: 0 14px 30px rgba(15, 23, 42, 0.08);
-}
+    .table-responsive {
+      border-radius: 1rem;
+      border: 1px solid var(--border-subtle-dark);
+      background: rgba(15, 23, 42, 0.85);
+      box-shadow: 0 18px 35px rgba(15, 23, 42, 0.85);
+    }
+    [data-theme="light"] .table-responsive {
+      border-color: #e5e7eb;
+      background: #ffffff;
+      box-shadow: 0 14px 30px rgba(15, 23, 42, 0.08);
+    }
 
-/* Cabecera de tabla */
-#ipsTable thead th {
-    font-size: 0.75rem;
-    text-transform: uppercase;
-    letter-spacing: 0.12em;
-    border-bottom: none;
-    color: var(--text-muted-dark);
-}
-[data-theme="light"] #ipsTable thead th {
-    color: var(--text-muted-light);
-}
+    /* Cabecera de tabla */
+    #ipsTable thead th {
+      font-size: 0.75rem;
+      text-transform: uppercase;
+      letter-spacing: 0.12em;
+      border-bottom: none;
+      color: var(--text-muted-dark);
+    }
+    [data-theme="light"] #ipsTable thead th {
+      color: var(--text-muted-light);
+    }
 
-/* Filas */
-#ipsTable tbody tr:hover {
-    background: rgba(31, 41, 55, 0.9);
-    transform: translateY(-1px);
-}
-[data-theme="light"] #ipsTable tbody tr:hover {
-    background: #f9fafb;
-}
+    /* Filas */
+    #ipsTable tbody tr:hover {
+      background: rgba(31, 41, 55, 0.9);
+      transform: translateY(-1px);
+    }
+    [data-theme="light"] #ipsTable tbody tr:hover {
+      background: #f9fafb;
+    }
 
-/* Badges de tags */
-.badge-tag {
-    border-radius: 999px;
-    padding: 0.35rem 0.75rem;
-    font-size: 0.75rem;
-    font-weight: 500;
-}
+    /* Badges de tags */
+    .badge-tag {
+      border-radius: 999px;
+      padding: 0.35rem 0.75rem;
+      font-size: 0.75rem;
+      font-weight: 500;
+    }
 
-/* Badge de alertas */
-.badge-alert {
-    border-radius: 999px;
-    font-size: 0.75rem;
-    padding: 0.28rem 0.7rem;
-}
+    /* Badge de alertas */
+    .badge-alert {
+      border-radius: 999px;
+      font-size: 0.75rem;
+      padding: 0.28rem 0.7rem;
+    }
 
     body[data-theme="dark"] .offcanvas-notifs {
-    background: #020617;
-    color: var(--text-main-dark);
-    border-left: 1px solid rgba(148, 163, 184, 0.4);
-}
+      background: #020617;
+      color: var(--text-main-dark);
+      border-left: 1px solid rgba(148, 163, 184, 0.4);
+    }
 
-body[data-theme="dark"] .offcanvas-notifs .list-group-item {
-    background: transparent;
-    border-color: rgba(55, 65, 81, 0.7);
-}
+    body[data-theme="dark"] .offcanvas-notifs .list-group-item {
+      background: transparent;
+      border-color: rgba(55, 65, 81, 0.7);
+    }
 
-body[data-theme="light"] .offcanvas-notifs {
-    background: #ffffff;
-    color: var(--text-main-light);
-    border-left: 1px solid #e5e7eb;
-}
+    body[data-theme="light"] .offcanvas-notifs {
+      background: #ffffff;
+      color: var(--text-main-light);
+      border-left: 1px solid #e5e7eb;
+    }
 
-body[data-theme="light"] .offcanvas-notifs .list-group-item {
-    background: transparent;
-    border-color: #e5e7eb;
-}
+    body[data-theme="light"] .offcanvas-notifs .list-group-item {
+      background: transparent;
+      border-color: #e5e7eb;
+    }
 
     #toastContainer .toast {
-    border-radius: 0.75rem;
-    box-shadow: 0 16px 30px rgba(15, 23, 42, 0.8);
-}
+      border-radius: 0.75rem;
+      box-shadow: 0 16px 30px rgba(15, 23, 42, 0.8);
+    }
  
-    /* Global design variables for dual theme (light/dark) and accent colors */
-:root {
-  --accent: #22d3ee;
-  --accent-soft: rgba(34, 211, 238, 0.14);
-  --danger: #ef4444;
-  --warning: #f59e0b;
-  --success: #10b981;
-  --text-main-dark: #e5e7eb;
-  --text-muted-dark: #9ca3af;
-  --text-main-light: #111827;
-  --text-muted-light: #6b7280;
-}
+    /* Global design variables */
+    :root {
+      --accent: #22d3ee;
+      --accent-soft: rgba(34, 211, 238, 0.14);
+      --danger: #ef4444;
+      --warning: #f59e0b;
+      --success: #10b981;
+      --text-main-dark: #e5e7eb;
+      --text-muted-dark: #9ca3af;
+      --text-main-light: #111827;
+      --text-muted-light: #6b7280;
+    }
+
     body {
-    font-family: 'Inter', -apple-system, BlinkMacSystemFont, 'Segoe UI', Roboto, Helvetica, Arial, sans-serif;
-}
+      font-family: 'Inter', -apple-system, BlinkMacSystemFont, 'Segoe UI', Roboto, Helvetica, Arial, sans-serif;
+    }
 
     /* Botones generales adaptados a la paleta */
-.btn {
-    border-radius: 999px;
-    font-weight: 500;
-    transition: filter 0.15s ease, transform 0.15s ease;
-}
+    .btn {
+      border-radius: 999px;
+      font-weight: 500;
+      transition: filter 0.15s ease, transform 0.15s ease;
+    }
 
-/* Botón primario: cian (Añadir, Subir CSV si se le pone .btn-primary) */
-.btn-primary {
-    background-color: var(--accent);
-    border-color: var(--accent);
-    color: #0f172a;
-}
-.btn-primary:hover {
-    filter: brightness(1.05);
-}
+    .btn-primary {
+      background-color: var(--accent);
+      border-color: var(--accent);
+      color: #0f172a;
+    }
+    .btn-primary:hover {
+      filter: brightness(1.05);
+    }
 
-/* Botón de peligro: rojo para acciones destructivas */
-.btn-danger {
-    background-color: var(--danger);
-    border-color: var(--danger);
-    color: #fff;
-}
-.btn-danger:hover {
-    filter: brightness(1.05);
-}
+    .btn-danger {
+      background-color: var(--danger);
+      border-color: var(--danger);
+      color: #fff;
+    }
+    .btn-danger:hover {
+      filter: brightness(1.05);
+    }
 
-/* Botón de aviso (poco usado en tu UI actual) */
-.btn-warning {
-    background-color: var(--warning);
-    border-color: var(--warning);
-    color: #111827;
-}
-.btn-warning:hover {
-    filter: brightness(1.05);
-}
+    .btn-warning {
+      background-color: var(--warning);
+      border-color: var(--warning);
+      color: #111827;
+    }
+    .btn-warning:hover {
+      filter: brightness(1.05);
+    }
 
-/* Botones outlines con tono cian suave */
-.btn-outline-secondary {
-    border-color: var(--accent);
-    color: var(--accent);
-}
-.btn-outline-secondary:hover {
-    background-color: var(--accent-soft);
-    color: #0f172a;
-}
+    .btn-outline-secondary {
+      border-color: var(--accent);
+      color: var(--accent);
+    }
+    .btn-outline-secondary:hover {
+      background-color: var(--accent-soft);
+      color: #0f172a;
+    }
     
     /* ---------- UI refinements ---------- */
-
-    /* Hints legibles también en modo oscuro */
     .hint-box {
       font-size: .9rem;
       border: 1px dashed #ced4da;
@@ -413,14 +407,13 @@ body[data-theme="light"] .offcanvas-notifs .list-group-item {
       color: #e9ecef;
     }
 
-    /* Placeholders visibles en oscuro */
     .bg-dark ::placeholder { color: #adb5bd !important; opacity: 1; }
     .bg-dark .form-control, .bg-dark .form-select {
       background-color: #1f1f1f; color: #e9ecef; border-color: #495057;
     }
     .bg-dark .table { color: #e9ecef; }
 
-    /* TOASTS: arriba a la derecha, bajo la cabecera */
+    /* TOASTS: arriba derecha */
     #toast-portal{
       position: fixed;
       top: 64px;
@@ -437,53 +430,51 @@ body[data-theme="light"] .offcanvas-notifs .list-group-item {
     }
     .toast{ pointer-events: auto; border: none !important; box-shadow: 0 6px 18px rgba(0,0,0,.25); }
 
-    /* ======== ESTILO PERSONALIZADO PARA LA BARRA DE FILTRO ======== */
-#serverToolbar {
-    border-radius: 1rem;
-    border: 1px solid var(--border-subtle-dark);
-    background: rgba(15, 23, 42, 0.85);
-    box-shadow: 0 18px 35px rgba(15, 23, 42, 0.85);
-    padding: 1rem;
-}
-[data-theme="light"] #serverToolbar {
-    border-color: #e5e7eb;
-    background: #ffffff;
-    box-shadow: 0 14px 30px rgba(15, 23, 42, 0.08);
-}
+    /* ======== ESTILO PARA LA BARRA DE FILTRO ======== */
+    #serverToolbar {
+      border-radius: 1rem;
+      border: 1px solid var(--border-subtle-dark);
+      background: rgba(15, 23, 42, 0.85);
+      box-shadow: 0 18px 35px rgba(15, 23, 42, 0.85);
+      padding: 1rem;
+    }
+    [data-theme="light"] #serverToolbar {
+      border-color: #e5e7eb;
+      background: #ffffff;
+      box-shadow: 0 14px 30px rgba(15, 23, 42, 0.08);
+    }
 
-/* Campo de búsqueda */
-#qInput {
-    border-radius: 999px;
-    background-color: #020617;
-    border: 1px solid rgba(148, 163, 184, 0.45);
-    color: var(--text-main-dark);
-}
-[data-theme="light"] #qInput {
-    background-color: #ffffff;
-    border-color: #d1d5db;
-    color: var(--text-main-light);
-}
-#qInput:focus {
-    border-color: var(--accent);
-    box-shadow: 0 0 0 1px rgba(34, 211, 238, 0.45);
-}
+    #qInput {
+      border-radius: 999px;
+      background-color: #020617;
+      border: 1px solid rgba(148, 163, 184, 0.45);
+      color: var(--text-main-dark);
+    }
+    [data-theme="light"] #qInput {
+      background-color: #ffffff;
+      border-color: #d1d5db;
+      color: var(--text-main-light);
+    }
+    #qInput:focus {
+      border-color: var(--accent);
+      box-shadow: 0 0 0 1px rgba(34, 211, 238, 0.45);
+    }
 
-/* Botón limpiar filtro */
-#clearTableFilters {
-    border-radius: 999px;
-    border-color: var(--accent);
-    color: var(--accent);
-}
-#clearTableFilters:hover {
-    background-color: var(--accent-soft);
-    color: #0f172a;
-}
+    #clearTableFilters {
+      border-radius: 999px;
+      border-color: var(--accent);
+      color: var(--accent);
+    }
+    #clearTableFilters:hover {
+      background-color: var(--accent-soft);
+      color: #0f172a;
+    }
 
-    /* Botón Notificaciones (en cabecera) con burbuja */
+    /* Botón Notificaciones */
     #notif-btn{ position:relative; }
     #notif-badge{ position:absolute; top:-6px; right:-8px; }
 
-    /* Logo esquina (SIN TOCAR, abajo derecha) */
+    /* Logo esquina */
     #corner-logo{
       position:fixed; bottom:16px; right:16px; width:96px; height:auto; opacity:.85; z-index:1040;
     }
@@ -500,7 +491,7 @@ body[data-theme="light"] .offcanvas-notifs .list-group-item {
       .toolbar-grid { grid-template-columns: 1fr 1fr 1fr; }
     }
 
-    /* ====== Refuerzo DARK por data-theme (cubre gap antes de JS) ====== */
+    /* ====== Refuerzo DARK por data-theme ====== */
     html[data-theme="dark"] body { background-color: #121212; color: #e9ecef; }
     html[data-theme="dark"] .form-control, html[data-theme="dark"] .form-select {
       background-color: #1f1f1f; color: #e9ecef; border-color: #495057;
@@ -533,11 +524,9 @@ body[data-theme="light"] .offcanvas-notifs .list-group-item {
 
     html[data-theme="dark"] body.bg-light { background-color: #121212 !important; color: #e9ecef !important; }
 
-    /* Resaltado de filas seleccionadas (bulk) */
     .table-active-selected { outline: 2px solid rgba(13,110,253,.35); }
     html[data-theme="dark"] .table-active-selected { outline-color: rgba(13,110,253,.55); }
 
-    /* Celda de alertas: texto pequeño para lista de IDs */
     .alert-ids-list {
       font-size: 0.8rem;
       margin-top: 2px;
@@ -577,134 +566,129 @@ body[data-theme="light"] .offcanvas-notifs .list-group-item {
         </div>
       </div>
 
-            <!-- Lado derecho: tema + notificaciones + backup + logout -->
-           <button
-            class="btn btn-outline-light btn-sm"
-            onclick="toggleTheme()"
-            id="themeToggleBtn">
-            🌙 Oscuro
-          </button>
+      <!-- Lado derecho: tema + notificaciones + backup + logout -->
+      <button
+        class="btn btn-outline-light btn-sm"
+        onclick="toggleTheme()"
+        id="themeToggleBtn">
+        🌙 Oscuro
+      </button>
 
-                <!-- Notificaciones -->
-                        <div class="btn-group">
-          <button id="notif-btn" class="btn btn-outline-light btn-sm"
-                  type="button" data-bs-toggle="offcanvas"
-                  data-bs-target="#offcanvasNotifs" aria-controls="offcanvasNotifs">
-            🔔 Notificaciones
-            <span id="notif-badge" class="badge text-bg-danger rounded-pill d-none">0</span>
-          </button>
-          <button id="markReadBtn" class="btn btn-outline-light btn-sm" title="Marcar como leído (sin abrir)">
-            ✅
-          </button>
-        </div>
-
-        <!-- Backup ahora en la barra superior -->
-                <form method="POST" action="/backup/now" class="d-none d-md-inline">
-          <button class="btn btn-outline-success btn-sm" type="submit">
-            🌩️ Backup ahora
-          </button>
-        </form>
-
-        <a href="/logout" class="btn btn-outline-light btn-sm">Logout</a>
+      <div class="btn-group">
+        <button id="notif-btn" class="btn btn-outline-light btn-sm"
+                type="button" data-bs-toggle="offcanvas"
+                data-bs-target="#offcanvasNotifs" aria-controls="offcanvasNotifs">
+          🔔 Notificaciones
+          <span id="notif-badge" class="badge text-bg-danger rounded-pill d-none">0</span>
+        </button>
+        <button id="markReadBtn" class="btn btn-outline-light btn-sm" title="Marcar como leído (sin abrir)">
+          ✅
+        </button>
       </div>
+
+      <form method="POST" action="/backup/now" class="d-none d-md-inline">
+        <button class="btn btn-outline-success btn-sm" type="submit">
+          🌩️ Backup ahora
+        </button>
+      </form>
+
+      <a href="/logout" class="btn btn-outline-light btn-sm">Logout</a>
     </div>
   </div>
 </header>
 
 <div class="container py-3">
   <div class="text-center mb-3">
-  <h2 class="fw-bold mb-1">
-    <span class="title-gestor">Gestor</span>
-    <span class="title-ioc">IOC&nbsp;Manager</span>
-  </h2>
-  <div class="mx-auto" style="width:120px; height:3px; background:#0d6efd; border-radius:2px;"></div>
-  <p class="text-muted mt-2">
-    Herramienta de seguridad para la gestión de IOCs
-  </p>
-</div>
+    <h2 class="fw-bold mb-1">
+      <span class="title-gestor">Gestor</span>
+      <span class="title-ioc">IOC&nbsp;Manager</span>
+    </h2>
+    <div class="mx-auto" style="width:120px; height:3px; background:#0d6efd; border-radius:2px;"></div>
+    <p class="text-muted mt-2">
+      Herramienta de seguridad para la gestión de IOCs
+    </p>
+  </div>
 
-  <!-- ======= RESUMEN AMPLIADO ======= -->
-<!-- NUEVAS TARJETAS DE RESUMEN -->
-<div class="row g-3 mb-4">
-  <!-- Tarjeta total IPs activas -->
-  <div class="col-12 col-md-6 col-xl-3">
-    <div class="card metric-card h-100 border-0">
-      <div class="card-body">
-        <h6 class="text-uppercase mb-1">IPs activas</h6>
-        <div class="display-6">{{ total_ips or 0 }}</div>
-        <small class="text-muted">En todos los feeds</small>
+  <!-- RESUMEN AMPLIADO -->
+  <div class="row g-3 mb-4">
+    <!-- IPs activas -->
+    <div class="col-12 col-md-6 col-xl-3">
+      <div class="card metric-card h-100 border-0">
+        <div class="card-body">
+          <h6 class="text-uppercase mb-1">IPs activas (unión)</h6>
+          <div class="display-6">{{ union_total or total_ips or 0 }}</div>
+          <small class="text-muted">En todos los feeds (Multicliente, BPE, Test)</small>
+        </div>
       </div>
     </div>
-  </div>
-  <!-- Tarjeta IPs por origen -->
-  <div class="col-12 col-md-6 col-xl-3">
-    <div class="card metric-card h-100 border-0">
-      <div class="card-body">
-        <h6 class="text-uppercase mb-1">Por origen</h6>
-        <div class="d-flex justify-content-between mt-2">
-          <div>
-            <span class="badge bg-primary">Manual</span>
-            <div class="fs-4">{{ contador_manual or 0 }}</div>
-          </div>
-          <div>
-            <span class="badge bg-info text-dark">CSV</span>
-            <div class="fs-4">{{ contador_csv or 0 }}</div>
-          </div>
-          <div>
-            <span class="badge bg-warning text-dark">API</span>
-            <div class="fs-4">{{ contador_api or 0 }}</div>
+    <!-- Por origen -->
+    <div class="col-12 col-md-6 col-xl-3">
+      <div class="card metric-card h-100 border-0">
+        <div class="card-body">
+          <h6 class="text-uppercase mb-1">Por origen</h6>
+          <div class="d-flex justify-content-between mt-2">
+            <div>
+              <span class="badge bg-primary">Manual</span>
+              <div class="fs-4">{{ contador_manual or 0 }}</div>
+            </div>
+            <div>
+              <span class="badge bg-info text-dark">CSV</span>
+              <div class="fs-4">{{ contador_csv or 0 }}</div>
+            </div>
+            <div>
+              <span class="badge bg-warning text-dark">API</span>
+              <div class="fs-4">{{ contador_api or 0 }}</div>
+            </div>
           </div>
         </div>
       </div>
     </div>
-  </div>
-  <!-- Tarjeta IPs por tag -->
-  <div class="col-12 col-md-6 col-xl-3">
-    <div class="card metric-card h-100 border-0">
-      <div class="card-body">
-        <h6 class="text-uppercase mb-1">Por tag</h6>
-        <div class="d-flex flex-column gap-1 mt-2">
-          <div class="d-flex justify-content-between align-items-center">
-            <span class="badge rounded-pill text-bg-primary">Multicliente</span>
-            <span class="fs-5">{{ contador_tags.get('Multicliente', 0) }}</span>
-          </div>
-          <div class="d-flex justify-content-between align-items-center">
-            <span class="badge rounded-pill text-bg-warning text-dark">BPE</span>
-            <span class="fs-5">{{ contador_tags.get('BPE', 0) }}</span>
-          </div>
-          <div class="d-flex justify-content-between align-items-center">
-            <span class="badge rounded-pill text-bg-secondary">Test</span>
-            <span class="fs-5">{{ contador_tags.get('Test', 0) }}</span>
+    <!-- Por tag -->
+    <div class="col-12 col-md-6 col-xl-3">
+      <div class="card metric-card h-100 border-0">
+        <div class="card-body">
+          <h6 class="text-uppercase mb-1">Por tag</h6>
+          {% set tags_tot = contador_tags or {} %}
+          <div class="d-flex flex-column gap-1 mt-2">
+            <div class="d-flex justify-content-between align-items-center">
+              <span class="badge rounded-pill text-bg-primary">Multicliente</span>
+              <span class="fs-5">{{ tags_tot.get('Multicliente', 0) }}</span>
+            </div>
+            <div class="d-flex justify-content-between align-items-center">
+              <span class="badge rounded-pill text-bg-warning text-dark">BPE</span>
+              <span class="fs-5">{{ tags_tot.get('BPE', 0) }}</span>
+            </div>
+            <div class="d-flex justify-content-between align-items-center">
+              <span class="badge rounded-pill text-bg-secondary">Test</span>
+              <span class="fs-5">{{ tags_tot.get('Test', 0) }}</span>
+            </div>
           </div>
         </div>
       </div>
     </div>
-  </div>
-  <!-- Tarjeta backups -->
-  <div class="col-12 col-md-6 col-xl-3">
-    <div class="card metric-card h-100 border-0">
-      <div class="card-body">
-        <h6 class="text-uppercase mb-1">Backups</h6>
-        <p class="mb-2">
-          <small class="text-muted">
-            Backup diario automático si hay cambios.
-          </small>
-        </p>
-        <a href="{{ url_for('backup_list') }}" class="btn btn-outline-secondary btn-sm">
-          <i class="bi bi-clock-history"></i> Ver backups
-        </a>
+    <!-- Backups -->
+    <div class="col-12 col-md-6 col-xl-3">
+      <div class="card metric-card h-100 border-0">
+        <div class="card-body">
+          <h6 class="text-uppercase mb-1">Backups</h6>
+          <p class="mb-2">
+            <small class="text-muted">
+              Backup diario automático si hay cambios.
+            </small>
+          </p>
+          <a href="{{ url_for('backup_list') }}" class="btn btn-outline-secondary btn-sm">
+            <i class="bi bi-clock-history"></i> Ver backups
+          </a>
+        </div>
       </div>
     </div>
   </div>
-</div>
-  <!-- ======= FIN RESUMEN AMPLIADO ======= -->
 
-   <!-- Botones de backup -->
+  <!-- Botón descargar último backup -->
   <div class="d-flex gap-2 justify-content-center mb-3">
     <a class="btn btn-outline-secondary btn-sm" href="/backup/latest.zip">⬇️ Descargar último backup</a>
   </div>
 
-  <!-- Solo errores graves si el backend los envía en 'error' -->
   {% if error %}
     <div class="alert alert-danger mt-2">{{ error }}</div>
   {% endif %}
@@ -712,188 +696,174 @@ body[data-theme="light"] .offcanvas-notifs .list-group-item {
   <form id="mainForm" method="POST" enctype="multipart/form-data" class="mt-3">
     <input type="hidden" name="source" value="web">
 
-    <!-- Navegación de pestañas -->
-<ul class="nav nav-pills mb-3" id="formsTabs" role="tablist">
-  <li class="nav-item" role="presentation">
-    <button class="nav-link active" id="tab-manual" data-bs-toggle="pill"
-            data-bs-target="#pane-manual" type="button" role="tab"
-            aria-controls="pane-manual" aria-selected="true">
-      <i class="bi bi-plus-circle me-1"></i> Alta manual
-    </button>
-  </li>
-  <li class="nav-item" role="presentation">
-    <button class="nav-link" id="tab-csv" data-bs-toggle="pill"
-            data-bs-target="#pane-csv" type="button" role="tab"
-            aria-controls="pane-csv" aria-selected="false">
-      <i class="bi bi-file-earmark-spreadsheet me-1"></i> Carga CSV/TXT
-    </button>
-  </li>
-  <li class="nav-item" role="presentation">
-    <button class="nav-link" id="tab-delete" data-bs-toggle="pill"
-            data-bs-target="#pane-delete" type="button" role="tab"
-            aria-controls="pane-delete" aria-selected="false">
-      <i class="bi bi-trash me-1"></i> Eliminación por patrón
-    </button>
-  </li>
-</ul>
+    <!-- Tabs acciones -->
+    <ul class="nav nav-pills mb-3" id="formsTabs" role="tablist">
+      <li class="nav-item" role="presentation">
+        <button class="nav-link active" id="tab-manual" data-bs-toggle="pill"
+                data-bs-target="#pane-manual" type="button" role="tab"
+                aria-controls="pane-manual" aria-selected="true">
+          <i class="bi bi-plus-circle me-1"></i> Alta manual
+        </button>
+      </li>
+      <li class="nav-item" role="presentation">
+        <button class="nav-link" id="tab-csv" data-bs-toggle="pill"
+                data-bs-target="#pane-csv" type="button" role="tab"
+                aria-controls="pane-csv" aria-selected="false">
+          <i class="bi bi-file-earmark-spreadsheet me-1"></i> Carga CSV/TXT
+        </button>
+      </li>
+      <li class="nav-item" role="presentation">
+        <button class="nav-link" id="tab-delete" data-bs-toggle="pill"
+                data-bs-target="#pane-delete" type="button" role="tab"
+                aria-controls="pane-delete" aria-selected="false">
+          <i class="bi bi-trash me-1"></i> Eliminación por patrón
+        </button>
+      </li>
+    </ul>
 
     <div class="tab-content" id="actionsTabContent">
-  <div class="tab-pane fade show active" id="pane-manual" role="tabpanel" aria-labelledby="tab-manual">
-    <!-- Alta manual -->
-<div class="row g-3 mb-1 align-items-end">
-    <!-- IP -->
-  <div class="col-lg-5">
-    <label for="ipInput" class="form-label small mb-1">IP / Red / Rango / IP+Máscara</label>
-    <input id="ipInput" type="text" class="form-control" name="ip" autocomplete="off"
-           placeholder="Ej: 1.2.3.4 · 1.2.3.0/24 · 1.2.3.4-1.2.3.20">
-    <div id="ipFeedback" class="invalid-feedback"></div>
-  </div>
+      <!-- Alta manual -->
+      <div class="tab-pane fade show active" id="pane-manual" role="tabpanel" aria-labelledby="tab-manual">
+        <div class="row g-3 mb-1 align-items-end">
+          <div class="col-lg-5">
+            <label for="ipInput" class="form-label small mb-1">IP / Red / Rango / IP+Máscara</label>
+            <input id="ipInput" type="text" class="form-control" name="ip" autocomplete="off"
+                   placeholder="Ej: 1.2.3.4 · 1.2.3.0/24 · 1.2.3.4-1.2.3.20">
+            <div id="ipFeedback" class="invalid-feedback"></div>
+          </div>
 
-  <!-- TTL -->
-  <div class="col-lg-2">
-    <label class="form-label small mb-1">TTL</label>
-    <select class="form-select" name="ttl_manual">
-      <option value="permanente" selected>Permanente</option>
-      <option value="1">1 día</option>
-      <option value="3">3 días</option>
-      <option value="7">7 días</option>
-      <option value="30">30 días</option>
-    </select>
-  </div>
+          <div class="col-lg-2">
+            <label class="form-label small mb-1">TTL</label>
+            <select class="form-select" name="ttl_manual">
+              <option value="permanente" selected>Permanente</option>
+              <option value="1">1 día</option>
+              <option value="3">3 días</option>
+              <option value="7">7 días</option>
+              <option value="30">30 días</option>
+            </select>
+          </div>
 
-  <!-- Tags (obligatorio) -->
-  <div class="col-lg-3">
-    <label class="form-label small mb-1">Aplicar a</label>
-    <div id="tagManualGroup" class="d-flex flex-wrap align-items-center gap-3">
-      <div class="form-check m-0">
-        <input class="form-check-input tag-manual" type="checkbox" value="Multicliente" id="tagManualMulti">
-        <label class="form-check-label" for="tagManualMulti">Multicliente</label>
-      </div>
-      <div class="form-check m-0">
-        <input class="form-check-input tag-manual" type="checkbox" value="BPE" id="tagManualBpe">
-        <label class="form-check-label" for="tagManualBpe">BPE</label>
-      </div>
-      <input type="hidden" id="tagsManualInput" name="tags_manual" value="">
-    </div>
-    <div id="tagManualFeedback" class="invalid-feedback" style="display:none;">
-      Selecciona al menos un tag (Multicliente y/o BPE).
-    </div>
-  </div>
+          <div class="col-lg-3">
+            <label class="form-label small mb-1">Aplicar a</label>
+            <div id="tagManualGroup" class="d-flex flex-wrap align-items-center gap-3">
+              <div class="form-check m-0">
+                <input class="form-check-input tag-manual" type="checkbox" value="Multicliente" id="tagManualMulti">
+                <label class="form-check-label" for="tagManualMulti">Multicliente</label>
+              </div>
+              <div class="form-check m-0">
+                <input class="form-check-input tag-manual" type="checkbox" value="BPE" id="tagManualBpe">
+                <label class="form-check-label" for="tagManualBpe">BPE</label>
+              </div>
+              <input type="hidden" id="tagsManualInput" name="tags_manual" value="">
+            </div>
+            <div id="tagManualFeedback" class="invalid-feedback" style="display:none;">
+              Selecciona al menos un tag (Multicliente y/o BPE).
+            </div>
+          </div>
 
-  <!-- Botones -->
-  <div class="col-lg-2">
-    <div class="d-flex gap-2">
-      <button id="addManualBtn" type="submit" class="btn btn-success w-100">Añadir</button>
-      <button type="button" class="btn btn-danger d-none d-lg-inline-block"
-              data-bs-toggle="modal" data-bs-target="#confirmDeleteAll">
-        Eliminar todas
-      </button>
-    </div>
-    <!-- Eliminar todas en móvil (debajo para no apretar la fila) -->
-    <button type="button" class="btn btn-danger mt-2 w-100 d-lg-none"
-            data-bs-toggle="modal" data-bs-target="#confirmDeleteAll">
-      Eliminar todas
-    </button>
-  </div>
-</div>
+          <div class="col-lg-2">
+            <div class="d-flex gap-2">
+              <button id="addManualBtn" type="submit" class="btn btn-success w-100">Añadir</button>
+              <button type="button" class="btn btn-danger d-none d-lg-inline-block"
+                      data-bs-toggle="modal" data-bs-target="#confirmDeleteAll">
+                Eliminar todas
+              </button>
+            </div>
+            <button type="button" class="btn btn-danger mt-2 w-100 d-lg-none"
+                    data-bs-toggle="modal" data-bs-target="#confirmDeleteAll">
+              Eliminar todas
+            </button>
+          </div>
+        </div>
 
-<!-- Ayuda de formatos (fuera de la fila para no desalinear) -->
-<div class="row mb-3">
-  <div class="col-12">
-    <div class="form-text small">
-      Formatos admitidos: IP individual · CIDR · rango · IP + máscara (p. ej. 1.2.3.0 255.255.255.0)
-    </div>
-  </div>
-</div>
-  </div>
-
-  <div class="tab-pane fade" id="pane-csv" role="tabpanel" aria-labelledby="tab-csv">
-    <!-- Subida por CSV -->
-<div class="row g-3 mb-1 align-items-end">
-  <!-- Archivo -->
-  <div class="col-lg-5">
-    <label class="form-label small mb-1">Seleccionar archivo</label>
-    <input class="form-control" type="file" id="file" name="file" accept=".csv,.txt">
-  </div>
-
-  <!-- TTL global para CSV -->
-  <div class="col-lg-2">
-    <label class="form-label small mb-1">TTL para todas las filas</label>
-    <select class="form-select" id="ttl_csv" name="ttl_csv">
-      <option value="permanente" selected>Permanente</option>
-      <option value="1">1 día</option>
-      <option value="3">3 días</option>
-      <option value="7">7 días</option>
-      <option value="30">30 días</option>
-    </select>
-  </div>
-
-  <!-- Tags CSV -->
-  <div class="col-lg-3">
-    <label class="form-label small mb-1">Aplicar a (todas las filas)</label>
-    <div id="tagCsvGroup" class="d-flex flex-wrap align-items-center gap-3">
-      <div class="form-check m-0">
-        <input class="form-check-input tag-csv" type="checkbox" value="Multicliente" id="tagCsvMulti">
-        <label class="form-check-label" for="tagCsvMulti">Multicliente</label>
-      </div>
-      <div class="form-check m-0">
-        <input class="form-check-input tag-csv" type="checkbox" value="BPE" id="tagCsvBpe">
-        <label class="form-check-label" for="tagCsvBpe">BPE</label>
-      </div>
-      <input type="hidden" id="tagsCsvInput" name="tags_csv" value="">
-    </div>
-  </div>
-
-<!-- ✅ Feedback visual para CSV sin tags -->
-<div id="tagCsvFeedback" class="invalid-feedback" style="display:none;">
-  Selecciona al menos un tag (Multicliente y/o BPE) para el CSV.
-</div>
-
-  <!-- Botones -->
-  <div class="col-lg-2">
-    <!-- label “fantasma” para igualar altura de cabecera -->
-    <label class="form-label small mb-1 d-none d-lg-block">&nbsp;</label>
-    <div class="d-flex gap-2">
-      <button id="uploadCsvBtn" type="submit" class="btn btn-primary w-100">Subir archivo</button>
-      <a href="{{ url_for('static', filename='plantilla.csv') }}" class="btn btn-secondary w-100" download>
-        Descargar plantilla
-      </a>
-    </div>
-  </div>
-</div>
-
-<!-- Nota de ayuda (fuera de la fila para no desalinear) -->
-<div class="row mb-3">
-  <div class="col-12">
-    <div class="form-text small">Solo archivos .csv o .txt con una IP por línea.</div>
-  </div>
-</div>
-  </div>
-
-  <div class="tab-pane fade" id="pane-delete" role="tabpanel" aria-labelledby="tab-delete">
-    <!-- Acciones avanzadas -->
-    <div class="row g-3 mb-4">
-      <div class="col-lg-6">
-        <button type="button" class="btn btn-outline-warning w-100" data-bs-toggle="modal" data-bs-target="#modalDeleteNet">
-          Eliminar por patrón (CIDR / Rango / IP+Máscara / IP)
-        </button>
-      </div>
-      <div class="col-lg-6">
-        <div class="hint-box">
-          <strong>Ejemplos válidos:</strong>
-          <ul class="mb-0">
-            <li><code>203.0.113.0/24</code> (CIDR)</li>
-            <li><code>203.0.113.10-203.0.113.50</code> (rango)</li>
-            <li><code>203.0.113.0 255.255.255.0</code> (IP + máscara)</li>
-            <li><code>203.0.113.5</code> (IP suelta)</li>
-          </ul>
+        <div class="row mb-3">
+          <div class="col-12">
+            <div class="form-text small">
+              Formatos admitidos: IP individual · CIDR · rango · IP + máscara (p. ej. 1.2.3.0 255.255.255.0)
+            </div>
+          </div>
         </div>
       </div>
-    </div>
+
+      <!-- Carga CSV -->
+      <div class="tab-pane fade" id="pane-csv" role="tabpanel" aria-labelledby="tab-csv">
+        <div class="row g-3 mb-1 align-items-end">
+          <div class="col-lg-5">
+            <label class="form-label small mb-1">Seleccionar archivo</label>
+            <input class="form-control" type="file" id="file" name="file" accept=".csv,.txt">
+          </div>
+
+          <div class="col-lg-2">
+            <label class="form-label small mb-1">TTL para todas las filas</label>
+            <select class="form-select" id="ttl_csv" name="ttl_csv">
+              <option value="permanente" selected>Permanente</option>
+              <option value="1">1 día</option>
+              <option value="3">3 días</option>
+              <option value="7">7 días</option>
+              <option value="30">30 días</option>
+            </select>
+          </div>
+
+          <div class="col-lg-3">
+            <label class="form-label small mb-1">Aplicar a (todas las filas)</label>
+            <div id="tagCsvGroup" class="d-flex flex-wrap align-items-center gap-3">
+              <div class="form-check m-0">
+                <input class="form-check-input tag-csv" type="checkbox" value="Multicliente" id="tagCsvMulti">
+                <label class="form-check-label" for="tagCsvMulti">Multicliente</label>
+              </div>
+              <div class="form-check m-0">
+                <input class="form-check-input tag-csv" type="checkbox" value="BPE" id="tagCsvBpe">
+                <label class="form-check-label" for="tagCsvBpe">BPE</label>
+              </div>
+              <input type="hidden" id="tagsCsvInput" name="tags_csv" value="">
+            </div>
+          </div>
+
+          <div id="tagCsvFeedback" class="invalid-feedback" style="display:none;">
+            Selecciona al menos un tag (Multicliente y/o BPE) para el CSV.
+          </div>
+
+          <div class="col-lg-2">
+            <label class="form-label small mb-1 d-none d-lg-block">&nbsp;</label>
+            <div class="d-flex gap-2">
+              <button id="uploadCsvBtn" type="submit" class="btn btn-primary w-100">Subir archivo</button>
+              <a href="{{ url_for('static', filename='plantilla.csv') }}" class="btn btn-secondary w-100" download>
+                Descargar plantilla
+              </a>
+            </div>
+          </div>
+        </div>
+
+        <div class="row mb-3">
+          <div class="col-12">
+            <div class="form-text small">Solo archivos .csv o .txt con una IP por línea.</div>
+          </div>
+        </div>
+      </div>
+
+      <!-- Eliminación avanzada -->
+      <div class="tab-pane fade" id="pane-delete" role="tabpanel" aria-labelledby="tab-delete">
+        <div class="row g-3 mb-4">
+          <div class="col-lg-6">
+            <button type="button" class="btn btn-outline-warning w-100" data-bs-toggle="modal" data-bs-target="#modalDeleteNet">
+              Eliminar por patrón (CIDR / Rango / IP+Máscara / IP)
+            </button>
+          </div>
+          <div class="col-lg-6">
+            <div class="hint-box">
+              <strong>Ejemplos válidos:</strong>
+              <ul class="mb-0">
+                <li><code>203.0.113.0/24</code> (CIDR)</li>
+                <li><code>203.0.113.10-203.0.113.50</code> (rango)</li>
+                <li><code>203.0.113.0 255.255.255.0</code> (IP + máscara)</li>
+                <li><code>203.0.113.5</code> (IP suelta)</li>
+              </ul>
+            </div>
+          </div>
+        </div>
+      </div>
+    </div> <!-- tab-content -->
   </form>
-  </div>
-</div>
- 
   
   <!-- Modal Confirmación Eliminar Todas -->
   <div class="modal fade" id="confirmDeleteAll" tabindex="-1" aria-hidden="true">
@@ -918,7 +888,7 @@ body[data-theme="light"] .offcanvas-notifs .list-group-item {
     </div>
   </div>
 
-  <!-- Modal Eliminar por Patrón (con previsualización) -->
+  <!-- Modal Eliminar por Patrón -->
   <div class="modal fade" id="modalDeleteNet" tabindex="-1" aria-hidden="true">
     <div class="modal-dialog">
       <form method="POST" class="modal-content" onsubmit="return confirmDeletePattern();">
@@ -932,7 +902,6 @@ body[data-theme="light"] .offcanvas-notifs .list-group-item {
                  placeholder="Ej: 203.0.113.0/24 · 203.0.113.10-203.0.113.50 · 203.0.113.0 255.255.255.0 · 203.0.113.5"
                  required>
 
-          <!-- Resultado de previsualización -->
           <div id="previewResult" class="mt-2 small text-muted">
             Escribe un patrón para ver cuántas IPs coinciden.
           </div>
@@ -959,7 +928,7 @@ body[data-theme="light"] .offcanvas-notifs .list-group-item {
   <hr>
   <h4 class="section-title">IPs bloqueadas</h4>
 
-  <!-- Controles server-side (progresivo; si falla JSON, queda fallback local) -->
+  <!-- Controles server-side -->
   <div class="toolbar-grid mb-3" id="serverToolbar">
     <div>
       <label class="form-label small mb-1">Buscar IP</label>
@@ -1109,7 +1078,6 @@ body[data-theme="light"] .offcanvas-notifs .list-group-item {
     </table>
   </div>
 
-  <!-- Paginación server-side -->
   <div class="d-flex align-items-center justify-content-between mt-2" id="pagerBar">
     <div class="small text-muted" id="pageInfo">Página 1</div>
     <div class="btn-group">
@@ -1123,17 +1091,15 @@ body[data-theme="light"] .offcanvas-notifs .list-group-item {
   </div>
 </div>
 
-<!-- Logo DPB fijo (abajo derecha, SIN TOCAR) -->
 <img id="corner-logo" src="{{ url_for('static', filename='img/logo-dpb.svg') }}" alt="Logo DPB">
 
-<!-- Offcanvas de Notificaciones -->
+<!-- Offcanvas Notificaciones -->
 <div class="offcanvas offcanvas-end" tabindex="-1" id="offcanvasNotifs" aria-labelledby="offcanvasNotifsLabel">
   <div class="offcanvas-header">
     <h5 id="offcanvasNotifsLabel">Notificaciones</h5>
     <button type="button" class="btn-close" data-bs-dismiss="offcanvas" aria-label="Cerrar"></button>
   </div>
   <div class="offcanvas-body d-flex flex-column" style="gap:.75rem;">
-    <!-- Filtros -->
     <div class="d-flex flex-wrap align-items-center gap-2 mb-2">
       <select id="filterType" class="form-select form-select-sm" style="max-width:180px">
         <option value="">Todos los tipos</option>
@@ -1147,186 +1113,86 @@ body[data-theme="light"] .offcanvas-notifs .list-group-item {
       <button id="clearFilters" class="btn btn-outline-secondary btn-sm">Limpiar</button>
       <span class="ms-auto small text-muted" id="notifCountInfo"></span>
     </div>
-
-    <!-- Lista -->
     <div id="notifList" class="d-flex flex-column" style="gap:.5rem;"></div>
-
-    <!-- Paginación (10 por página) -->
     <nav class="mt-2">
       <ul id="notifPagination" class="pagination pagination-sm mb-0"></ul>
     </nav>
   </div>
 </div>
 
-<!-- Portal de toasts -->
 <div id="toast-portal" aria-live="polite" aria-atomic="true"></div>
 
 <script>
-  
   function updateThemeToggleButton(theme) {
-  const btn = document.getElementById('themeToggleBtn');
-  if (!btn) return;
-
-  // theme es el TEMA ACTUAL
-  if (theme === 'dark') {
-    // Si estamos en oscuro, el botón ofrece cambiar a claro
-    btn.innerHTML = '☀️ Claro';
-  } else {
-    // Si estamos en claro, el botón ofrece cambiar a oscuro
-    btn.innerHTML = '🌙 Oscuro';
-  }
-}
-
-/* ----------------- Gestión de tema claro/oscuro ----------------- */
-function applyTheme(theme) {
-  const body = document.body;
-  const isDark = (theme === 'dark');
-
-  // Clases base del body
-  body.classList.remove('bg-light', 'bg-dark', 'text-white');
-  if (isDark) {
-    body.classList.add('bg-dark', 'text-white');
-  } else {
-    body.classList.add('bg-light');
+    const btn = document.getElementById('themeToggleBtn');
+    if (!btn) return;
+    if (theme === 'dark') {
+      btn.innerHTML = '☀️ Claro';
+    } else {
+      btn.innerHTML = '🌙 Oscuro';
+    }
   }
 
-  // Atributo global para CSS
-  document.documentElement.setAttribute('data-theme', theme);
+  function applyTheme(theme) {
+    const body = document.body;
+    const isDark = (theme === 'dark');
 
-  // Tabla en modo oscuro/claro
-  const tbl = document.getElementById('tablaIps');
-  if (tbl) {
-    tbl.classList.toggle('table-dark', isDark);
-  }
-
-  // Botón de notificaciones
-  const notifBtn = document.getElementById('notif-btn');
-  if (notifBtn) {
-    notifBtn.classList.remove('btn-outline-primary', 'btn-outline-light');
+    body.classList.remove('bg-light', 'bg-dark', 'text-white');
     if (isDark) {
-      notifBtn.classList.add('btn-outline-light');
+      body.classList.add('bg-dark', 'text-white');
     } else {
-      notifBtn.classList.add('btn-outline-primary');
+      body.classList.add('bg-light');
     }
-  }
 
-  // Texto del botón de tema
-  const themeBtn = document.getElementById('themeToggleBtn');
-  if (themeBtn) {
-    if (isDark) {
-      themeBtn.innerHTML = '☀️ Claro';
-    } else {
-      themeBtn.innerHTML = '🌙 Oscuro';
-    }
-  }
-}
-
-// Botón que alterna el tema
-window.toggleTheme = function () {
-  const current = document.documentElement.getAttribute('data-theme') === 'dark' ? 'dark' : 'light';
-  const next = current === 'dark' ? 'light' : 'dark';
-
-  applyTheme(next);
-  localStorage.setItem('theme', next);
-
-  // Si pasamos a claro, quitamos el parche anti-flash
-  const anti = document.getElementById('anti-flash-dark');
-  if (next === 'light' && anti) {
-    anti.remove();
-  }
-};
-
-// Aplicar el tema guardado al cargar
-(function applySavedThemeEarly() {
-  try {
-    const saved = localStorage.getItem('theme');
-    const theme = (saved === 'dark') ? 'dark' : 'light';
-
-    const onReady = () => {
-      if (document.readyState === 'interactive' || document.readyState === 'complete') {
-        document.removeEventListener('readystatechange', onReady);
-        applyTheme(theme);
-      }
-    };
-
-    if (document.readyState === 'interactive' || document.readyState === 'complete') {
-      onReady();
-    } else {
-      document.addEventListener('readystatechange', onReady);
-    }
-  } catch (e) {
-    console.error('Error aplicando tema guardado:', e);
-  }
-})();
-
-  const tbl = document.getElementById('tablaIps');
-  if (tbl) tbl.classList.toggle('table-dark', isDark);
-
-  // Ajustar estilo del botón de notificaciones según tema
-  const notifBtn = document.getElementById('notif-btn');
-  if (notifBtn) {
-    if (isDark) {
-      notifBtn.classList.add('btn-outline-light');
-      notifBtn.classList.remove('btn-outline-primary');
-    } else {
-      notifBtn.classList.add('btn-outline-primary');
-      notifBtn.classList.remove('btn-outline-light');
-    }
-  }
-
-  // Actualizar texto/icono del botón de tema
-  updateThemeToggleButton(newTheme);
-
-  localStorage.setItem('theme', newTheme);
-};
-
-  (function applySavedThemeEarly() {
-  try {
-    const saved = localStorage.getItem('theme');
-    const theme = (saved === 'dark') ? 'dark' : 'light';
     document.documentElement.setAttribute('data-theme', theme);
 
-    const onReady = () => {
-      if (document.readyState === 'interactive' || document.readyState === 'complete') {
-        document.removeEventListener('readystatechange', onReady);
+    const tbl = document.getElementById('tablaIps');
+    if (tbl) {
+      tbl.classList.toggle('table-dark', isDark);
+    }
 
-        const body = document.body;
-        const isDark = (theme === 'dark');
-
-        if (isDark) {
-          body.classList.remove('bg-light');
-          body.classList.add('bg-dark', 'text-white');
-
-          const tbl = document.getElementById('tablaIps');
-          if (tbl && !tbl.classList.contains('table-dark')) {
-            tbl.classList.add('table-dark');
-          }
-
-          const nb = document.getElementById('notif-btn');
-          if (nb) {
-            nb.classList.add('btn-outline-light');
-            nb.classList.remove('btn-outline-primary');
-          }
-        } else {
-          body.classList.remove('bg-dark', 'text-white');
-          body.classList.add('bg-light');
-
-          const nb = document.getElementById('notif-btn');
-          if (nb) {
-            nb.classList.add('btn-outline-primary');
-            nb.classList.remove('btn-outline-light');
-          }
-        }
-
-        // Ajustar texto/icono del botón de tema según tema almacenado
-        updateThemeToggleButton(theme);
+    const notifBtn = document.getElementById('notif-btn');
+    if (notifBtn) {
+      notifBtn.classList.remove('btn-outline-primary', 'btn-outline-light');
+      if (isDark) {
+        notifBtn.classList.add('btn-outline-light');
+      } else {
+        notifBtn.classList.add('btn-outline-primary');
       }
-    };
+    }
 
-    if (document.readyState === 'interactive' || document.readyState === 'complete') onReady();
-    else document.addEventListener('readystatechange', onReady);
-  } catch {}
-})();
+    updateThemeToggleButton(theme);
+  }
+
+  window.toggleTheme = function () {
+    const current = document.documentElement.getAttribute('data-theme') === 'dark' ? 'dark' : 'light';
+    const next = current === 'dark' ? 'light' : 'dark';
+    applyTheme(next);
+    localStorage.setItem('theme', next);
+    const anti = document.getElementById('anti-flash-dark');
+    if (next === 'light' && anti) anti.remove();
+  };
+
+  (function applySavedThemeEarly() {
+    try {
+      const saved = localStorage.getItem('theme');
+      const theme = (saved === 'dark') ? 'dark' : 'light';
+      document.documentElement.setAttribute('data-theme', theme);
+
+      const onReady = () => {
+        if (document.readyState === 'interactive' || document.readyState === 'complete') {
+          document.removeEventListener('readystatechange', onReady);
+          applyTheme(theme);
+        }
+      };
+
+      if (document.readyState === 'interactive' || document.readyState === 'complete') {
+        onReady();
+      } else {
+        document.addEventListener('readystatechange', onReady);
+      }
+    } catch {}
+  })();
 
   /* ----------------- Estado de tabla (server-side) ----------------- */
   const state = {
@@ -1338,7 +1204,7 @@ window.toggleTheme = function () {
     date_from: '',
     date_to: ''
   };
-  let serverMode = true; // intentamos server JSON; si falla, fallback local
+  let serverMode = true;
 
   /* ----------------- Buscador local (fallback) ----------------- */
   function initLocalSearchFallback(){
@@ -1361,7 +1227,6 @@ window.toggleTheme = function () {
     }
   }
 
-  /* ----------------- Datos de notificaciones (inyectados) ----------------- */
   const serverMessages = [
     {% for category, message in (messages or []) %}
       {"category": "{{category}}", "message": {{ message|tojson }} }{% if not loop.last %},{% endif %}
@@ -1369,7 +1234,6 @@ window.toggleTheme = function () {
   ];
   window.serverMessages = serverMessages;
 
-  /* --------------- Marcar tipo de acción (manual vs csv) --------------- */
   (function wireActionMarkers(){
     const mark = (type)=>{ try{
       sessionStorage.setItem('lastActionType', type);
@@ -1387,7 +1251,6 @@ window.toggleTheme = function () {
     });
   })();
 
-  /* ----------------- Helpers Tags (manual y csv) ----------------- */
   function selectedTags(cls){
     return Array.from(document.querySelectorAll('.' + cls + ':checked')).map(el => el.value);
   }
@@ -1429,42 +1292,40 @@ window.toggleTheme = function () {
     `;
   };
 
-document.getElementById('mainForm')?.addEventListener('submit', (ev) => {
-  // --- Validación de tags ---
-  syncHiddenTags();
-  const fileHasValue = !!document.querySelector('input[type="file"][name="file"]')?.value;
+  document.getElementById('mainForm')?.addEventListener('submit', (ev) => {
+    syncHiddenTags();
+    const fileHasValue = !!document.querySelector('input[type="file"][name="file"]')?.value;
 
-  if (!fileHasValue) {            // === Flujo MANUAL ===
-    const man = selectedTags('tag-manual');
-    if (man.length === 0) {
-      ev.preventDefault(); ev.stopPropagation();
-      showManualTagError(true);
-      document.querySelector('.tag-manual')?.focus();
-      return;
+    if (!fileHasValue) {
+      const man = selectedTags('tag-manual');
+      if (man.length === 0) {
+        ev.preventDefault(); ev.stopPropagation();
+        showManualTagError(true);
+        document.querySelector('.tag-manual')?.focus();
+        return;
+      } else {
+        showManualTagError(false);
+      }
     } else {
-      showManualTagError(false);
+      const csv = selectedTags('tag-csv');
+      if (csv.length === 0) {
+        ev.preventDefault(); ev.stopPropagation();
+        showCsvTagError(true);
+        document.querySelector('.tag-csv')?.focus();
+        return;
+      } else {
+        showCsvTagError(false);
+      }
     }
-  } else {                        // === Flujo CSV (OBLIGATORIO) ===
-    const csv = selectedTags('tag-csv');
-    if (csv.length === 0) {
-      ev.preventDefault(); ev.stopPropagation();
-      showCsvTagError(true);
-      document.querySelector('.tag-csv')?.focus();
-      return;
-    } else {
-      showCsvTagError(false);
-    }
-  }
 
-  // Spinners (igual que tenías)
-  const manualBtn = document.getElementById('addManualBtn');
-  const csvBtn = document.getElementById('uploadCsvBtn');
-  if (fileHasValue) {
-    setLoading(csvBtn, 'Subiendo…');
-  } else {
-    setLoading(manualBtn, 'Añadiendo…');
-  }
-});
+    const manualBtn = document.getElementById('addManualBtn');
+    const csvBtn = document.getElementById('uploadCsvBtn');
+    if (fileHasValue) {
+      setLoading(csvBtn, 'Subiendo…');
+    } else {
+      setLoading(manualBtn, 'Añadiendo…');
+    }
+  });
 
   window.addEventListener('pageshow', () => {
     ['addManualBtn','uploadCsvBtn'].forEach(id => {
@@ -1477,7 +1338,6 @@ document.getElementById('mainForm')?.addEventListener('submit', (ev) => {
     });
   });
 
-  /* ----------------- TOAST de la acción actual ----------------- */
   (function showCombinedActionToast(){
     try {
       const ACTION_PAST_TOL = 5000;
@@ -1936,7 +1796,7 @@ document.getElementById('mainForm')?.addEventListener('submit', (ev) => {
     }
 
     updateBulkUI();
-  } 
+  }
 
   const tbody = document.querySelector('#tablaIps tbody');
   const pageInfo = document.getElementById('pageInfo');
@@ -2006,7 +1866,6 @@ document.getElementById('mainForm')?.addEventListener('submit', (ev) => {
   }
 
   function tagBadge(t){
-    // Colores simples por tipo de tag
     const cls = (t === 'BPE') ? 'text-bg-warning' : (t === 'Test' ? 'text-bg-secondary' : 'text-bg-primary');
     return `<span class="badge ${cls}" style="margin-right:6px;">${escapeHtml(t)}</span>`;
   }
@@ -2062,7 +1921,6 @@ document.getElementById('mainForm')?.addEventListener('submit', (ev) => {
     nextBtn.disabled = (state.page >= pages);
   }
 
-  // ===>> Actualiza totales globales (incluye API y Tags)
   function updateCounters(counters){
     if (!counters) return;
     const t = document.getElementById('totalCount');
@@ -2142,23 +2000,22 @@ document.getElementById('mainForm')?.addEventListener('submit', (ev) => {
 
   reloadTable(true);
   attachTableSelectionHandlers();
-
 </script>
 
-  <script>
-document.addEventListener("DOMContentLoaded", function() {
-  const checkboxes = document.querySelectorAll(".tag-manual");
-  const hiddenInput = document.getElementById("tagsManualInput");
+<script>
+  document.addEventListener("DOMContentLoaded", function() {
+    const checkboxes = document.querySelectorAll(".tag-manual");
+    const hiddenInput = document.getElementById("tagsManualInput");
 
-  function updateTagsManual() {
-    const selected = Array.from(checkboxes)
-      .filter(chk => chk.checked)
-      .map(chk => chk.value);
-    hiddenInput.value = selected.join(","); // ejemplo: "Multicliente,BPE"
-  }
+    function updateTagsManual() {
+      const selected = Array.from(checkboxes)
+        .filter(chk => chk.checked)
+        .map(chk => chk.value);
+      hiddenInput.value = selected.join(",");
+    }
 
-  checkboxes.forEach(chk => chk.addEventListener("change", updateTagsManual));
-});
+    checkboxes.forEach(chk => chk.addEventListener("change", updateTagsManual));
+  });
 </script>
   
 </body>
