@@ -36,6 +36,32 @@
   
   <style>
 
+    /* ====== Topbar superior con métricas ====== */
+.topbar {
+  background: #020617;
+  color: #e5e7eb;
+  box-shadow: 0 10px 30px rgba(15, 23, 42, 0.9);
+}
+
+[data-theme="light"] .topbar {
+  background: #0f172a;
+}
+
+/* Métricas en la topbar */
+.topbar-metrics > div {
+  min-width: 90px;
+}
+
+.topbar-metrics > div div:first-child {
+  font-size: 0.65rem;
+  letter-spacing: 0.14em;
+  text-transform: uppercase;
+}
+
+.topbar-metrics > div div:last-child {
+  font-size: 0.95rem;
+}
+
     /* ====== Cabecera principal “Gestor IOC Manager” ====== */
 .title-gestor {
   font-weight: 500;
@@ -503,29 +529,60 @@ body[data-theme="light"] .offcanvas-notifs .list-group-item {
 </head>
 <body class="bg-light">
 
-<div class="container py-3">
-  <div class="d-flex justify-content-between align-items-center mb-3">
-    <button class="btn btn-outline-secondary btn-sm" onclick="toggleTheme()">🌙 Modo Oscuro</button>
-
-    <div class="d-flex align-items-center gap-2">
-      <!-- Botón Notificaciones (arriba derecha) -->
-      <div class="btn-group">
-        <button id="notif-btn" class="btn btn-outline-primary btn-sm"
-                type="button" data-bs-toggle="offcanvas"
-                data-bs-target="#offcanvasNotifs" aria-controls="offcanvasNotifs">
-          🔔 Notificaciones
-          <span id="notif-badge" class="badge text-bg-danger rounded-pill d-none">0</span>
-        </button>
-        <button id="markReadBtn" class="btn btn-outline-primary btn-sm" title="Marcar como leído (sin abrir)">
-          ✔️
-        </button>
+<header class="topbar">
+  <div class="container-fluid py-2">
+    <div class="d-flex justify-content-between align-items-center">
+      <!-- Lado izquierdo: logo + métricas -->
+      <div class="d-flex flex-column flex-md-row align-items-md-center gap-3">
+        <div class="d-flex align-items-center gap-2">
+          <span class="fw-semibold text-white">🛡️ IOC Manager</span>
+        </div>
+        <div class="topbar-metrics d-none d-md-flex align-items-center gap-4 small">
+          <div>
+            <div class="text-uppercase opacity-75" style="font-size:0.65rem;">Total activo (unión)</div>
+            <div class="fw-semibold">{{ union_total or total_ips or 0 }}</div>
+          </div>
+          <div>
+            <div class="text-uppercase opacity-75" style="font-size:0.65rem;">Manual</div>
+            <div class="fw-semibold">{{ contador_manual or 0 }}</div>
+          </div>
+          <div>
+            <div class="text-uppercase opacity-75" style="font-size:0.65rem;">CSV</div>
+            <div class="fw-semibold">{{ contador_csv or 0 }}</div>
+          </div>
+          <div>
+            <div class="text-uppercase opacity-75" style="font-size:0.65rem;">API</div>
+            <div class="fw-semibold">{{ contador_api or 0 }}</div>
+          </div>
+        </div>
       </div>
 
-      <a href="/logout" class="btn btn-outline-danger btn-sm">Logout</a>
+      <!-- Lado derecho: tema + notificaciones + logout -->
+      <div class="d-flex align-items-center gap-2">
+        <button class="btn btn-outline-light btn-sm" onclick="toggleTheme()" id="themeToggleBtn">
+          Claro
+        </button>
+
+        <div class="btn-group">
+          <button id="notif-btn" class="btn btn-outline-light btn-sm"
+                  type="button" data-bs-toggle="offcanvas"
+                  data-bs-target="#offcanvasNotifs" aria-controls="offcanvasNotifs">
+            🔔 Notificaciones
+            <span id="notif-badge" class="badge text-bg-danger rounded-pill d-none">0</span>
+          </button>
+          <button id="markReadBtn" class="btn btn-outline-light btn-sm" title="Marcar como leído (sin abrir)">
+            ✔️
+          </button>
+        </div>
+
+        <a href="/logout" class="btn btn-outline-light btn-sm">Logout</a>
+      </div>
     </div>
   </div>
+</header>
 
- <div class="text-center mb-3">
+<div class="container py-3">
+  <div class="text-center mb-3">
   <h2 class="fw-bold mb-1">
     <span class="title-gestor">Gestor</span>
     <span class="title-ioc">IOC&nbsp;Manager</span>
