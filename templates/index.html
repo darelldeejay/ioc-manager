@@ -1178,31 +1178,87 @@ body[data-theme="light"] .offcanvas-notifs .list-group-item {
   }
 }
 
-  /* ----------------- Tema oscuro (única y persistente) ----------------- */
-window.toggleTheme = function () {
+/* ----------------- Gestión de tema claro/oscuro ----------------- */
+function applyTheme(theme) {
   const body = document.body;
+  const isDark = (theme === 'dark');
 
-  // isDark = tema nuevo (al que vamos a pasar)
-  const isDark = !body.classList.contains('bg-dark');
-
+  // Clases base del body
+  body.classList.remove('bg-light', 'bg-dark', 'text-white');
   if (isDark) {
-    body.classList.remove('bg-light');
     body.classList.add('bg-dark', 'text-white');
   } else {
-    body.classList.remove('bg-dark', 'text-white');
     body.classList.add('bg-light');
   }
 
-  const newTheme = isDark ? 'dark' : 'light';
-  document.documentElement.setAttribute('data-theme', newTheme);
+  // Atributo global para CSS
+  document.documentElement.setAttribute('data-theme', theme);
 
+  // Tabla en modo oscuro/claro
+  const tbl = document.getElementById('tablaIps');
+  if (tbl) {
+    tbl.classList.toggle('table-dark', isDark);
+  }
+
+  // Botón de notificaciones
+  const notifBtn = document.getElementById('notif-btn');
+  if (notifBtn) {
+    notifBtn.classList.remove('btn-outline-primary', 'btn-outline-light');
+    if (isDark) {
+      notifBtn.classList.add('btn-outline-light');
+    } else {
+      notifBtn.classList.add('btn-outline-primary');
+    }
+  }
+
+  // Texto del botón de tema
+  const themeBtn = document.getElementById('themeToggleBtn');
+  if (themeBtn) {
+    if (isDark) {
+      themeBtn.innerHTML = '☀️ Claro';
+    } else {
+      themeBtn.innerHTML = '🌙 Oscuro';
+    }
+  }
+}
+
+// Botón que alterna el tema
+window.toggleTheme = function () {
+  const current = document.documentElement.getAttribute('data-theme') === 'dark' ? 'dark' : 'light';
+  const next = current === 'dark' ? 'light' : 'dark';
+
+  applyTheme(next);
+  localStorage.setItem('theme', next);
+
+  // Si pasamos a claro, quitamos el parche anti-flash
   const anti = document.getElementById('anti-flash-dark');
-  if (!isDark && anti) anti.remove();
+  if (next === 'light' && anti) {
+    anti.remove();
+  }
+};
 
-  document.querySelectorAll('.card, .form-control, .form-select, .table').forEach(e => {
-    e.classList.toggle('bg-dark', isDark);
-    e.classList.toggle('text-white', isDark);
-  });
+// Aplicar el tema guardado al cargar
+(function applySavedThemeEarly() {
+  try {
+    const saved = localStorage.getItem('theme');
+    const theme = (saved === 'dark') ? 'dark' : 'light';
+
+    const onReady = () => {
+      if (document.readyState === 'interactive' || document.readyState === 'complete') {
+        document.removeEventListener('readystatechange', onReady);
+        applyTheme(theme);
+      }
+    };
+
+    if (document.readyState === 'interactive' || document.readyState === 'complete') {
+      onReady();
+    } else {
+      document.addEventListener('readystatechange', onReady);
+    }
+  } catch (e) {
+    console.error('Error aplicando tema guardado:', e);
+  }
+})();
 
   const tbl = document.getElementById('tablaIps');
   if (tbl) tbl.classList.toggle('table-dark', isDark);
