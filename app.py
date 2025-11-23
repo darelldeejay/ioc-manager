@@ -1453,8 +1453,8 @@ def index():
                     guardar_notif("danger", f"{rejected_total} entradas rechazadas (CSV)")
                 except Exception:
                     pass
-                flash(f"{rejected_total} entradas rechazadas (inválidas/privadas/duplicadas/no permitidas)", "danger")
-                _audit("csv_rejected", f"web/{session.get('username','admin')}", {"count": rejected_total}, {})
+            flash(f"{rejected_total} entradas rechazadas (inválidas/privadas/duplicadas/no permitidas)", "danger")
+            _audit("csv_rejected", f"web/{session.get('username','admin')}", {"count": rejected_total}, {})
 
             return redirect(url_for("index"))
         # ------------------ FIN Subida CSV/TXT -------------------
@@ -1590,16 +1590,19 @@ def index():
     # Resumen unión feeds (fuente, tag y fuente×tag)
     src_union, tag_union, src_tag_union, total_union = compute_source_and_tag_counters_union()
 
-    # Construye map de tags para la tabla server-rendered
+    # Construye map de tags + alertas para la tabla server-rendered
     meta = load_meta()
     ip_tags = {}
+    ip_alerts = {}
     try:
         active_ips_main = {l.split("|",1)[0] for l in lines}
         for ip, entry in (meta.get("ip_details") or {}).items():
             if ip in active_ips_main:
                 ip_tags[ip] = entry.get("tags", [])
+                ip_alerts[ip] = entry.get("alert_ids", [])
     except Exception:
         ip_tags = {}
+        ip_alerts = {}
 
     # JSON mode (paginación/ordenación/filtros)
     if request.args.get("format", "").lower() == "json":
@@ -1707,6 +1710,7 @@ def index():
                            messages=messages,
                            request_actions=request_actions,
                            ip_tags=ip_tags,
+                           ip_alerts=ip_alerts,
                            known_tags=known_tags)
 
 
