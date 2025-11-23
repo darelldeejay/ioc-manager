@@ -62,7 +62,19 @@
 body {
   font-family: 'Inter', -apple-system, BlinkMacSystemFont, 'Segoe UI', Roboto, Helvetica, Arial, sans-serif;
 }
-      
+
+    .metric-card {
+  border-radius: 1rem;
+  border: 1px solid rgba(148, 163, 184, 0.25); /* oscuro */
+  background: rgba(15, 23, 42, 0.85);         /* oscuro */
+  box-shadow: 0 18px 35px rgba(15, 23, 42, 0.85);
+}
+[data-theme="light"] .metric-card {
+  border-color: #e5e7eb; 
+  background: #ffffff;
+  box-shadow: 0 14px 30px rgba(15, 23, 42, 0.08);
+}
+ 
     /* Global design variables for dual theme (light/dark) and accent colors */
 :root {
   --accent: #22d3ee;
@@ -223,30 +235,79 @@ body {
 </div>
 
   <!-- ======= RESUMEN AMPLIADO ======= -->
-  <div class="row g-3 mb-3">
-    <div class="col-12">
-      <div class="alert alert-info text-center mb-0">
-        <div class="fw-semibold mb-1">📊 Resumen</div>
-        <div>
-          Total activas: <strong id="totalCount">{{ total_ips }}</strong>
-        </div>
-        <div class="mt-1">
-          Fuentes → Manual
-          (<strong id="manualCount">{{ contador_manual }}</strong>)
-          · CSV
-          (<strong id="csvCount">{{ contador_csv }}</strong>)
-          · API
-          (<strong id="apiCount">{{ contador_api }}</strong>)
-        </div>
-        <div class="mt-1">
-          Tags → Multicliente
-          (<strong id="tagMultiCount">{{ (contador_tags or {}).get('Multicliente', 0) }}</strong>)
-          · BPE
-          (<strong id="tagBpeCount">{{ (contador_tags or {}).get('BPE', 0) }}</strong>)
+<!-- NUEVAS TARJETAS DE RESUMEN -->
+<div class="row g-3 mb-4">
+  <!-- Tarjeta total IPs activas -->
+  <div class="col-12 col-md-6 col-xl-3">
+    <div class="card metric-card h-100 border-0">
+      <div class="card-body">
+        <h6 class="text-uppercase mb-1">IPs activas</h6>
+        <div class="display-6">{{ total_ips or 0 }}</div>
+        <small class="text-muted">En todos los feeds</small>
+      </div>
+    </div>
+  </div>
+  <!-- Tarjeta IPs por origen -->
+  <div class="col-12 col-md-6 col-xl-3">
+    <div class="card metric-card h-100 border-0">
+      <div class="card-body">
+        <h6 class="text-uppercase mb-1">Por origen</h6>
+        <div class="d-flex justify-content-between mt-2">
+          <div>
+            <span class="badge bg-primary">Manual</span>
+            <div class="fs-4">{{ contador_manual or 0 }}</div>
+          </div>
+          <div>
+            <span class="badge bg-info text-dark">CSV</span>
+            <div class="fs-4">{{ contador_csv or 0 }}</div>
+          </div>
+          <div>
+            <span class="badge bg-warning text-dark">API</span>
+            <div class="fs-4">{{ contador_api or 0 }}</div>
+          </div>
         </div>
       </div>
     </div>
   </div>
+  <!-- Tarjeta IPs por tag -->
+  <div class="col-12 col-md-6 col-xl-3">
+    <div class="card metric-card h-100 border-0">
+      <div class="card-body">
+        <h6 class="text-uppercase mb-1">Por tag</h6>
+        <div class="d-flex flex-column gap-1 mt-2">
+          <div class="d-flex justify-content-between align-items-center">
+            <span class="badge rounded-pill text-bg-primary">Multicliente</span>
+            <span class="fs-5">{{ contador_tags.get('Multicliente', 0) }}</span>
+          </div>
+          <div class="d-flex justify-content-between align-items-center">
+            <span class="badge rounded-pill text-bg-warning text-dark">BPE</span>
+            <span class="fs-5">{{ contador_tags.get('BPE', 0) }}</span>
+          </div>
+          <div class="d-flex justify-content-between align-items-center">
+            <span class="badge rounded-pill text-bg-secondary">Test</span>
+            <span class="fs-5">{{ contador_tags.get('Test', 0) }}</span>
+          </div>
+        </div>
+      </div>
+    </div>
+  </div>
+  <!-- Tarjeta backups -->
+  <div class="col-12 col-md-6 col-xl-3">
+    <div class="card metric-card h-100 border-0">
+      <div class="card-body">
+        <h6 class="text-uppercase mb-1">Backups</h6>
+        <p class="mb-2">
+          <small class="text-muted">
+            Backup diario automático si hay cambios.
+          </small>
+        </p>
+        <a href="{{ url_for('backup_list') }}" class="btn btn-outline-secondary btn-sm">
+          <i class="bi bi-clock-history"></i> Ver backups
+        </a>
+      </div>
+    </div>
+  </div>
+</div>
   <!-- ======= FIN RESUMEN AMPLIADO ======= -->
 
   <!-- Botones de backup -->
