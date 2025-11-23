@@ -34,6 +34,17 @@
   <!-- Estilos propios -->
   <link rel="stylesheet" href="{{ url_for('static', filename='css/index.css') }}">
 
+  /* Personalización del botón Añadir */
+#addManualBtn {
+  background-color: var(--accent);
+  border-color: var(--accent);
+  color: #0f172a; /* texto oscuro para buen contraste */
+}
+
+#addManualBtn:hover {
+  filter: brightness(1.05);
+}
+  
   <style>
     /* Global design variables for dual theme (light/dark) and accent colors */
 :root {
@@ -46,6 +57,9 @@
   --text-muted-dark: #9ca3af;
   --text-main-light: #111827;
   --text-muted-light: #6b7280;
+}
+    body {
+    font-family: 'Inter', -apple-system, BlinkMacSystemFont, 'Segoe UI', Roboto, Helvetica, Arial, sans-serif;
 }
     /* ---------- UI refinements ---------- */
 
