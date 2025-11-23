@@ -34,7 +34,9 @@
   <!-- Estilos propios -->
   <link rel="stylesheet" href="{{ url_for('static', filename='css/index.css') }}">
 
-  /* Personalización del botón Añadir */
+  <style>
+
+      /* Personalización del botón Añadir */
 #addManualBtn {
   background-color: var(--accent);
   border-color: var(--accent);
@@ -43,9 +45,7 @@
 
 #addManualBtn:hover {
   filter: brightness(1.05);
-}
-  
-  <style>
+}    
     /* Global design variables for dual theme (light/dark) and accent colors */
 :root {
   --accent: #22d3ee;
