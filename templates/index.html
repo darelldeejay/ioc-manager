@@ -71,6 +71,21 @@
   background: #ffffff;
 }
 
+    /* ====== Título de sección “IPs bloqueadas” ====== */
+.section-title {
+  margin-top: 1.5rem;
+  margin-bottom: 0.75rem;
+  font-size: 0.95rem;
+  font-weight: 600;
+  letter-spacing: 0.18em;
+  text-transform: uppercase;
+  color: var(--text-muted-dark);
+}
+
+[data-theme="light"] .section-title {
+  color: var(--text-muted-light);
+}
+
 /* Texto "Página X de Y — N IPs" */
 #pageInfo {
   font-size: 0.8rem;
@@ -827,7 +842,7 @@ body[data-theme="light"] .offcanvas-notifs .list-group-item {
   </div>
 
   <hr>
-  <h4>IPs bloqueadas</h4>
+  <h4 class="section-title">IPs bloqueadas</h4>
 
   <!-- Controles server-side (progresivo; si falla JSON, queda fallback local) -->
   <div class="toolbar-grid mb-3" id="serverToolbar">
