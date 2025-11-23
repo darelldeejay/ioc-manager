@@ -583,12 +583,11 @@ body[data-theme="light"] .offcanvas-notifs .list-group-item {
           ☀️ Claro
         </button>
 
-        <div class="btn-group">
-          <button id="notif-btn" class="btn btn-outline-light btn-sm"
-                  type="button" data-bs-toggle="offcanvas"
-                  data-bs-target="#offcanvasNotifs" aria-controls="offcanvasNotifs">
-            🔔 Notificaciones
-            <span id="notif-badge" class="badge text-bg-danger rounded-pill d-none">0</span>
+        <button class="btn btn-outline-light btn-sm position-relative"
+                        type="button" data-bs-toggle="offcanvas" data-bs-target="#offcanvasNotifs"
+                        aria-controls="offcanvasNotifs">
+                    <i class="bi bi-bell"></i>
+                    <span class="ms-1 d-none d-md-inline">Notificaciones</span>
           </button>
           <button id="markReadBtn" class="btn btn-outline-light btn-sm" title="Marcar como leído (sin abrir)">
             ✔️
