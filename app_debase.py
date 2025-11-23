@@ -21,6 +21,8 @@ BASE_DIR = os.path.dirname(os.path.realpath(__file__))
 FEED_FILE = os.path.join(BASE_DIR, 'ioc-feed.txt')
 # === Nuevo feed BPE ===
 FEED_FILE_BPE = os.path.join(BASE_DIR, 'ioc-feed-bpe.txt')
+# === Nuevo feed de pruebas ===
+FEED_FILE_TEST = os.path.join(BASE_DIR, 'ioc-feed-test.txt')
 
 LOG_FILE = os.path.join(BASE_DIR, 'ioc-log.txt')
 NOTIF_FILE = os.path.join(BASE_DIR, 'notif-log.json')
@@ -66,12 +68,13 @@ _idem_cache = {}  # {idem_key: (ts, response)}
 IDEM_TTL_SECONDS = 600
 
 # Tags válidos
-ALLOWED_TAGS = {"Multicliente", "BPE"}
+ALLOWED_TAGS = {"Multicliente", "BPE", "Test"}
 
 # Mapa canónico de tags (case-insensitive)
 CANONICAL_TAGS = {
     "multicliente": "Multicliente",
     "bpe": "BPE",
+    "test": "Test",
 }
 
 # Asegurar carpetas
@@ -264,29 +267,29 @@ def compute_live_counters(active_lines):
 
 
 def compute_tag_totals():
-    """Totales por tag (Multicliente, BPE) sobre la unión de feeds activos."""
     lines_main = load_lines(FEED_FILE)
     lines_bpe  = load_lines(FEED_FILE_BPE)
+    lines_test = load_lines(FEED_FILE_TEST)  # ← AÑADE
     active_ips = {l.split("|",1)[0].strip() for l in lines_main} | \
-                 {l.split("|",1)[0].strip() for l in lines_bpe}
+                 {l.split("|",1)[0].strip() for l in lines_bpe}  | \
+                 {l.split("|",1)[0].strip() for l in lines_test}   # ← AÑADE
     meta = load_meta().get("ip_details", {})
-    multi = bpe = 0
+    multi = bpe = test = 0
     for ip in active_ips:
         tags = set((meta.get(ip) or {}).get("tags", []))
-        if "Multicliente" in tags:
-            multi += 1
-        if "BPE" in tags:
-            bpe += 1
-    return {"Multicliente": multi, "BPE": bpe}
-
+        if "Multicliente" in tags: multi += 1
+        if "BPE" in tags:          bpe   += 1
+        if "Test" in tags:         test  += 1
+    return {"Multicliente": multi, "BPE": bpe, "Test": test}
 
 # === NUEVOS: unión feeds y matriz fuente×tag ===
 def _active_ip_union():
-    """Devuelve el conjunto de IPs activas uniendo Multicliente y BPE."""
     lines_main = load_lines(FEED_FILE)
-    lines_bpe = load_lines(FEED_FILE_BPE)
-    return {l.split("|", 1)[0].strip() for l in lines_main} | \
-           {l.split("|", 1)[0].strip() for l in lines_bpe}
+    lines_bpe  = load_lines(FEED_FILE_BPE)
+    lines_test = load_lines(FEED_FILE_TEST)  # ← AÑADE
+    return {l.split("|",1)[0].strip() for l in lines_main} | \
+           {l.split("|",1)[0].strip() for l in lines_bpe}  | \
+           {l.split("|",1)[0].strip() for l in lines_test}   # ← AÑADE
 
 def compute_source_and_tag_counters_union():
     """
@@ -300,11 +303,11 @@ def compute_source_and_tag_counters_union():
     details = (meta.get("ip_details") or {})
 
     counters_by_source = {"manual": 0, "csv": 0, "api": 0}
-    counters_by_tag = {"Multicliente": 0, "BPE": 0}
+    counters_by_tag = {"Multicliente": 0, "BPE": 0, "Test": 0}
     counters_by_source_tag = {
-        "manual": {"Multicliente": 0, "BPE": 0},
-        "csv":    {"Multicliente": 0, "BPE": 0},
-        "api":    {"Multicliente": 0, "BPE": 0},
+        "manual": {"Multicliente": 0, "BPE": 0, "Test": 0},
+        "csv": {"Multicliente": 0, "BPE": 0, "Test": 0},
+        "api": {"Multicliente": 0, "BPE": 0, "Test": 0},
     }
 
     for ip in active_ips:
@@ -320,6 +323,8 @@ def compute_source_and_tag_counters_union():
             counters_by_tag["Multicliente"] += 1
         if "BPE" in tags:
             counters_by_tag["BPE"] += 1
+        if "Test" in tags:
+            counters_by_tag["Test"] += 1
 
         if src:
             counters_by_source[src] += 1
@@ -327,6 +332,8 @@ def compute_source_and_tag_counters_union():
                 counters_by_source_tag[src]["Multicliente"] += 1
             if "BPE" in tags:
                 counters_by_source_tag[src]["BPE"] += 1
+            if "Test" in tags:
+                counters_by_source_tag[src]["Test"] += 1
 
     total_union = len(active_ips)
     return counters_by_source, counters_by_tag, counters_by_source_tag, total_union
@@ -651,16 +658,29 @@ def _remove_ip_from_all_feeds(ip):
     _remove_ip_from_feed(ip, FEED_FILE)       # principal
     _remove_ip_from_feed(ip, FEED_FILE_BPE)   # BPE
 
-def _merge_meta_tags(ip, new_tags, expires_at, source, note):
-    """Fusiona tags y actualiza expiración en META_FILE.ip_details"""
+
+def _merge_meta_tags(ip, new_tags, expires_at, source, note, alert_id=None):
+    """Fusiona tags, expiración y alert_ids en META_FILE.ip_details"""
     meta = load_meta()
     details = meta.get("ip_details", {})
+
     entry = details.get(ip, {
         "ip": ip, "tags": [], "expires_at": None, "source": source,
         "history": [], "last_update": _iso(_now_utc())
     })
+
+    # Asegurar lista de alert_ids
+    alert_list = entry.get("alert_ids", [])
+    if not isinstance(alert_list, list):
+        alert_list = []
+    if alert_id:
+        alert_id_str = str(alert_id).strip()
+        if alert_id_str and alert_id_str not in alert_list:
+            alert_list.append(alert_id_str)
+    entry["alert_ids"] = alert_list
+
     old_tags = set(entry.get("tags", []))
-    add_tags = set(new_tags)
+    add_tags = set(new_tags or [])
     merged = sorted(list(old_tags.union(add_tags)))
 
     # expiración: conservar la más lejana
@@ -678,7 +698,8 @@ def _merge_meta_tags(ip, new_tags, expires_at, source, note):
         "tags_added": sorted(list(add_tags - old_tags)),
         "expires_at": _iso(best_exp),
         "note": note or "",
-        "source": source
+        "source": source,
+        "alert_id": alert_id if alert_id else None
     })
     details[ip] = entry
     
@@ -692,7 +713,13 @@ def _merge_meta_tags(ip, new_tags, expires_at, source, note):
     save_meta(meta)
     return entry
 
+
 def _already_same(entry, tags, expires_at):
+    """
+    Comprueba si tags y expiración son iguales.
+    alert_ids NO se considera para idempotencia, porque una misma IP puede
+    recibir múltiples alertas distintas.
+    """
     try:
         same_tags = set(entry.get("tags", [])) == set(tags)
         cur_exp = datetime.fromisoformat(entry["expires_at"].replace("Z","+00:00"))
@@ -725,9 +752,10 @@ def add_ips_validated(lines, existentes, iterable_ips, ttl_val, origin=None, con
 
     allow_multi = "Multicliente" in tags
     allow_bpe = "BPE" in tags
+    allow_test = "Test" in tags
 
     for ip_str in iterable_ips:
-        if not (allow_multi or allow_bpe):
+        if not (allow_multi or allow_bpe or allow_test):
             rechazadas += 1
             continue
 
@@ -745,7 +773,7 @@ def add_ips_validated(lines, existentes, iterable_ips, ttl_val, origin=None, con
         # Si ya está en el feed principal
         if ip_str in existentes:
             # fusionar tags en meta/tag files aunque esté duplicada
-            entry = _merge_meta_tags(ip_str, tags, expires_at_dt, origin or "manual", note="web")
+            entry = _merge_meta_tags(ip_str, tags, expires_at_dt, origin or "manual", note="web", alert_id=None)
             for t in tags:
                 _write_tag_line(t, ip_str, _now_utc(), ttl_seconds, expires_at_dt, origin or "manual", entry["tags"])
             rechazadas += 1  # se considera duplicada para el feed principal
@@ -753,6 +781,10 @@ def add_ips_validated(lines, existentes, iterable_ips, ttl_val, origin=None, con
             if allow_bpe:
                 fecha = datetime.now().strftime("%Y-%m-%d")
                 _append_line_unique(FEED_FILE_BPE, f"{ip_str}|{fecha}|{ttl_val}")
+            # FEED Test también si aplica
+            if allow_test:
+                fecha = datetime.now().strftime("%Y-%m-%d")
+                _append_line_unique(FEED_FILE_TEST, f"{ip_str}|{fecha}|{ttl_val}")
             continue
 
         # Nueva IP
@@ -770,8 +802,12 @@ def add_ips_validated(lines, existentes, iterable_ips, ttl_val, origin=None, con
         if allow_bpe:
             _append_line_unique(FEED_FILE_BPE, f"{ip_str}|{fecha}|{ttl_val}")
 
+        # FEED Test si corresponde
+        if allow_test:
+            _append_line_unique(FEED_FILE_TEST, f"{ip_str}|{fecha}|{ttl_val}")
+
         # meta + tag files
-        entry = _merge_meta_tags(ip_str, tags, expires_at_dt, origin or "manual", note="web")
+        entry = _merge_meta_tags(ip_str, tags, expires_at_dt, origin or "manual", note="web", alert_id=None)
         for t in tags:
             _write_tag_line(t, ip_str, _now_utc(), ttl_seconds, expires_at_dt, origin or "manual", entry["tags"])
 
@@ -1170,8 +1206,9 @@ def perform_daily_expiry_once():
 
     # Expirar y sincronizar meta (principal y BPE)
     vencidas_main = eliminar_ips_vencidas()
-    vencidas_bpe = eliminar_ips_vencidas_bpe()
-    vencidas = list(set((vencidas_main or []) + (vencidas_bpe or [])))
+    vencidas_bpe  = eliminar_ips_vencidas_bpe()
+    vencidas_test = eliminar_ips_vencidas_en_feed(FEED_FILE_TEST)  # ← AÑADE
+    vencidas = list(set((vencidas_main or []) + (vencidas_bpe or []) + (vencidas_test or [])))  # ← AÑADE
     if vencidas:
         meta_bulk_del(vencidas)
         _audit("expire_ttl", "system", {"count": len(vencidas)}, {"ips": vencidas})
@@ -1406,18 +1443,18 @@ def index():
                     guardar_notif("success", f"{valid_ips_total} IPs añadidas (CSV)")
                 except Exception:
                     pass
-                flash(f"{valid_ips_total} IP(s) añadida(s) correctamente (CSV)", "success")
-                if added_lines_acc:
-                    _set_last_action("add", added_lines_acc)
-                _audit("csv_added", f"web/{session.get('username','admin')}", {"count": valid_ips_total}, {"tags": tags_csv, "ttl": ttl_csv_val})
+            flash(f"{valid_ips_total} IP(s) añadida(s) correctamente (CSV)", "success")
+            if added_lines_acc:
+                _set_last_action("add", added_lines_acc)
+            _audit("csv_added", f"web/{session.get('username','admin')}", {"count": valid_ips_total}, {"tags": tags_csv, "ttl": ttl_csv_val})
 
             if rejected_total:
                 try:
                     guardar_notif("danger", f"{rejected_total} entradas rechazadas (CSV)")
                 except Exception:
                     pass
-                flash(f"{rejected_total} entradas rechazadas (inválidas/privadas/duplicadas/no permitidas)", "danger")
-                _audit("csv_rejected", f"web/{session.get('username','admin')}", {"count": rejected_total}, {})
+            flash(f"{rejected_total} entradas rechazadas (inválidas/privadas/duplicadas/no permitidas)", "danger")
+            _audit("csv_rejected", f"web/{session.get('username','admin')}", {"count": rejected_total}, {})
 
             return redirect(url_for("index"))
         # ------------------ FIN Subida CSV/TXT -------------------
@@ -1553,30 +1590,38 @@ def index():
     # Resumen unión feeds (fuente, tag y fuente×tag)
     src_union, tag_union, src_tag_union, total_union = compute_source_and_tag_counters_union()
 
-    # Construye map de tags para la tabla server-rendered
+    # Construye map de tags + alertas para la tabla server-rendered
     meta = load_meta()
     ip_tags = {}
+    ip_alerts = {}
     try:
         active_ips_main = {l.split("|",1)[0] for l in lines}
         for ip, entry in (meta.get("ip_details") or {}).items():
             if ip in active_ips_main:
                 ip_tags[ip] = entry.get("tags", [])
+                ip_alerts[ip] = entry.get("alert_ids", [])
     except Exception:
         ip_tags = {}
+        ip_alerts = {}
 
     # JSON mode (paginación/ordenación/filtros)
     if request.args.get("format", "").lower() == "json":
-        # Unir feeds: Multicliente (principal) + BPE
-        lines_main = load_lines(FEED_FILE)       # recargamos
+        # Unir feeds: Multicliente (principal) + BPE + Test
+        lines_main = load_lines(FEED_FILE)
         lines_bpe  = load_lines(FEED_FILE_BPE)
+        lines_test = load_lines(FEED_FILE_TEST)
 
         rec_main = {r["ip"]: r for r in _feed_to_records(lines_main)}
         rec_bpe  = {r["ip"]: r for r in _feed_to_records(lines_bpe)}
+        rec_test = {r["ip"]: r for r in _feed_to_records(lines_test)}
 
-        # Preferimos el registro del principal si existe; añadimos los BPE-only
+        # Preferimos el registro del principal si existe; añadimos BPE-only y luego Test-only
         merged_records = list(rec_main.values())
         for ip, r in rec_bpe.items():
             if ip not in rec_main:
+                merged_records.append(r)
+        for ip, r in rec_test.items():
+            if ip not in rec_main and ip not in rec_bpe:
                 merged_records.append(r)
 
         q = request.args.get("q")
@@ -1595,7 +1640,7 @@ def index():
 
         items = []
         for r in paged:
-            # TTL regresivo (nuevo)
+            data = ip_details.get(r["ip"], {}) or {}
             ttl_remaining = _days_left(r["fecha_dt"], r["ttl"])
             items.append({
                 "ip": r["ip"],
@@ -1603,17 +1648,17 @@ def index():
                 "ttl_remaining": ttl_remaining,
                 "origen": r.get("origen"),
                 "fecha_alta": r["fecha"] if r["fecha"] else None,
-                "tags": (ip_details.get(r["ip"], {}) or {}).get("tags", [])
+                "tags": data.get("tags", []),
+                "alert_ids": data.get("alert_ids", [])
             })
 
-        # Counters (principal + unión):
-        # Contadores por origen sobre la unión
+        # Contadores sobre la unión
         active_union_ips = {r["ip"] for r in merged_records}
         meta_by_ip = load_meta().get("by_ip", {})
         live_manual = sum(1 for ip in active_union_ips if meta_by_ip.get(ip) == "manual")
         live_csv    = sum(1 for ip in active_union_ips if meta_by_ip.get(ip) == "csv")
         live_api    = sum(1 for ip in active_union_ips if meta_by_ip.get(ip) == "api")
-        tag_totals  = compute_tag_totals()  # ya devuelve totales por tag sobre la unión
+        tag_totals  = compute_tag_totals()
         src_union, tag_union, src_tag_union, total_union = compute_source_and_tag_counters_union()
 
         notices = [{"time": datetime.utcnow().isoformat()+"Z", "category": c, "message": m}
@@ -1630,11 +1675,11 @@ def index():
                 "order": order,
                 "filters": {"q": q, "date": date_param},
                 "counters": {
-                "total": total_union,
-                "manual": live_manual,
-                "csv":    live_csv,
-                "api":    live_api,
-                    "tags":   tag_union,
+                    "total": total_union,
+                    "manual": live_manual,
+                    "csv":    live_csv,
+                    "api":    live_api,
+                    "tags":   tag_totals,
                     "union": {
                         "total": total_union,
                         "by_source": src_union,
@@ -1665,6 +1710,7 @@ def index():
                            messages=messages,
                            request_actions=request_actions,
                            ip_tags=ip_tags,
+                           ip_alerts=ip_alerts,
                            known_tags=known_tags)
 
 
@@ -1692,6 +1738,24 @@ def feed_bpe():
     ips = []
     if os.path.exists(FEED_FILE_BPE):
         with open(FEED_FILE_BPE, encoding="utf-8") as f:
+            for line in f:
+                ip = line.split("|", 1)[0].strip()
+                if ip and is_allowed_ip(ip):
+                    try:
+                        if isinstance(ipaddress.ip_address(ip), ipaddress.IPv4Address):
+                            ips.append(ip)
+                    except Exception:
+                        continue
+    body = "\n".join(ips) + "\n"
+    resp = make_response(body, 200)
+    resp.headers["Content-Type"] = "text/plain"
+    return resp
+
+@app.route("/feed/ioc-feed-test.txt")
+def feed_test():
+    ips = []
+    if os.path.exists(FEED_FILE_TEST):
+        with open(FEED_FILE_TEST, encoding="utf-8") as f:
             for line in f:
                 ip = line.split("|", 1)[0].strip()
                 if ip and is_allowed_ip(ip):
@@ -1815,7 +1879,7 @@ def notifications_read_all():
 
 
 # =========================
-#  API (Blueprint) con tags
+#  API (Blueprint) con tags + alert_id
 # =========================
 api = Blueprint("api", __name__, url_prefix="/api")
 
@@ -1976,6 +2040,12 @@ def bloquear_ip_api():
 
                 note = str(it.get("nota", "") or it.get("note", "")).strip()
 
+                # alert_id opcional por item
+                raw_alert_id = it.get("alert_id")
+                alert_id = str(raw_alert_id).strip() if raw_alert_id is not None else None
+                if alert_id == "":
+                    alert_id = None
+
                 # soportar inputs: ip / cidr / range / "ip máscara"
                 targets = []
                 # ip + máscara
@@ -1997,6 +2067,7 @@ def bloquear_ip_api():
                 item_result = {"count": 0, "ips": []}
                 want_multi = "Multicliente" in tags
                 want_bpe = "BPE" in tags
+                want_test  = "Test" in tags
 
                 for ip_str in targets:
                     if ip_str == "0.0.0.0":
@@ -2021,6 +2092,9 @@ def bloquear_ip_api():
 
                         # Idempotencia semántica exacta (mismos tags y misma expiración)
                         if not force and _already_same(current, tags or current.get("tags", []), effective_expires):
+                            # Aunque sea "igual", si viene un alert_id nuevo, lo añadimos
+                            if alert_id:
+                                _merge_meta_tags(ip_str, tags or current.get("tags", []), effective_expires, origin, note, alert_id=alert_id)
                             item_result["ips"].append({"ip": ip_str, "status": "already_exists"})
                             continue
 
@@ -2034,18 +2108,19 @@ def bloquear_ip_api():
                         meta_set_origin(ip_str, "api")
                         log("Añadida", ip_str)
 
-                    # Registrar origen API también cuando sólo venga con BPE
+                    # Registrar origen API también cuando sólo venga con BPE/Test
                     if not want_multi:
                         try:
                             meta_set_origin(ip_str, "api")
                         except Exception:
                             pass
 
-                    # Merge en meta detalles + escrituras por tag (con expiración efectiva)
-                    entry = _merge_meta_tags(ip_str, tags, effective_expires, origin, note)
+                    # Merge en meta detalles + escrituras por tag (con expiración efectiva + alert_id)
+                    entry = _merge_meta_tags(ip_str, tags, effective_expires, origin, note, alert_id=alert_id)
 
                     # Escribir una línea por tag nuevo (append-only)
-                    for t in [x for x in tags if x not in set(current.get("tags", []))] if current else tags:
+                    prev_tags = set(current.get("tags", [])) if current else set()
+                    for t in [x for x in tags if x not in prev_tags]:
                         _write_tag_line(t, ip_str, _now_utc(), ttl_s, effective_expires, origin, entry["tags"])
 
                     # Reflejar en feed BPE si corresponde
@@ -2053,11 +2128,17 @@ def bloquear_ip_api():
                         line_txt_bpe = f"{ip_str}|{fecha}|{ttl_days}"
                         _append_line_unique(FEED_FILE_BPE, line_txt_bpe)
 
+                    # Feed Test
+                    if want_test:
+                        line_txt_test = f"{ip_str}|{fecha}|{ttl_days}"
+                        _append_line_unique(FEED_FILE_TEST, line_txt_test)
+
                     item_result["ips"].append({
                         "ip": ip_str,
                         "status": "ok",
                         "tags": entry["tags"],
-                        "expires_at": entry["expires_at"]
+                        "expires_at": entry["expires_at"],
+                        "alert_ids": entry.get("alert_ids", [])
                     })
                     item_result["count"] += 1
 
@@ -2126,7 +2207,7 @@ def bloquear_ip_api():
         for t in tags:
             _remove_ip_from_tag_file(t, ip_txt)
 
-        # actualizar meta
+        # actualizar meta (alert_ids se conservan)
         meta["ip_details"][ip_txt]["tags"] = remaining
         meta["ip_details"][ip_txt]["history"].append({
             "ts": _iso(_now_utc()),
@@ -2167,6 +2248,7 @@ def estado_api(ip_str):
         _audit("api_estado_not_found", g.get("api_actor","api"), ip_str, {})
         return jsonify({"status": "not_found", "ip": ip_str}), 404
     _audit("api_estado_ok", g.get("api_actor","api"), ip_str, {})
+    # entry ya incluye alert_ids si existen
     return jsonify({"status": "ok", "data": entry}), 200
 
 
