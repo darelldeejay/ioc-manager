@@ -578,12 +578,12 @@ body[data-theme="light"] .offcanvas-notifs .list-group-item {
       </div>
 
             <!-- Lado derecho: tema + notificaciones + backup + logout -->
-      <div class="d-flex align-items-center gap-2 ms-lg-3">
-                <!-- Toggle tema -->
-                <button class="btn btn-outline-light btn-sm" type="button" id="themeToggle">
-                    <i class="bi bi-moon-stars" id="themeIcon"></i>
-                    <span class="d-none d-md-inline ms-1" id="themeText">Oscuro</span>
-                </button>
+           <button
+            class="btn btn-outline-light btn-sm"
+            onclick="toggleTheme()"
+            id="themeToggleBtn">
+            🌙 Oscuro
+          </button>
 
                 <!-- Notificaciones -->
                 <button class="btn btn-outline-light btn-sm position-relative"
