@@ -58,7 +58,7 @@
   filter: brightness(1.05);
 }
 
-        /* Fuente global para toda la aplicación */
+    /* Fuente global para toda la aplicación */
 body {
   font-family: 'Inter', -apple-system, BlinkMacSystemFont, 'Segoe UI', Roboto, Helvetica, Arial, sans-serif;
 }
@@ -105,6 +105,55 @@ body {
 #btnDeleteAll:hover {
     background-color: var(--danger);
     color: #fff;
+}
+
+    /* Contenedor de tabla estilizado */
+.table-responsive {
+    border-radius: 1rem;
+    border: 1px solid var(--border-subtle-dark);
+    background: rgba(15, 23, 42, 0.85);
+    box-shadow: 0 18px 35px rgba(15, 23, 42, 0.85);
+}
+[data-theme="light"] .table-responsive {
+    border-color: #e5e7eb;
+    background: #ffffff;
+    box-shadow: 0 14px 30px rgba(15, 23, 42, 0.08);
+}
+
+/* Cabecera de tabla */
+#ipsTable thead th {
+    font-size: 0.75rem;
+    text-transform: uppercase;
+    letter-spacing: 0.12em;
+    border-bottom: none;
+    color: var(--text-muted-dark);
+}
+[data-theme="light"] #ipsTable thead th {
+    color: var(--text-muted-light);
+}
+
+/* Filas */
+#ipsTable tbody tr:hover {
+    background: rgba(31, 41, 55, 0.9);
+    transform: translateY(-1px);
+}
+[data-theme="light"] #ipsTable tbody tr:hover {
+    background: #f9fafb;
+}
+
+/* Badges de tags */
+.badge-tag {
+    border-radius: 999px;
+    padding: 0.35rem 0.75rem;
+    font-size: 0.75rem;
+    font-weight: 500;
+}
+
+/* Badge de alertas */
+.badge-alert {
+    border-radius: 999px;
+    font-size: 0.75rem;
+    padding: 0.28rem 0.7rem;
 }
  
     /* Global design variables for dual theme (light/dark) and accent colors */
