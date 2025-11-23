@@ -587,9 +587,12 @@ body[data-theme="light"] .offcanvas-notifs .list-group-item {
         </div>
 
         <!-- Backup ahora en la barra superior -->
-        <form method="POST" action="/backup/now" class="d-none d-md-inline">
-          <button class="btn btn-outline-success btn-sm" type="submit">💾 Backup ahora</button>
-        </form>
+        <form method="post" action="{{ url_for('backup_now') }}" class="d-inline">
+                    <button class="btn btn-outline-success btn-sm" type="submit">
+                        <i class="bi bi-cloud-arrow-up"></i>
+                        <span class="d-none d-md-inline ms-1">Backup ahora</span>
+                    </button>
+                </form>
 
         <a href="/logout" class="btn btn-outline-light btn-sm">Logout</a>
       </div>
