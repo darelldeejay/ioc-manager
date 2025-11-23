@@ -58,6 +58,31 @@
   color: transparent;
 }
 
+    /* ====== Barra de paginación bajo la tabla ====== */
+#pagerBar {
+  margin-top: 1rem;
+  padding: 0.45rem 0.9rem;
+  border-radius: 999px;
+  border: 1px solid rgba(148, 163, 184, 0.35);
+  background: rgba(15, 23, 42, 0.85);
+}
+[data-theme="light"] #pagerBar {
+  border-color: #e5e7eb;
+  background: #ffffff;
+}
+
+/* Texto "Página X de Y — N IPs" */
+#pageInfo {
+  font-size: 0.8rem;
+  opacity: 0.85;
+}
+
+/* Botones « y » un poco más cómodos */
+#pagerBar .btn-group .btn {
+  min-width: 2.3rem;
+  padding-inline: 0.6rem;
+}
+
 /* Ajuste de colores en modo claro */
 [data-theme="light"] .title-gestor {
   color: var(--text-muted-light);
