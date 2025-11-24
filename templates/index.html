@@ -600,7 +600,7 @@ body[data-theme="light"] .offcanvas-notifs .list-group-item {
         </div>
 
         <!-- Backup ahora en la barra superior -->
-        <form method="POST" action="/backup/now" class="d-none d-md-inline">
+        <form method="post" action="{{ url_for('backup_now') }}" class="d-none d-md-inline">
           <button class="btn btn-outline-success btn-sm" type="submit">
             🌩️ Backup ahora
           </button>
@@ -1514,15 +1514,31 @@ document.getElementById('mainForm')?.addEventListener('submit', (ev) => {
 
       let parts = [];
 
-      if (byCat.success.length){
-        if (lastActionType === 'manual'){
+            if (byCat.success.length){
+        // 🔹 Detectar si el mensaje de éxito es de BACKUP
+        const hasBackup = byCat.success.some(t => {
+          const tt = norm(t);
+          return tt.includes('backup forzado creado') || tt.includes('backup diario creado');
+        });
+
+        if (hasBackup) {
+          // Mensaje específico para backups
+          parts.push('Backup creado correctamente');
+        } else if (lastActionType === 'manual') {
+          // Lógica normal de altas MANUALES
           const ips = extractIPs(byCat.success);
           if (ips.length === 1) parts.push(`IP añadida: ${ips[0]}`);
           else if (ips.length > 1) parts.push(`${ips.length} IP(s) añadida(s): ${listPreview(ips, 6)}`);
           else parts.push(`${byCat.success.length} operación(es) correcta(s)`);
         } else {
-          const nums = byCat.success.map(t => { const m=t.match(/(^|\s)(\d+)\s/); return m?parseInt(m[2],10):null; }).filter(x=>x!==null);
-          const total = nums.length===byCat.success.length ? nums.reduce((a,b)=>a+b,0) : byCat.success.length;
+          // Lógica normal de CSV / otros casos
+          const nums = byCat.success.map(t => {
+            const m = t.match(/(^|\s)(\d+)\s/);
+            return m ? parseInt(m[2],10) : null;
+          }).filter(x => x !== null);
+          const total = nums.length === byCat.success.length
+            ? nums.reduce((a,b)=>a+b,0)
+            : byCat.success.length;
           parts.push(`${total} IP(s) añadida(s)`);
         }
       }
