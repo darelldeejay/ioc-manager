@@ -577,36 +577,49 @@ body[data-theme="light"] .offcanvas-notifs .list-group-item {
         </div>
       </div>
 
-      <!-- Lado derecho: tema + notificaciones + backup + logout -->
-      <div class="d-flex align-items-center gap-2">
-        <button
-          class="btn btn-outline-light btn-sm"
-          onclick="toggleTheme()"
-          id="themeToggleBtn">
-          🌙 Oscuro
+            <!-- Lado derecho: tema + notificaciones + backup + logout -->
+      <button
+        class="btn btn-outline-light btn-sm rounded-pill d-flex align-items-center gap-1"
+        type="button"
+        onclick="toggleTheme()"
+        id="themeToggleBtn">
+        <!-- El JS cambiará icono y texto según el tema -->
+        <i class="bi bi-moon-stars" id="themeToggleIcon"></i>
+        <span id="themeToggleText">Oscuro</span>
+      </button>
+      
+      <div class="btn-group">
+        <button id="notif-btn"
+                class="btn btn-outline-light btn-sm rounded-pill d-flex align-items-center gap-1"
+                type="button"
+                data-bs-toggle="offcanvas"
+                data-bs-target="#offcanvasNotifs"
+                aria-controls="offcanvasNotifs">
+          <i class="bi bi-bell"></i>
+          <span>Notificaciones</span>
+          <span id="notif-badge"
+                class="badge text-bg-danger rounded-pill ms-1 d-none">0</span>
         </button>
-
-        <!-- Notificaciones -->
-        <div class="btn-group">
-          <button id="notif-btn" class="btn btn-outline-light btn-sm"
-                  type="button" data-bs-toggle="offcanvas"
-                  data-bs-target="#offcanvasNotifs" aria-controls="offcanvasNotifs">
-            🔔 Notificaciones
-            <span id="notif-badge" class="badge text-bg-danger rounded-pill d-none">0</span>
-          </button>
-          <button id="markReadBtn" class="btn btn-outline-light btn-sm" title="Marcar como leído (sin abrir)">
-            ✅
-          </button>
-        </div>
-
-        <!-- Backup ahora en la barra superior -->
-        <form method="post" action="{{ url_for('backup_now') }}" class="d-none d-md-inline">
-          <button class="btn btn-outline-success btn-sm" type="submit">
-            🌩️ Backup ahora
-          </button>
-        </form>
-
-        <a href="/logout" class="btn btn-outline-light btn-sm">Logout</a>
+      
+        <button id="markReadBtn"
+                class="btn btn-outline-light btn-sm rounded-pill d-flex align-items-center justify-content-center"
+                title="Marcar como leído (sin abrir)">
+          <i class="bi bi-check2-circle"></i>
+        </button>
+      </div>
+      
+      <form method="POST" action="/backup/now" class="d-none d-md-inline">
+        <button class="btn btn-outline-success btn-sm rounded-pill d-flex align-items-center gap-1" type="submit">
+          <i class="bi bi-cloud-arrow-up"></i>
+          <span>Backup ahora</span>
+        </button>
+      </form>
+      
+      <a href="/logout"
+         class="btn btn-outline-light btn-sm rounded-pill d-flex align-items-center gap-1">
+        <i class="bi bi-box-arrow-right"></i>
+        <span>Logout</span>
+      </a>
       </div>
     </div>
   </div>
@@ -1168,13 +1181,12 @@ body[data-theme="light"] .offcanvas-notifs .list-group-item {
   const btn = document.getElementById('themeToggleBtn');
   if (!btn) return;
 
-  // theme es el TEMA ACTUAL
   if (theme === 'dark') {
-    // Si estamos en oscuro, el botón ofrece cambiar a claro
-    btn.innerHTML = '☀️ Claro';
+    // Modo oscuro activo → botón ofrece "Claro"
+    btn.innerHTML = '<i class="bi bi-sun me-1"></i><span>Claro</span>';
   } else {
-    // Si estamos en claro, el botón ofrece cambiar a oscuro
-    btn.innerHTML = '🌙 Oscuro';
+    // Modo claro activo → botón ofrece "Oscuro"
+    btn.innerHTML = '<i class="bi bi-moon-stars me-1"></i><span>Oscuro</span>';
   }
 }
 
@@ -1214,11 +1226,10 @@ function applyTheme(theme) {
   // Texto del botón de tema
   const themeBtn = document.getElementById('themeToggleBtn');
   if (themeBtn) {
-    if (isDark) {
-      themeBtn.innerHTML = '☀️ Claro';
-    } else {
-      themeBtn.innerHTML = '🌙 Oscuro';
-    }
+  if (isDark) {
+    themeBtn.innerHTML = '<i class="bi bi-sun me-1"></i><span>Claro</span>';
+  } else {
+    themeBtn.innerHTML = '<i class="bi bi-moon-stars me-1"></i><span>Oscuro</span>';
   }
 }
 
