@@ -541,7 +541,7 @@
 <header class="topbar">
   <div class="container-fluid py-2">
     <div class="d-flex justify-content-between align-items-center">
-      <!-- Lado izquierdo: logo + métricas -->
+            <!-- Lado izquierdo: logo + métricas -->
       <div class="d-flex flex-column flex-md-row align-items-md-center gap-3">
         <div class="d-flex align-items-center gap-2">
           <span class="fw-semibold text-white">🛡️ IOC Manager</span>
@@ -567,35 +567,38 @@
       </div>
 
       <!-- Lado derecho: tema + notificaciones + backup + logout -->
-      <button
-        class="btn btn-outline-light btn-sm"
-        onclick="toggleTheme()"
-        id="themeToggleBtn">
-        🌙 Oscuro
-      </button>
+      <div class="d-flex align-items-center gap-2 ms-auto">
+        <!-- Tema -->
+        <button
+          class="btn btn-outline-light btn-sm"
+          onclick="toggleTheme()"
+          id="themeToggleBtn">
+          🌙 Oscuro
+        </button>
 
-      <div class="btn-group">
-        <button id="notif-btn" class="btn btn-outline-light btn-sm"
-                type="button" data-bs-toggle="offcanvas"
-                data-bs-target="#offcanvasNotifs" aria-controls="offcanvasNotifs">
-          🔔 Notificaciones
-          <span id="notif-badge" class="badge text-bg-danger rounded-pill d-none">0</span>
-        </button>
-        <button id="markReadBtn" class="btn btn-outline-light btn-sm" title="Marcar como leído (sin abrir)">
-          ✅
-        </button>
+        <!-- Notificaciones -->
+        <div class="btn-group">
+          <button id="notif-btn" class="btn btn-outline-light btn-sm"
+                  type="button" data-bs-toggle="offcanvas"
+                  data-bs-target="#offcanvasNotifs" aria-controls="offcanvasNotifs">
+            🔔 Notificaciones
+            <span id="notif-badge" class="badge text-bg-danger rounded-pill d-none">0</span>
+          </button>
+          <button id="markReadBtn" class="btn btn-outline-light btn-sm" title="Marcar como leído (sin abrir)">
+            ✅
+          </button>
+        </div>
+
+        <!-- Backup ahora -->
+        <form method="POST" action="/backup/now" class="d-none d-md-inline">
+          <button class="btn btn-outline-success btn-sm" type="submit">
+            🌩️ Backup ahora
+          </button>
+        </form>
+
+        <!-- Logout -->
+        <a href="/logout" class="btn btn-outline-light btn-sm">Logout</a>
       </div>
-
-      <form method="POST" action="/backup/now" class="d-none d-md-inline">
-        <button class="btn btn-outline-success btn-sm" type="submit">
-          🌩️ Backup ahora
-        </button>
-      </form>
-
-      <a href="/logout" class="btn btn-outline-light btn-sm">Logout</a>
-    </div>
-  </div>
-</header>
 
 <div class="container py-3">
   <div class="text-center mb-3">
