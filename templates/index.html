@@ -1260,28 +1260,7 @@ window.toggleTheme = function () {
   }
 })();
 
-  const tbl = document.getElementById('tablaIps');
-  if (tbl) tbl.classList.toggle('table-dark', isDark);
-
-  // Ajustar estilo del botón de notificaciones según tema
-  const notifBtn = document.getElementById('notif-btn');
-  if (notifBtn) {
-    if (isDark) {
-      notifBtn.classList.add('btn-outline-light');
-      notifBtn.classList.remove('btn-outline-primary');
-    } else {
-      notifBtn.classList.add('btn-outline-primary');
-      notifBtn.classList.remove('btn-outline-light');
-    }
-  }
-
-  // Actualizar texto/icono del botón de tema
-  updateThemeToggleButton(newTheme);
-
-  localStorage.setItem('theme', newTheme);
-};
-
-  (function applySavedThemeEarly() {
+   (function applySavedThemeEarly() {
   try {
     const saved = localStorage.getItem('theme');
     const theme = (saved === 'dark') ? 'dark' : 'light';
