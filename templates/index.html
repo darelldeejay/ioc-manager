@@ -612,12 +612,12 @@ body[data-theme="light"] .offcanvas-notifs .list-group-item {
   </div>
 
   <!-- BACKUP AHORA -->
-  <form method="POST" action="/backup/now" class="d-none d-md-inline">
-    <button class="btn btn-outline-success btn-sm rounded-pill d-flex align-items-center gap-1" type="submit">
-      <i class="bi bi-cloud-arrow-up"></i>
-      <span>Backup ahora</span>
-    </button>
-  </form>
+<form method="POST" action="{{ url_for('backup_now') }}" class="d-none d-md-inline">
+  <button class="btn btn-outline-success btn-sm rounded-pill d-flex align-items-center gap-1" type="submit">
+    <i class="bi bi-cloud-arrow-up"></i>
+    <span>Backup ahora</span>
+  </button>
+</form>
 
   <!-- LOGOUT -->
   <a href="/logout"
@@ -1197,136 +1197,87 @@ body[data-theme="light"] .offcanvas-notifs .list-group-item {
   }
 }
 
-/* ----------------- Gestión de tema claro/oscuro ----------------- */
-function applyTheme(theme) {
-  const body = document.body;
-  const isDark = (theme === 'dark');
+<script>
+  /* ----------------- Gestión de tema claro/oscuro ----------------- */
+  (function () {
 
-  // Clases base del body
-  body.classList.remove('bg-light', 'bg-dark', 'text-white');
-  if (isDark) {
-    body.classList.add('bg-dark', 'text-white');
-  } else {
-    body.classList.add('bg-light');
-  }
+    function applyTheme(theme) {
+      const body   = document.body;
+      const isDark = (theme === 'dark');
 
-  // Atributo global para CSS
-  document.documentElement.setAttribute('data-theme', theme);
-
-  // Tabla en modo oscuro/claro
-  const tbl = document.getElementById('tablaIps');
-  if (tbl) {
-    tbl.classList.toggle('table-dark', isDark);
-  }
-
-  // Botón de notificaciones
-  const notifBtn = document.getElementById('notif-btn');
-  if (notifBtn) {
-    notifBtn.classList.remove('btn-outline-primary', 'btn-outline-light');
-    if (isDark) {
-      notifBtn.classList.add('btn-outline-light');
-    } else {
-      notifBtn.classList.add('btn-outline-primary');
-    }
-  }
-
-  // Texto del botón de tema
-  const themeBtn = document.getElementById('themeToggleBtn');
-  if (themeBtn) {
-  if (isDark) {
-    themeBtn.innerHTML = '<i class="bi bi-sun me-1"></i><span>Claro</span>';
-  } else {
-    themeBtn.innerHTML = '<i class="bi bi-moon-stars me-1"></i><span>Oscuro</span>';
-  }
-}
-
-// Botón que alterna el tema
-window.toggleTheme = function () {
-  const current = document.documentElement.getAttribute('data-theme') === 'dark' ? 'dark' : 'light';
-  const next = current === 'dark' ? 'light' : 'dark';
-
-  applyTheme(next);
-  localStorage.setItem('theme', next);
-
-  // Si pasamos a claro, quitamos el parche anti-flash
-  const anti = document.getElementById('anti-flash-dark');
-  if (next === 'light' && anti) {
-    anti.remove();
-  }
-};
-
-// Aplicar el tema guardado al cargar
-(function applySavedThemeEarly() {
-  try {
-    const saved = localStorage.getItem('theme');
-    const theme = (saved === 'dark') ? 'dark' : 'light';
-
-    const onReady = () => {
-      if (document.readyState === 'interactive' || document.readyState === 'complete') {
-        document.removeEventListener('readystatechange', onReady);
-        applyTheme(theme);
+      // Clases globales en el body
+      body.classList.remove('bg-light', 'bg-dark', 'text-white');
+      if (isDark) {
+        body.classList.add('bg-dark', 'text-white');
+      } else {
+        body.classList.add('bg-light');
       }
-    };
 
-    if (document.readyState === 'interactive' || document.readyState === 'complete') {
-      onReady();
-    } else {
-      document.addEventListener('readystatechange', onReady);
-    }
-  } catch (e) {
-    console.error('Error aplicando tema guardado:', e);
-  }
-})();
+      // Atributo global para CSS
+      document.documentElement.setAttribute('data-theme', theme);
 
-   (function applySavedThemeEarly() {
-  try {
-    const saved = localStorage.getItem('theme');
-    const theme = (saved === 'dark') ? 'dark' : 'light';
-    document.documentElement.setAttribute('data-theme', theme);
+      // Tabla principal
+      const tbl = document.getElementById('tablaIps');
+      if (tbl) {
+        tbl.classList.toggle('table-dark', isDark);
+      }
 
-    const onReady = () => {
-      if (document.readyState === 'interactive' || document.readyState === 'complete') {
-        document.removeEventListener('readystatechange', onReady);
+      // Botón de notificaciones
+      const notifBtn = document.getElementById('notif-btn');
+      if (notifBtn) {
+        notifBtn.classList.remove('btn-outline-primary', 'btn-outline-light');
+        notifBtn.classList.add(isDark ? 'btn-outline-light' : 'btn-outline-primary');
+      }
 
-        const body = document.body;
-        const isDark = (theme === 'dark');
-
+      // Botón de tema (icono + texto)
+      const icon = document.getElementById('themeToggleIcon');
+      const text = document.getElementById('themeToggleText');
+      if (icon && text) {
         if (isDark) {
-          body.classList.remove('bg-light');
-          body.classList.add('bg-dark', 'text-white');
-
-          const tbl = document.getElementById('tablaIps');
-          if (tbl && !tbl.classList.contains('table-dark')) {
-            tbl.classList.add('table-dark');
-          }
-
-          const nb = document.getElementById('notif-btn');
-          if (nb) {
-            nb.classList.add('btn-outline-light');
-            nb.classList.remove('btn-outline-primary');
-          }
+          icon.classList.remove('bi-moon-stars');
+          icon.classList.add('bi-sun');
+          text.textContent = 'Claro';
         } else {
-          body.classList.remove('bg-dark', 'text-white');
-          body.classList.add('bg-light');
-
-          const nb = document.getElementById('notif-btn');
-          if (nb) {
-            nb.classList.add('btn-outline-primary');
-            nb.classList.remove('btn-outline-light');
-          }
+          icon.classList.remove('bi-sun');
+          icon.classList.add('bi-moon-stars');
+          text.textContent = 'Oscuro';
         }
-
-        // Ajustar texto/icono del botón de tema según tema almacenado
-        updateThemeToggleButton(theme);
       }
+    }
+
+    // Función global que llama el onclick del botón
+    window.toggleTheme = function () {
+      const current = document.documentElement.getAttribute('data-theme') === 'dark' ? 'dark' : 'light';
+      const next    = (current === 'dark') ? 'light' : 'dark';
+
+      // Guardar preferencia
+      try {
+        localStorage.setItem('theme', next);
+      } catch (e) {}
+
+      // Si pasamos a claro, quitamos el estilo anti-flash
+      const anti = document.getElementById('anti-flash-dark');
+      if (next === 'light' && anti) {
+        anti.remove();
+      }
+
+      applyTheme(next);
     };
 
-    if (document.readyState === 'interactive' || document.readyState === 'complete') onReady();
-    else document.addEventListener('readystatechange', onReady);
-  } catch {}
-})();
+    // Aplicar tema guardado al cargar la página
+    document.addEventListener('DOMContentLoaded', function () {
+      let theme = 'light';
+      try {
+        const saved = localStorage.getItem('theme');
+        if (saved === 'dark') theme = 'dark';
+      } catch (e) {}
+      applyTheme(theme);
+    });
 
+  })();
   /* ----------------- Estado de tabla (server-side) ----------------- */
+</script>
+
   const state = {
     page: 1,
     page_size: 50,
