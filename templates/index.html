@@ -1184,21 +1184,7 @@ body[data-theme="light"] .offcanvas-notifs .list-group-item {
 
 <script>
   
-  function updateThemeToggleButton(theme) {
-  const btn = document.getElementById('themeToggleBtn');
-  if (!btn) return;
-
-  if (theme === 'dark') {
-    // Modo oscuro activo → botón ofrece "Claro"
-    btn.innerHTML = '<i class="bi bi-sun me-1"></i><span>Claro</span>';
-  } else {
-    // Modo claro activo → botón ofrece "Oscuro"
-    btn.innerHTML = '<i class="bi bi-moon-stars me-1"></i><span>Oscuro</span>';
-  }
-}
-
-<script>
-  /* ----------------- Gestión de tema claro/oscuro ----------------- */
+    /* ----------------- Gestión de tema claro/oscuro ----------------- */
   (function () {
 
     function applyTheme(theme) {
