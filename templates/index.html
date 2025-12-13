@@ -552,6 +552,7 @@
           <th>Fecha</th>
           <th>TTL</th>
           <th>Tags</th>
+          <th>Ticket</th>
           <th>Alertas</th>
           <th>Acción</th>
         </tr>
@@ -583,6 +584,17 @@
             {% endfor %}
             {% else %}
             <span class="text-muted">—</span>
+            {% endif %}
+          </td>
+          <td>
+            {# --- Ticket / Alert ID (API) --- #}
+            {% set tickets = ip_ticket_ids.get(ip_txt, []) if ip_ticket_ids is defined else [] %}
+            {% if tickets %}
+            {% for t in tickets %}
+            <span class="badge bg-secondary text-light" style="margin-right:4px;">{{ t }}</span>
+            {% endfor %}
+            {% else %}
+            <span class="text-muted small">—</span>
             {% endif %}
           </td>
           <td>

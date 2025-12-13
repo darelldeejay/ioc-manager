@@ -1888,11 +1888,14 @@ def index():
     ip_details = meta.get("ip_details", {})
     ip_tags = {}
     ip_alerts = {}
+    ip_alert_ids = {}
     for ip, details in ip_details.items():
         if "tags" in details and details["tags"]:
             ip_tags[ip] = details["tags"]
         if "alerts" in details and details["alerts"]:
             ip_alerts[ip] = details["alerts"]
+        if "alert_ids" in details and details["alert_ids"]:
+            ip_alert_ids[ip] = details["alert_ids"]
 
     known_tags = _collect_known_tags()
 
@@ -1915,6 +1918,7 @@ def index():
                            request_actions=request_actions,
                            ip_tags=ip_tags,
                            ip_alerts=ip_alerts,
+                           ip_ticket_ids=ip_alert_ids,
                            known_tags=known_tags)
 
 
