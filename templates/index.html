@@ -589,23 +589,25 @@
             {# --- Ticket / Alert ID (API) --- #}
             {% set tickets = ip_ticket_ids.get(ip_txt, []) if ip_ticket_ids is defined else [] %}
             {% if tickets %}
-            {% for t in tickets %}
-            <span class="badge bg-secondary text-light" style="margin-right:4px;">{{ t }}</span>
-            {% endfor %}
-            {% else %}
-            <span class="text-muted small">—</span>
+            <div class="mb-1">
+              {% for t in tickets %}
+              <span class="badge bg-secondary text-light" title="Ticket API">{{ t }}</span>
+              {% endfor %}
+            </div>
             {% endif %}
-          </td>
-          <td>
+
+            {# --- Internal System Alerts --- #}
             {% if alerts %}
             <span class="badge text-bg-info">
               {{ alerts|length }} alerta{{ 's' if alerts|length != 1 else '' }}
             </span>
-            <div class="alert-ids-list text-muted">
+            <div class="alert-ids-list text-muted small">
               {{ alerts|join(', ') }}
             </div>
-            {% else %}
-            <span class="text-muted">—</span>
+            {% endif %}
+
+            {% if not tickets and not alerts %}
+            <span class="text-muted small">—</span>
             {% endif %}
           </td>
           <td>
