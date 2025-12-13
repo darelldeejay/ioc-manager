@@ -4,19 +4,24 @@
 #corner-logo {
   width: 110px;
   height: 110px;
-  position: fixed;        /* fijo en la esquina aunque hagas scroll */
+  position: fixed;
+  /* fijo en la esquina aunque hagas scroll */
   bottom: 15px;
   right: 15px;
   margin: 0;
   z-index: 9999;
   user-select: none;
-  pointer-events: none;   /* no bloquea clicks sobre la UI */
+  pointer-events: none;
+  /* no bloquea clicks sobre la UI */
   opacity: .95;
 }
 
 /* Opcional: más pequeño en móviles */
 @media (max-width: 576px) {
-  #corner-logo { width: 72px; height: 72px; }
+  #corner-logo {
+    width: 72px;
+    height: 72px;
+  }
 }
 
 /* Duplicado específico muy pequeño */
@@ -34,8 +39,10 @@
    Modo oscuro: inputs y placeholders
    ========================= */
 body.bg-dark ::placeholder {
-  color: #bbb !important;   /* gris claro más visible */
-  opacity: 1;               /* asegura visibilidad */
+  color: #bbb !important;
+  /* gris claro más visible */
+  opacity: 1;
+  /* asegura visibilidad */
 }
 
 body.bg-dark .form-control,
@@ -50,7 +57,7 @@ body.bg-dark .form-select:focus {
   background-color: #1c1c1c;
   color: #fff;
   border-color: #6ea8fe;
-  box-shadow: 0 0 0 .25rem rgba(110,168,254,.25);
+  box-shadow: 0 0 0 .25rem rgba(110, 168, 254, .25);
 }
 
 
@@ -72,13 +79,13 @@ body.bg-dark table thead th {
 }
 
 /* Rayado (striped) sutil en oscuro */
-body.bg-dark .table-striped > tbody > tr:nth-of-type(odd) > * {
-  background-color: rgba(255,255,255,0.03) !important;
+body.bg-dark .table-striped>tbody>tr:nth-of-type(odd)>* {
+  background-color: rgba(255, 255, 255, 0.03) !important;
 }
 
 /* Hover sutil en oscuro */
-body.bg-dark .table-hover > tbody > tr:hover > * {
-  background-color: rgba(255,255,255,0.06) !important;
+body.bg-dark .table-hover>tbody>tr:hover>* {
+  background-color: rgba(255, 255, 255, 0.06) !important;
 }
 
 /* Botones "Eliminar" dentro de filas oscuras */
@@ -86,6 +93,7 @@ body.bg-dark .table .btn-outline-danger {
   border-color: #ff6b6b;
   color: #ff6b6b;
 }
+
 body.bg-dark .table .btn-outline-danger:hover {
   background-color: #ff6b6b;
   color: #121212;
@@ -100,6 +108,7 @@ body.bg-dark .modal-content {
   color: #e9ecef;
   border-color: #2b2b2b;
 }
+
 body.bg-dark .modal-header,
 body.bg-dark .modal-footer {
   border-color: #2b2b2b;
@@ -130,7 +139,7 @@ body.bg-dark #notif-btn.btn-outline-primary {
   --bs-btn-active-color: #121212;
   --bs-btn-active-bg: #66b2ff;
   --bs-btn-active-border-color: #66b2ff;
-  --bs-btn-focus-shadow-rgb: 102,178,255;
+  --bs-btn-focus-shadow-rgb: 102, 178, 255;
 
   /* Fallback directo */
   border-color: #66b2ff !important;
@@ -160,9 +169,11 @@ body.bg-dark .hint-box {
   background: #1f1f1f;
   color: #e9ecef;
 }
+
 /* Ajuste botón Notificaciones en modo oscuro */
 body.bg-dark #notif-btn.btn-primary {
-  background-color: #0d6efd;   /* azul Bootstrap */
+  background-color: #0d6efd;
+  /* azul Bootstrap */
   border-color: #0d6efd;
   color: #fff;
 }
@@ -171,16 +182,22 @@ body.bg-dark #notif-btn.btn-primary:hover {
   background-color: #0b5ed7;
   border-color: #0a58ca;
 }
+
 /* Notificaciones en modo oscuro */
 body.bg-dark #notifList .border {
-  background-color: #1f1f1f !important;  /* fondo oscuro */
-  color: #e9ecef;                        /* texto claro */
-  border-color: #343a40 !important;      /* borde gris oscuro */
+  background-color: #1f1f1f !important;
+  /* fondo oscuro */
+  color: #e9ecef;
+  /* texto claro */
+  border-color: #343a40 !important;
+  /* borde gris oscuro */
 }
 
 body.bg-dark #notifList .small.text-muted {
-  color: #adb5bd !important;             /* texto secundario más visible */
+  color: #adb5bd !important;
+  /* texto secundario más visible */
 }
+
 /* Paginación de notificaciones en modo oscuro */
 body.bg-dark #notifPagination .page-link {
   background-color: #1f1f1f;
@@ -195,7 +212,8 @@ body.bg-dark #notifPagination .page-link:hover {
 }
 
 body.bg-dark #notifPagination .page-item.active .page-link {
-  background-color: #0d6efd;  /* azul Bootstrap */
+  background-color: #0d6efd;
+  /* azul Bootstrap */
   border-color: #0d6efd;
   color: #fff;
 }
@@ -205,6 +223,7 @@ body.bg-dark #notifPagination .page-item.disabled .page-link {
   border-color: #343a40;
   color: #6c757d;
 }
+
 /* Inputs de filtros en modo oscuro */
 body.bg-dark #offcanvasNotifs .form-select,
 body.bg-dark #offcanvasNotifs .form-control {
@@ -218,17 +237,22 @@ body.bg-dark #offcanvasNotifs .form-control:focus {
   background-color: #212529;
   border-color: #0d6efd;
   color: #fff;
-  box-shadow: 0 0 0 .25rem rgba(13,110,253,.25); /* efecto azul bootstrap */
+  box-shadow: 0 0 0 .25rem rgba(13, 110, 253, .25);
+  /* efecto azul bootstrap */
 }
+
 /* Texto de conteo de notificaciones en modo oscuro */
 body.bg-dark #notifCountInfo {
-  color: #adb5bd !important;  /* gris claro */
+  color: #adb5bd !important;
+  /* gris claro */
 }
+
 /* Botones en el offcanvas de notificaciones (modo oscuro) */
 body.bg-dark #offcanvasNotifs .btn-outline-primary {
   color: #66b2ff;
   border-color: #3399ff;
 }
+
 body.bg-dark #offcanvasNotifs .btn-outline-primary:hover {
   background-color: #3399ff;
   color: #fff;
@@ -238,10 +262,12 @@ body.bg-dark #offcanvasNotifs .btn-outline-secondary {
   color: #ccc;
   border-color: #666;
 }
+
 body.bg-dark #offcanvasNotifs .btn-outline-secondary:hover {
   background-color: #666;
   color: #fff;
 }
+
 /* Inputs y selects dentro del offcanvas en modo oscuro */
 body.bg-dark #offcanvasNotifs .form-control,
 body.bg-dark #offcanvasNotifs .form-select {
@@ -257,52 +283,71 @@ body.bg-dark #offcanvasNotifs .form-select:focus {
   color: #fff;
   box-shadow: none;
 }
+
 /* Respaldo: si el HTML viene marcado como dark desde el head, asegura colores base */
 html[data-theme="dark"] body {
   background-color: #121212;
   color: #e9ecef;
 }
+
 /* Si por un instante queda body.bg-light pero el tema es dark, forzamos dark */
 html[data-theme="dark"] body.bg-light {
   background-color: #121212 !important;
   color: #e9ecef !important;
 }
-#tablaIps td:first-child, #tablaIps th:first-child { width: 36px; }
+
+#tablaIps td:first-child,
+#tablaIps th:first-child {
+  width: 36px;
 }
+
 /* === Filas seleccionadas manualmente === */
 tr.table-active-selected,
-tr.table-active-selected > td,
-tr.table-active-selected > th {
-  background-color: rgba(13,110,253,0.15) !important; /* azul claro */
+tr.table-active-selected>td,
+tr.table-active-selected>th {
+  background-color: rgba(13, 110, 253, 0.15) !important;
+  /* azul claro */
 }
 
 html[data-theme="dark"] tr.table-active-selected,
-html[data-theme="dark"] tr.table-active-selected > td,
-html[data-theme="dark"] tr.table-active-selected > th {
-  background-color: rgba(13,110,253,0.35) !important; /* azul más intenso en oscuro */
+html[data-theme="dark"] tr.table-active-selected>td,
+html[data-theme="dark"] tr.table-active-selected>th {
+  background-color: rgba(13, 110, 253, 0.35) !important;
+  /* azul más intenso en oscuro */
 }
+
 .title-gestor {
-  color: #0d6efd; /* azul bootstrap */
+  color: #0d6efd;
+  /* azul bootstrap */
 }
 
 .title-ioc {
-  color: #212529; /* gris oscuro por defecto */
+  color: #212529;
+  /* gris oscuro por defecto */
 }
 
 html[data-theme="dark"] .title-ioc {
-  color: #e9ecef; /* gris claro en oscuro */
+  color: #e9ecef;
+  /* gris claro en oscuro */
 }
+
 /* Texto secundario (subtítulos) más visible en modo oscuro */
 html[data-theme="dark"] .text-muted {
-  color: #cbd3da !important;  /* gris claro legible */
+  color: #cbd3da !important;
+  /* gris claro legible */
 }
+
 /* opcional en index.css */
-::placeholder { opacity: .85; }
+::placeholder {
+  opacity: .85;
 }
+
 /* Mejorar contraste de hints en modo oscuro */
 html[data-theme="dark"] .form-text {
-  color: #cbd3da !important; /* gris claro legible */
+  color: #cbd3da !important;
+  /* gris claro legible */
 }
+
 /* Hints (form-text) legibles en modo oscuro */
 html[data-theme="dark"] .form-text,
 html[data-theme="dark"] .form-text * {
@@ -316,27 +361,681 @@ html[data-theme="dark"] .form-text * {
 }
 
 /* Compactar vertical en formularios */
-.row.g-3.align-items-end .form-label { margin-bottom: .25rem; }
+.row.g-3.align-items-end .form-label {
+  margin-bottom: .25rem;
+}
 
 /* Checkboxes más alineados con inputs */
-#tagManualGroup .form-check-input { margin-top: 0.1rem; }
-#tagManualGroup .form-check { display: flex; align-items: center; gap: .35rem; }
+#tagManualGroup .form-check-input {
+  margin-top: 0.1rem;
+}
+
+#tagManualGroup .form-check {
+  display: flex;
+  align-items: center;
+  gap: .35rem;
+}
 
 /* Badges de tags con buen contraste en ambos temas */
-.badge-tag { border: 0; font-weight: 600; }
+.badge-tag {
+  border: 0;
+  font-weight: 600;
+}
 
 /* Modo oscuro – contrates coherentes */
-html[data-theme="dark"] .form-check-label { color: #e9ecef; }
-html[data-theme="dark"] .text-muted { color: #cbd3da !important; }
-html[data-theme="dark"] .btn-outline-secondary { color: #e9ecef; border-color: #2e2e2e; }
-html[data-theme="dark"] .btn-outline-secondary:hover { background: #2b2b2b; }
+html[data-theme="dark"] .form-check-label {
+  color: #e9ecef;
+}
+
+html[data-theme="dark"] .text-muted {
+  color: #cbd3da !important;
+}
+
+html[data-theme="dark"] .btn-outline-secondary {
+  color: #e9ecef;
+  border-color: #2e2e2e;
+}
+
+html[data-theme="dark"] .btn-outline-secondary:hover {
+  background: #2b2b2b;
+}
 
 /* Tabla: filas seleccionadas */
-.table-active-selected { outline: 2px solid rgba(13,110,253,.35); }
-html[data-theme="dark"] .table-active-selected { outline-color: rgba(13,110,253,.55); }
+.table-active-selected {
+  outline: 2px solid rgba(13, 110, 253, .35);
+}
+
+html[data-theme="dark"] .table-active-selected {
+  outline-color: rgba(13, 110, 253, .55);
+}
 
 /* Toasts */
-html[data-theme="dark"] .toast { background-color: #1f1f1f; color: #e9ecef; }
-html[data-theme="dark"] .text-bg-success { background-color: #198754 !important; color: #fff !important; }
-html[data-theme="dark"] .text-bg-warning { background-color: #fd7e14 !important; color: #212529 !important; }
-html[data-theme="dark"] .text-bg-danger  { background-color: #dc3545 !important; color: #fff !important; }
+html[data-theme="dark"] .toast {
+  background-color: #1f1f1f;
+  color: #e9ecef;
+}
+
+html[data-theme="dark"] .text-bg-success {
+  background-color: #198754 !important;
+  color: #fff !important;
+}
+
+html[data-theme="dark"] .text-bg-warning {
+  background-color: #fd7e14 !important;
+  color: #212529 !important;
+}
+
+html[data-theme="dark"] .text-bg-danger {
+  background-color: #dc3545 !important;
+  color: #fff !important;
+}
+
+/* ========================================================
+   MIGRATED FROM index.html (INLINE STYLES)
+   ======================================================== */
+
+/* ====== Topbar superior con métricas ====== */
+.topbar {
+  background: #020617;
+  color: #e5e7eb;
+  box-shadow: 0 10px 30px rgba(15, 23, 42, 0.9);
+}
+
+[data-theme="light"] .topbar {
+  background: #0f172a;
+}
+
+/* Métricas en la topbar */
+.topbar-metrics>div {
+  min-width: 90px;
+}
+
+.topbar-metrics>div div:first-child {
+  font-size: 0.65rem;
+  letter-spacing: 0.14em;
+  text-transform: uppercase;
+}
+
+.topbar-metrics>div div:last-child {
+  font-size: 0.95rem;
+}
+
+/* ====== Cabecera principal “Gestor IOC Manager” ====== */
+.title-gestor {
+  font-weight: 500;
+  letter-spacing: 0.12em;
+  text-transform: uppercase;
+  font-size: 0.8rem;
+  color: var(--text-muted-dark);
+}
+
+.title-ioc {
+  display: inline-block;
+  margin-left: 0.4rem;
+  font-size: 1.9rem;
+  font-weight: 700;
+  letter-spacing: 0.06em;
+  text-transform: uppercase;
+  background: linear-gradient(120deg, #22d3ee, #38bdf8, #a855f7);
+  -webkit-background-clip: text;
+  background-clip: text;
+  color: transparent;
+}
+
+/* Botón de backup ahora (verde) en la topbar */
+.btn-outline-success {
+  border-color: #22c55e;
+  color: #22c55e;
+}
+
+.btn-outline-success:hover {
+  background-color: #22c55e;
+  color: #0f172a;
+}
+
+/* ====== Barra de paginación bajo la tabla ====== */
+#pagerBar {
+  margin-top: 1rem;
+  padding: 0.45rem 0.9rem;
+  border-radius: 999px;
+  border: 1px solid rgba(148, 163, 184, 0.35);
+  background: rgba(15, 23, 42, 0.85);
+}
+
+[data-theme="light"] #pagerBar {
+  border-color: #e5e7eb;
+  background: #ffffff;
+}
+
+/* ====== Título de sección “IPs bloqueadas” ====== */
+.section-title {
+  margin-top: 1.5rem;
+  margin-bottom: 0.75rem;
+  font-size: 0.95rem;
+  font-weight: 600;
+  letter-spacing: 0.18em;
+  text-transform: uppercase;
+  color: var(--text-muted-dark);
+}
+
+[data-theme="light"] .section-title {
+  color: var(--text-muted-light);
+}
+
+/* ====== Barra de selección masiva ====== */
+.bulkbar {
+  border-radius: 0.75rem;
+  border: 1px solid rgba(148, 163, 184, 0.25);
+  background: rgba(15, 23, 42, 0.65);
+}
+
+[data-theme="light"] .bulkbar {
+  border-color: #e5e7eb;
+  background: #ffffff;
+}
+
+/* Contador "X seleccionada(s)" */
+.bulkbar #bulkSelectedCount {
+  font-weight: 600;
+  color: var(--accent);
+  font-size: 1rem;
+}
+
+/* Botón Eliminar seleccionadas */
+#bulkDeleteBtn {
+  border-color: var(--danger);
+  color: var(--danger);
+  border-radius: 999px;
+}
+
+#bulkDeleteBtn:hover:not(:disabled) {
+  background-color: var(--danger);
+  color: #fff;
+}
+
+/* Texto "Página X de Y — N IPs" */
+#pageInfo {
+  font-size: 0.8rem;
+  opacity: 0.85;
+}
+
+/* Botones « y » un poco más cómodos */
+#pagerBar .btn-group .btn {
+  min-width: 2.3rem;
+  padding-inline: 0.6rem;
+}
+
+/* Ajuste de colores en modo claro */
+[data-theme="light"] .title-gestor {
+  color: var(--text-muted-light);
+}
+
+/* Subtítulo bajo el título principal */
+.text-center p.text-muted.mt-2 {
+  font-size: 0.9rem;
+  opacity: 0.85;
+}
+
+/* Personalización del botón Añadir */
+#addManualBtn {
+  background-color: var(--accent);
+  border-color: var(--accent);
+  color: #0f172a;
+  /* texto oscuro para buen contraste */
+}
+
+#addManualBtn:hover {
+  filter: brightness(1.05);
+}
+
+/* Personalización botón Subir archivo */
+#uploadCsvBtn {
+  background-color: var(--accent);
+  border-color: var(--accent);
+  color: #0f172a;
+  /* contraste con fondo cian */
+}
+
+#uploadCsvBtn:hover {
+  filter: brightness(1.05);
+}
+
+/* Fuente global para toda la aplicación */
+body {
+  font-family: 'Inter', -apple-system, BlinkMacSystemFont, 'Segoe UI', Roboto, Helvetica, Arial, sans-serif;
+}
+
+.metric-card {
+  border-radius: 1rem;
+  border: 1px solid rgba(148, 163, 184, 0.25);
+  /* oscuro */
+  background: rgba(15, 23, 42, 0.85);
+  /* oscuro */
+  box-shadow: 0 18px 35px rgba(15, 23, 42, 0.85);
+}
+
+[data-theme="light"] .metric-card {
+  border-color: #e5e7eb;
+  background: #ffffff;
+  box-shadow: 0 14px 30px rgba(15, 23, 42, 0.08);
+}
+
+/* Personalización Previsualizar */
+#btnPreviewDelete {
+  background-color: var(--accent-soft);
+  border-color: var(--accent);
+  color: var(--accent);
+}
+
+#btnPreviewDelete:hover {
+  background-color: var(--accent);
+  color: #0f172a;
+}
+
+/* Personalización Eliminar por patrón */
+#btnDeletePattern {
+  background-color: var(--danger);
+  border-color: var(--danger);
+  color: #fff;
+}
+
+#btnDeletePattern:hover {
+  filter: brightness(1.05);
+}
+
+/* Personalización Eliminar todas */
+#btnDeleteAll {
+  background-color: rgba(239, 68, 68, 0.1);
+  /* rojo suave */
+  border-color: var(--danger);
+  color: var(--danger);
+}
+
+#btnDeleteAll:hover {
+  background-color: var(--danger);
+  color: #fff;
+}
+
+/* Contenedor de tabla estilizado */
+.table-responsive {
+  border-radius: 1rem;
+  border: 1px solid var(--border-subtle-dark);
+  background: rgba(15, 23, 42, 0.85);
+  box-shadow: 0 18px 35px rgba(15, 23, 42, 0.85);
+}
+
+[data-theme="light"] .table-responsive {
+  border-color: #e5e7eb;
+  background: #ffffff;
+  box-shadow: 0 14px 30px rgba(15, 23, 42, 0.08);
+}
+
+/* Cabecera de tabla */
+#ipsTable thead th {
+  font-size: 0.75rem;
+  text-transform: uppercase;
+  letter-spacing: 0.12em;
+  border-bottom: none;
+  color: var(--text-muted-dark);
+}
+
+[data-theme="light"] #ipsTable thead th {
+  color: var(--text-muted-light);
+}
+
+/* Filas */
+#ipsTable tbody tr:hover {
+  background: rgba(31, 41, 55, 0.9);
+  transform: translateY(-1px);
+}
+
+[data-theme="light"] #ipsTable tbody tr:hover {
+  background: #f9fafb;
+}
+
+/* Badges de tags */
+.badge-tag {
+  border-radius: 999px;
+  padding: 0.35rem 0.75rem;
+  font-size: 0.75rem;
+  font-weight: 500;
+}
+
+/* Badge de alertas */
+.badge-alert {
+  border-radius: 999px;
+  font-size: 0.75rem;
+  padding: 0.28rem 0.7rem;
+}
+
+body[data-theme="dark"] .offcanvas-notifs {
+  background: #020617;
+  color: var(--text-main-dark);
+  border-left: 1px solid rgba(148, 163, 184, 0.4);
+}
+
+body[data-theme="dark"] .offcanvas-notifs .list-group-item {
+  background: transparent;
+  border-color: rgba(55, 65, 81, 0.7);
+}
+
+body[data-theme="light"] .offcanvas-notifs {
+  background: #ffffff;
+  color: var(--text-main-light);
+  border-left: 1px solid #e5e7eb;
+}
+
+body[data-theme="light"] .offcanvas-notifs .list-group-item {
+  background: transparent;
+  border-color: #e5e7eb;
+}
+
+#toastContainer .toast {
+  border-radius: 0.75rem;
+  box-shadow: 0 16px 30px rgba(15, 23, 42, 0.8);
+}
+
+/* Global design variables for dual theme (light/dark) and accent colors */
+:root {
+  --accent: #22d3ee;
+  --accent-soft: rgba(34, 211, 238, 0.14);
+  --danger: #ef4444;
+  --warning: #f59e0b;
+  --success: #10b981;
+  --text-main-dark: #e5e7eb;
+  --text-muted-dark: #9ca3af;
+  --text-main-light: #111827;
+  --text-muted-light: #6b7280;
+}
+
+body {
+  font-family: 'Inter', -apple-system, BlinkMacSystemFont, 'Segoe UI', Roboto, Helvetica, Arial, sans-serif;
+}
+
+/* Botones generales adaptados a la paleta */
+.btn {
+  border-radius: 999px;
+  font-weight: 500;
+  transition: filter 0.15s ease, transform 0.15s ease;
+}
+
+/* Botón primario: cian (Añadir, Subir CSV si se le pone .btn-primary) */
+.btn-primary {
+  background-color: var(--accent);
+  border-color: var(--accent);
+  color: #0f172a;
+}
+
+.btn-primary:hover {
+  filter: brightness(1.05);
+}
+
+/* Botón de peligro: rojo para acciones destructivas */
+.btn-danger {
+  background-color: var(--danger);
+  border-color: var(--danger);
+  color: #fff;
+}
+
+.btn-danger:hover {
+  filter: brightness(1.05);
+}
+
+/* Botón de aviso (poco usado en tu UI actual) */
+.btn-warning {
+  background-color: var(--warning);
+  border-color: var(--warning);
+  color: #111827;
+}
+
+.btn-warning:hover {
+  filter: brightness(1.05);
+}
+
+/* Botones outlines con tono cian suave */
+.btn-outline-secondary {
+  border-color: var(--accent);
+  color: var(--accent);
+}
+
+.btn-outline-secondary:hover {
+  background-color: var(--accent-soft);
+  color: #0f172a;
+}
+
+/* ---------- UI refinements ---------- */
+
+/* Hints legibles también en modo oscuro */
+.hint-box {
+  font-size: .9rem;
+  border: 1px dashed #ced4da;
+  border-radius: .5rem;
+  padding: .75rem;
+  background: #f8f9fa;
+  color: #212529;
+}
+
+.bg-dark .hint-box {
+  border-color: #495057;
+  background: #1f1f1f;
+  color: #e9ecef;
+}
+
+/* Placeholders visibles en oscuro */
+.bg-dark ::placeholder {
+  color: #adb5bd !important;
+  opacity: 1;
+}
+
+.bg-dark .form-control,
+.bg-dark .form-select {
+  background-color: #1f1f1f;
+  color: #e9ecef;
+  border-color: #495057;
+}
+
+.bg-dark .table {
+  color: #e9ecef;
+}
+
+/* TOASTS: arriba a la derecha, bajo la cabecera */
+#toast-portal {
+  position: fixed;
+  top: 64px;
+  right: 16px;
+  left: auto;
+  transform: none;
+  z-index: 1060;
+  display: flex;
+  flex-direction: column;
+  gap: 8px;
+  max-width: min(90vw, 560px);
+  pointer-events: none;
+  align-items: flex-end;
+}
+
+.toast {
+  pointer-events: auto;
+  border: none !important;
+  box-shadow: 0 6px 18px rgba(0, 0, 0, .25);
+}
+
+/* ======== ESTILO PERSONALIZADO PARA LA BARRA DE FILTRO ======== */
+#serverToolbar {
+  border-radius: 1rem;
+  border: 1px solid var(--border-subtle-dark);
+  background: rgba(15, 23, 42, 0.85);
+  box-shadow: 0 18px 35px rgba(15, 23, 42, 0.85);
+  padding: 1rem;
+}
+
+[data-theme="light"] #serverToolbar {
+  border-color: #e5e7eb;
+  background: #ffffff;
+  box-shadow: 0 14px 30px rgba(15, 23, 42, 0.08);
+}
+
+/* Campo de búsqueda */
+#qInput {
+  border-radius: 999px;
+  background-color: #020617;
+  border: 1px solid rgba(148, 163, 184, 0.45);
+  color: var(--text-main-dark);
+}
+
+[data-theme="light"] #qInput {
+  background-color: #ffffff;
+  border-color: #d1d5db;
+  color: var(--text-main-light);
+}
+
+#qInput:focus {
+  border-color: var(--accent);
+  box-shadow: 0 0 0 1px rgba(34, 211, 238, 0.45);
+}
+
+/* Botón limpiar filtro */
+#clearTableFilters {
+  border-radius: 999px;
+  border-color: var(--accent);
+  color: var(--accent);
+}
+
+#clearTableFilters:hover {
+  background-color: var(--accent-soft);
+  color: #0f172a;
+}
+
+/* Botón Notificaciones (en cabecera) con burbuja */
+#notif-btn {
+  position: relative;
+}
+
+#notif-badge {
+  position: absolute;
+  top: -6px;
+  right: -8px;
+}
+
+/* Logo esquina (SIN TOCAR, abajo derecha) */
+#corner-logo {
+  position: fixed;
+  bottom: 16px;
+  right: 16px;
+  width: 96px;
+  height: auto;
+  opacity: .85;
+  z-index: 1040;
+}
+
+@media (max-width:576px) {
+  #corner-logo {
+    width: 68px;
+  }
+}
+
+/* Controles de tabla */
+.toolbar-grid {
+  display: grid;
+  grid-template-columns: 1fr 1fr repeat(5, auto);
+  gap: .5rem;
+  align-items: end;
+}
+
+@media (max-width: 992px) {
+  .toolbar-grid {
+    grid-template-columns: 1fr 1fr 1fr;
+  }
+}
+
+/* ====== Refuerzo DARK por data-theme (cubre gap antes de JS) ====== */
+html[data-theme="dark"] body {
+  background-color: #121212;
+  color: #e9ecef;
+}
+
+html[data-theme="dark"] .form-control,
+html[data-theme="dark"] .form-select {
+  background-color: #1f1f1f;
+  color: #e9ecef;
+  border-color: #495057;
+}
+
+html[data-theme="dark"] ::placeholder {
+  color: #adb5bd !important;
+  opacity: 1;
+}
+
+html[data-theme="dark"] .offcanvas,
+html[data-theme="dark"] .modal-content,
+html[data-theme="dark"] .card {
+  background-color: #1f1f1f;
+  color: #e9ecef;
+  border-color: #343a40;
+}
+
+html[data-theme="dark"] .table {
+  color: #e9ecef;
+  --bs-table-bg: #1d1d1d;
+  --bs-table-striped-bg: #232323;
+  --bs-table-hover-bg: #2b2b2b;
+  --bs-table-border-color: #2e2e2e;
+}
+
+html[data-theme="dark"] .pagination .page-link {
+  background-color: #1f1f1f;
+  color: #e9ecef;
+  border-color: #2e2e2e;
+}
+
+html[data-theme="dark"] .pagination .page-item.active .page-link {
+  background-color: #0d6efd;
+  color: #fff;
+  border-color: #0d6efd;
+}
+
+html[data-theme="dark"] #offcanvasNotifs .form-control,
+html[data-theme="dark"] .form-select {
+  background-color: #1f1f1f;
+  color: #e9ecef;
+  border-color: #343a40;
+}
+
+html[data-theme="dark"] #notifList>div {
+  background-color: #1f1f1f !important;
+  color: #e9ecef !important;
+  border-color: #2e2e2e !important;
+}
+
+html[data-theme="dark"] #notifCountInfo {
+  color: #cbd3da !important;
+}
+
+html[data-theme="dark"] #notif-btn.btn-outline-primary {
+  color: #fff;
+  background-color: #0d6efd;
+  border-color: #0d6efd;
+}
+
+html[data-theme="dark"] body.bg-light {
+  background-color: #121212 !important;
+  color: #e9ecef !important;
+}
+
+/* Resaltado de filas seleccionadas (bulk) */
+.table-active-selected {
+  outline: 2px solid rgba(13, 110, 253, .35);
+}
+
+html[data-theme="dark"] .table-active-selected {
+  outline-color: rgba(13, 110, 253, .55);
+}
+
+/* Celda de alertas: texto pequeño para lista de IDs */
+.alert-ids-list {
+  font-size: 0.8rem;
+  margin-top: 2px;
+  max-width: 260px;
+  word-wrap: break-word;
+  white-space: normal;
+}

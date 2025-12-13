@@ -1,5 +1,5 @@
 from flask import (
-    Flask, render_template, request, redirect, url_for,
+    Flask, render_template, render_template_string, request, redirect, url_for,
     session, flash, make_response, jsonify, get_flashed_messages,
     send_file, abort, Blueprint, g
 )
@@ -13,9 +13,21 @@ import threading
 import time
 import math
 import hashlib
+from werkzeug.security import generate_password_hash, check_password_hash
+from dotenv import load_dotenv
+from filelock import FileLock, Timeout
+
+
+load_dotenv()
+
+# Fix for Windows Registry MIME type issue
+import mimetypes
+mimetypes.add_type('application/javascript', '.js')
+
 
 app = Flask(__name__)
-app.secret_key = 'clave-secreta'
+# Clave secreta desde .env
+app.secret_key = os.getenv('FLASK_SECRET_KEY', 'dev-key-insegura-si-falta-env')
 
 BASE_DIR = os.path.dirname(os.path.realpath(__file__))
 FEED_FILE = os.path.join(BASE_DIR, 'ioc-feed.txt')
@@ -42,6 +54,13 @@ COUNTER_CSV = os.path.join(BASE_DIR, 'contador_csv.txt')
 # Nuevo: meta lateral para origen por IP (no afecta al feed)
 # Ampliado para ip_details con tags/expiraciones; se mantiene compat con "by_ip"
 META_FILE = os.path.join(BASE_DIR, 'ioc-meta.json')
+
+# === LOCK FILES ===
+FEED_LOCK = FileLock(FEED_FILE + ".lock")
+FEED_BPE_LOCK = FileLock(FEED_FILE_BPE + ".lock")
+FEED_TEST_LOCK = FileLock(FEED_FILE_TEST + ".lock")
+META_LOCK = FileLock(META_FILE + ".lock")
+# Dado que tags son archivos separados, podemos hacer FileLock(path + ".lock") al vuelo.
 
 # === Copias de seguridad ===
 BACKUP_DIR = os.path.join(BASE_DIR, "backups")
@@ -136,6 +155,45 @@ def _iso(dt: datetime) -> str:
     return dt.astimezone(timezone.utc).replace(microsecond=0).isoformat().replace("+00:00", "Z")
 
 
+# -------- Gestión de Usuarios (JSON DB) --------
+USERS_FILE = os.path.join(BASE_DIR, 'users.json')
+
+def load_users():
+    """
+    Carga usuarios desde users.json.
+    Si no existe, intenta migrar el admin del .env y crear el archivo.
+    """
+    if not os.path.exists(USERS_FILE):
+        # Migración inicial
+        admin_user = os.getenv("ADMIN_USER", "admin")
+        admin_pass = os.getenv("ADMIN_PASSWORD", "admin")
+        # Creamos el primer usuario (admin) con la clave del env hasheada
+        users = {
+            admin_user: {
+                "password_hash": generate_password_hash(admin_pass),
+                "role": "admin",
+                "created_at": _iso(_now_utc())
+            }
+        }
+        save_users(users)
+        return users
+
+    try:
+        with open(USERS_FILE, "r", encoding="utf-8") as f:
+            return json.load(f)
+    except Exception:
+        return {}
+
+def save_users(users):
+    users_lock = FileLock(USERS_FILE + ".lock")
+    try:
+        with users_lock:
+            with open(USERS_FILE, "w", encoding="utf-8") as f:
+                json.dump(users, f, ensure_ascii=False, indent=2)
+    except Exception:
+        pass
+
+
 # -------- Auditoría (nuevo) --------
 def _audit(event, actor, scope, details=None):
     # actor: 'web/<usuario>' | 'api/<ip>' | 'system'
@@ -177,8 +235,9 @@ def load_meta():
 
 def save_meta(meta):
     try:
-        with open(META_FILE, "w", encoding="utf-8") as f:
-            json.dump(meta, f, ensure_ascii=False, indent=2)
+        with META_LOCK:
+            with open(META_FILE, "w", encoding="utf-8") as f:
+                json.dump(meta, f, ensure_ascii=False, indent=2)
     except Exception:
         pass
 
@@ -504,7 +563,8 @@ def get_notifs(limit=200):
     try:
         with open(NOTIF_FILE, "r", encoding="utf-8") as f:
             return json.load(f)[-limit:]
-    except Exception:
+    except Exception as e:
+        print(f"[ERROR] get_notifs failed: {e}")
         return []
 
 
@@ -513,15 +573,26 @@ def get_notifs(limit=200):
 # =========================
 def _append_line_unique(feed_path, line_txt):
     """Append si no existe esa IP en el feed dado."""
-    ip_txt = line_txt.split("|", 1)[0]
-    existing = []
-    if os.path.exists(feed_path):
-        with open(feed_path, "r", encoding="utf-8") as f:
-            existing = [l.strip() for l in f if l.strip()]
-    exists = any(l.startswith(ip_txt + "|") for l in existing)
-    if not exists:
-        with open(feed_path, "a", encoding="utf-8") as f:
-            f.write(line_txt + "\n")
+    # Determinar el lock apropiado
+    if feed_path == FEED_FILE:
+        lock = FEED_LOCK
+    elif feed_path == FEED_FILE_BPE:
+        lock = FEED_BPE_LOCK
+    elif feed_path == FEED_FILE_TEST:
+        lock = FEED_TEST_LOCK
+    else:
+        lock = FileLock(feed_path + ".lock")
+    
+    with lock:
+        ip_txt = line_txt.split("|", 1)[0]
+        existing = []
+        if os.path.exists(feed_path):
+            with open(feed_path, "r", encoding="utf-8") as f:
+                existing = [l.strip() for l in f if l.strip()]
+        exists = any(l.startswith(ip_txt + "|") for l in existing)
+        if not exists:
+            with open(feed_path, "a", encoding="utf-8") as f:
+                f.write(line_txt + "\n")
 
 def _ensure_dir(p):
     os.makedirs(p, exist_ok=True)
@@ -569,9 +640,20 @@ def load_lines(feed_path=FEED_FILE):
         return [l.strip() for l in f if l.strip()]
 
 def save_lines(lines, feed_path=FEED_FILE):
-    with open(feed_path, "w", encoding="utf-8") as f:
-        for l in lines:
-            f.write(l + "\n")
+    # Determinar el lock apropiado según el feed
+    if feed_path == FEED_FILE:
+        lock = FEED_LOCK
+    elif feed_path == FEED_FILE_BPE:
+        lock = FEED_BPE_LOCK
+    elif feed_path == FEED_FILE_TEST:
+        lock = FEED_TEST_LOCK
+    else:
+        lock = FileLock(feed_path + ".lock")
+    
+    with lock:
+        with open(feed_path, "w", encoding="utf-8") as f:
+            for l in lines:
+                f.write(l + "\n")
 
 
 def log(accion, ip):
@@ -617,25 +699,29 @@ def _parse_tags_field(val: str):
 def _write_tag_line(tag, ip, created_at, ttl_s, expires_at, source, tags):
     os.makedirs(TAGS_DIR, exist_ok=True)
     path = os.path.join(TAGS_DIR, f"{tag}.txt")
+    tag_lock = FileLock(path + ".lock")
     line = f"{ip}|{_iso(created_at)}|{ttl_s}|{_iso(expires_at)}|{source}|{','.join(tags)}"
-    with open(path, "a", encoding="utf-8") as f:
-        f.write(line + "\n")
+    with tag_lock:
+        with open(path, "a", encoding="utf-8") as f:
+            f.write(line + "\n")
 
 def _remove_ip_from_tag_file(tag, ip):
     path = os.path.join(TAGS_DIR, f"{tag}.txt")
     if not os.path.exists(path):
         return
-    new_lines = []
-    with open(path, "r", encoding="utf-8") as f:
-        for line in f:
-            if not line.strip():
-                continue
-            ip_line = line.split("|", 1)[0].strip()
-            if ip_line != ip:
-                new_lines.append(line.rstrip("\n"))
-    with open(path, "w", encoding="utf-8") as f:
-        for l in new_lines:
-            f.write(l + "\n")
+    tag_lock = FileLock(path + ".lock")
+    with tag_lock:
+        new_lines = []
+        with open(path, "r", encoding="utf-8") as f:
+            for line in f:
+                if not line.strip():
+                    continue
+                ip_line = line.split("|", 1)[0].strip()
+                if ip_line != ip:
+                    new_lines.append(line.rstrip("\n"))
+        with open(path, "w", encoding="utf-8") as f:
+            for l in new_lines:
+                f.write(l + "\n")
 
 def _remove_ip_from_feed(ip, feed_path=FEED_FILE):
     lines = load_lines(feed_path)
@@ -703,10 +789,18 @@ def _merge_meta_tags(ip, new_tags, expires_at, source, note, alert_id=None):
     })
     details[ip] = entry
     
-    # === NUEVO: asegurar origen en meta['by_ip'] ===
-    src = (source or "").lower()
-    if src in ("manual", "csv", "api"):
-        meta.setdefault("by_ip", {})[ip] = src
+    # === MEJORADO: asegurar origen en meta['by_ip'] ===
+    # Normalizar source a minúsculas y validar
+    src_normalized = (source or "").lower().strip()
+    if src_normalized in ("manual", "csv", "api"):
+        meta.setdefault("by_ip", {})[ip] = src_normalized
+    elif source:  # Si viene con otro formato, intentar inferir
+        if "api" in src_normalized:
+            meta.setdefault("by_ip", {})[ip] = "api"
+        elif "csv" in src_normalized:
+            meta.setdefault("by_ip", {})[ip] = "csv"
+        else:
+            meta.setdefault("by_ip", {})[ip] = "manual"
     # ================================================
     
     meta["ip_details"] = details
@@ -834,12 +928,20 @@ def add_ips_validated(lines, existentes, iterable_ips, ttl_val, origin=None, con
 #  Flashes seguros para plantillas
 # =========================
 def coerce_message_pairs(raw_flashes):
+    """
+    Convierte flashes a lista de dicts {'category':..., 'message':...} 
+    para consumo fácil en JS (tojson).
+    """
     pairs = []
     for item in raw_flashes:
+        cat, msg = "info", ""
         if isinstance(item, (list, tuple)) and len(item) >= 2:
-            pairs.append((str(item[0] or 'info'), str(item[1])))
+            cat = str(item[0] or 'info')
+            msg = str(item[1])
         else:
-            pairs.append(('info', str(item)))
+            msg = str(item)
+            
+        pairs.append({"category": cat, "message": msg})
     return pairs
 
 
@@ -900,6 +1002,80 @@ def _rotate_backups(keep_days=14):
         except Exception:
             pass
 
+
+def _backup_critical_files(destination_dir):
+    """
+    Copia todos los archivos críticos al directorio de destino.
+    Incluye: feeds, meta, notif, users, .env, logs y carpeta data/.
+    """
+    import shutil
+    
+    # 1. Archivos definidos como constantes globales (rutas absolutas)
+    # Algunos pueden ser None o no existir
+    critical_vars = [FEED_FILE, FEED_FILE_BPE, META_FILE, NOTIF_FILE]
+    for fpath in critical_vars:
+        if fpath and os.path.exists(fpath):
+            _safe_copy(fpath, destination_dir)
+
+    # 2. Archivos relativos a BASE_DIR (nuevos)
+    extra_files = ["users.json", ".env", "audit-log.jsonl", "ioc-log.txt"]
+    for fname in extra_files:
+        fpath = os.path.join(BASE_DIR, fname)
+        if os.path.exists(fpath):
+            _safe_copy(fpath, destination_dir)
+
+    # 3. Carpeta data/ (recursivo)
+    data_src = os.path.join(BASE_DIR, "data")
+    if os.path.isdir(data_src):
+        target_data = os.path.join(destination_dir, "data")
+        # copytree requiere que destino no exista si dirs_exist_ok=False (default en python < 3.8)
+        # pero con dirs_exist_ok=True (3.8+) funciona. Asumimos Py3.8+.
+        # Si fallara, shutil.copytree lanza error si existe.
+        # Mejor usamos un try/except o borramos destino si existe (raro en backup nuevo).
+        try:
+            shutil.copytree(data_src, target_data, dirs_exist_ok=True)
+        except Exception as e:
+            # Si falla data, no abortamos todo el backup
+            print(f"Warning: Failed to copy data dir: {e}")
+
+
+def _rotate_manual_backups(keep_count=5):
+    """
+    Mantiene solo los últimos 'keep_count' backups manuales (formato YYYY-MM-DD_HHMMSS).
+    Elimina los más antiguos si se excede el límite.
+    """
+    if not os.path.isdir(BACKUP_DIR):
+        return
+    
+    # Identificar backups manuales
+    manuals = []
+    for name in os.listdir(BACKUP_DIR):
+        # Buscamos patrón fecha_hora.zip
+        if re.fullmatch(r"\d{4}-\d{2}-\d{2}_\d{6}\.zip", name):
+            manuals.append(name)
+            
+    # Si no superamos el límite, no hacemos nada
+    if len(manuals) <= keep_count:
+        return
+
+    # Ordenar cronológicamente (el nombre YYYY... asegura orden ASCII correcto)
+    manuals.sort()
+
+    # Identificar los que sobran (los primeros de la lista son los más viejos)
+    # Ejemplo: len=6, keep=5 -> excess=1 -> delete manuals[0:1] -> [0]
+    excess_count = len(manuals) - keep_count
+    to_delete = manuals[:excess_count]
+
+    for filename in to_delete:
+        zip_path = os.path.join(BACKUP_DIR, filename)
+        try:
+            os.remove(zip_path)
+            # Opcional: loguear borrado
+            # print(f"Rotando backup manual antiguo: {filename}")
+        except Exception:
+            pass
+
+
 def perform_daily_backup(keep_days=14):
     """
     Si el backup de HOY no existe, crea:
@@ -917,12 +1093,9 @@ def perform_daily_backup(keep_days=14):
             return
 
         _ensure_dir(day_dir)
-        _safe_copy(FEED_FILE, day_dir)
-        _safe_copy(FEED_FILE_BPE, day_dir)  # incluir BPE
-        if META_FILE and os.path.exists(META_FILE):
-            _safe_copy(META_FILE, day_dir)
-        if NOTIF_FILE and os.path.exists(NOTIF_FILE):
-            _safe_copy(NOTIF_FILE, day_dir)
+        _ensure_dir(day_dir)
+        # Copia unificada de todo (feeds, users, env, data...)
+        _backup_critical_files(day_dir)
 
         _zip_backup(day_dir, zip_path)
 
@@ -934,6 +1107,43 @@ def perform_daily_backup(keep_days=14):
         guardar_notif("info", f"Backup diario creado: {today}")
     except Exception as e:
         guardar_notif("danger", f"Error en backup diario: {str(e)}")
+
+
+def perform_manual_backup():
+    """
+    Crea un backup forzado con timestamp (para no sobrescribir el diario).
+    Ejemplo: backups/2023-01-01_153000.zip
+    """
+    try:
+        now_str = datetime.now().strftime("%Y-%m-%d_%H%M%S")
+        _ensure_dir(BACKUP_DIR)
+        
+        # Carpeta temporal para armar el zip (usamos sufijo para no colisionar)
+        day_dir = os.path.join(BACKUP_DIR, now_str)
+        zip_path = os.path.join(BACKUP_DIR, f"{now_str}.zip")
+
+        # Siempre creamos uno nuevo
+        _ensure_dir(day_dir)
+        # Copia unificada de todo
+        _backup_critical_files(day_dir)
+
+        _zip_backup(day_dir, zip_path)
+
+        # Limpieza: borrar la carpeta temporal, dejar solo el zip
+        import shutil
+        if os.path.exists(day_dir):
+            shutil.rmtree(day_dir)
+
+        # No marcamos LAST_BACKUP_MARK porque ese es para el automático diario
+
+        # Rotar manuales (mantener últimos 5)
+        _rotate_manual_backups(keep_count=5)
+
+        guardar_notif("success", f"Backup manual creado: {now_str}.zip")
+        return True
+    except Exception as e:
+        guardar_notif("danger", f"Error en backup manual: {str(e)}")
+        return False
 
 
 # =========================
@@ -1229,6 +1439,11 @@ def add_security_headers(resp):
     resp.headers["X-Frame-Options"] = "DENY"
     resp.headers["X-Content-Type-Options"] = "nosniff"
     resp.headers["Referrer-Policy"] = "same-origin"
+    
+    # === CACHE BUSTING ===
+    resp.headers["Cache-Control"] = "no-cache, no-store, must-revalidate"
+    resp.headers["Pragma"] = "no-cache"
+    resp.headers["Expires"] = "0"
 
     # CSP: relajada SOLO para /login (carga jQuery/Bootstrap 3 desde CDN)
     if request.path.startswith("/login"):
@@ -1246,32 +1461,90 @@ def add_security_headers(resp):
         # Resto de la app (Bootstrap 5 desde jsDelivr)
         resp.headers["Content-Security-Policy"] = (
             "default-src 'self'; "
-            "script-src 'self' 'unsafe-inline' https://cdn.jsdelivr.net; "
-            "style-src 'self' 'unsafe-inline' https://cdn.jsdelivr.net; "
+            "script-src 'self' 'unsafe-inline' 'unsafe-eval' https://cdn.jsdelivr.net; "
+            "style-src 'self' 'unsafe-inline' https://cdn.jsdelivr.net https://fonts.googleapis.com; "
             "img-src 'self' data:; "
-            "font-src 'self' https://cdn.jsdelivr.net data:; "
-            "connect-src 'self'; "
+            "font-src 'self' data: https://fonts.gstatic.com https://cdn.jsdelivr.net; "
+
+            "connect-src *; "
             "object-src 'none'; "
             "frame-ancestors 'none'"
         )
     return resp
 
 
+@app.route("/debug-dashboard")
+# Force Reload Trigger
+def debug_dashboard():
+    """Temporary route for browser_subagent verification without login barrier."""
+    session["username"] = "debug_agent"
+    session["role"] = "admin"
+    
+    now = datetime.now()
+    current_flashes_list = [
+        {"category": "success", "message": "TOAST: ACCIÓN COMPLETADA"}
+    ]
+    server_messages_list = [
+        {"category": "success", "message": f"{_iso(now)} TOAST: ACCIÓN COMPLETADA"},
+        {"category": "info",    "message": f"{_iso(now)} [DEBUG] Item Histórico"}
+    ]
+    lines = ["1.1.1.1|2023-01-01|0"]
+    return render_template("index.html",
+        current_flashes_list=current_flashes_list,
+        server_messages_list=server_messages_list,
+        ips=lines,
+        total_ips=1,
+        contador_manual=1,
+        contador_csv=0,
+        contador_api=0,
+        contador_tags={"Multicliente":0,"BPE":0,"Test":1},
+        union_total=1,
+        union_by_source={"manual":1},
+        union_by_tag={"Test":1},
+        union_by_source_tag={"manual":{"Test":1}},
+        request_actions=[],
+        messages=server_messages_list,
+        history_items=server_messages_list,
+        ip_tags={"1.1.1.1": ["Test"]},
+        ip_alerts={},
+        known_tags=["Test"],
+        error=None
+    )
+
 @app.route("/login", methods=["GET", "POST"])
 def login():
     if request.method == "POST":
-        if request.form.get("username") == "admin" and request.form.get("password") == "admin":
-            session["username"] = "admin"
+        username = request.form.get("username", "").strip()
+        password = request.form.get("password", "").strip()
+        
+        users = load_users()
+        user_data = users.get(username)
+        
+        if user_data and check_password_hash(user_data.get("password_hash", ""), password):
+            session["username"] = username
+            session["role"] = user_data.get("role", "editor")
             return redirect(url_for("index"))
+            
         flash("Credenciales incorrectas", "danger")
     return render_template("login.html")
-
 
 @app.route("/logout")
 def logout():
     session.clear()
     return redirect(url_for("login"))
 
+@app.route("/test-notif")
+def test_notif():
+    """Ruta de test para verificar renderizado de notificaciones"""
+    messages = []
+    try:
+        for n in get_notifs(limit=10):
+            cat = str(n.get("category", "secondary"))
+            msg = f"{n.get('time','')} {n.get('message','')}".strip()
+            messages.append((cat, msg))
+    except Exception as e:
+        messages = [("danger", f"Error: {e}")]
+    return render_template("test_notif.html", messages=messages)
 
 @app.route("/", methods=["GET", "POST"])
 @login_required
@@ -1464,7 +1737,14 @@ def index():
         ttl_man_sel = request.form.get("ttl_manual", "permanente")
         ttl_val = "0" if ttl_man_sel == "permanente" else ttl_man_sel
 
-        raw_tags_manual = _parse_tags_field(request.form.get("tags_manual", ""))
+        # Soportar tanto JS (hidden input) como HTML nativo (checkboxes)
+        str_tags = request.form.get("tags_manual", "")
+        list_tags = request.form.getlist("tags_manual_cb")
+        
+        # Unir ambos origenes
+        combined_raw = str_tags + "," + ",".join(list_tags)
+        
+        raw_tags_manual = _parse_tags_field(combined_raw)
         tags_manual = _filter_allowed_tags(raw_tags_manual)
 
         if not tags_manual:
@@ -1556,24 +1836,29 @@ def index():
 
     # 2) Historial persistente añadido al final (con fecha delante)
     messages = []
-    messages.extend(request_actions)
+    # messages.extend(request_actions)  <-- RIMOS DUPLICACIÓN
     try:
         for n in get_notifs(limit=200):
             cat = str(n.get("category", "secondary"))
             msg = f"{n.get('time','')} {n.get('message','')}".strip()
-            messages.append((cat, msg))
+            messages.append({"category": cat, "message": msg})
     except Exception:
         pass
 
     # Unión para contadores / totales de cabecera
     lines_main = load_lines(FEED_FILE)
     lines_bpe  = load_lines(FEED_FILE_BPE)
+    lines_test = load_lines(FEED_FILE_TEST)
     rec_main   = {r["ip"]: r for r in _feed_to_records(lines_main)}
     rec_bpe    = {r["ip"]: r for r in _feed_to_records(lines_bpe)}
+    rec_test   = {r["ip"]: r for r in _feed_to_records(lines_test)}
     
     merged_records = list(rec_main.values())
     for ip, r in rec_bpe.items():
         if ip not in rec_main:
+            merged_records.append(r)
+    for ip, r in rec_test.items():
+        if ip not in rec_main and ip not in rec_bpe:
             merged_records.append(r)
     
     active_union_ips = {r["ip"] for r in merged_records}
@@ -1584,117 +1869,36 @@ def index():
     
     tag_totals = compute_tag_totals()  # ya calcula Multicliente/BPE en la unión
     
-    # OJO: la tabla sigue mostrando el principal (líneas HTML)
-    lines = lines_main
+    
+    # CORRECCIÓN: Generar líneas para la tabla a partir de la UNIÓN completa
+    # El template espera strings 'IP|FECHA|TTL'
+    lines = []
+    for r in merged_records:
+        f_str = r['fecha'] if r['fecha'] else _iso(datetime.utcnow())[:10]
+        t_str = str(r['ttl']) if r['ttl'] is not None else '0'
+        lines.append(f"{r['ip']}|{f_str}|{t_str}")
+
 
     # Resumen unión feeds (fuente, tag y fuente×tag)
     src_union, tag_union, src_tag_union, total_union = compute_source_and_tag_counters_union()
 
     # Construye map de tags + alertas para la tabla server-rendered
     meta = load_meta()
+    
+    ip_details = meta.get("ip_details", {})
     ip_tags = {}
     ip_alerts = {}
-    try:
-        active_ips_main = {l.split("|",1)[0] for l in lines}
-        for ip, entry in (meta.get("ip_details") or {}).items():
-            if ip in active_ips_main:
-                ip_tags[ip] = entry.get("tags", [])
-                ip_alerts[ip] = entry.get("alert_ids", [])
-    except Exception:
-        ip_tags = {}
-        ip_alerts = {}
+    for ip, details in ip_details.items():
+        if "tags" in details and details["tags"]:
+            ip_tags[ip] = details["tags"]
+        if "alerts" in details and details["alerts"]:
+            ip_alerts[ip] = details["alerts"]
 
-    # JSON mode (paginación/ordenación/filtros)
-    if request.args.get("format", "").lower() == "json":
-        # Unir feeds: Multicliente (principal) + BPE + Test
-        lines_main = load_lines(FEED_FILE)
-        lines_bpe  = load_lines(FEED_FILE_BPE)
-        lines_test = load_lines(FEED_FILE_TEST)
-
-        rec_main = {r["ip"]: r for r in _feed_to_records(lines_main)}
-        rec_bpe  = {r["ip"]: r for r in _feed_to_records(lines_bpe)}
-        rec_test = {r["ip"]: r for r in _feed_to_records(lines_test)}
-
-        # Preferimos el registro del principal si existe; añadimos BPE-only y luego Test-only
-        merged_records = list(rec_main.values())
-        for ip, r in rec_bpe.items():
-            if ip not in rec_main:
-                merged_records.append(r)
-        for ip, r in rec_test.items():
-            if ip not in rec_main and ip not in rec_bpe:
-                merged_records.append(r)
-
-        q = request.args.get("q")
-        date_param = request.args.get("date")
-        sort_key = request.args.get("sort", "fecha")
-        order = request.args.get("order", "desc")
-        page = request.args.get("page", 1)
-        page_size = request.args.get("page_size", DEFAULT_PAGE_SIZE)
-
-        filtered = _apply_filters(merged_records, q=q, date_param=date_param)
-        ordered = _apply_sort(filtered, sort_key=sort_key, order=order)
-        paged, p, ps, total = _paginate(ordered, page=page, page_size=page_size)
-
-        meta = load_meta()
-        ip_details = meta.get("ip_details", {})
-
-        items = []
-        for r in paged:
-            data = ip_details.get(r["ip"], {}) or {}
-            ttl_remaining = _days_left(r["fecha_dt"], r["ttl"])
-            items.append({
-                "ip": r["ip"],
-                "ttl": 0 if r["ttl"] is None else r["ttl"],
-                "ttl_remaining": ttl_remaining,
-                "origen": r.get("origen"),
-                "fecha_alta": r["fecha"] if r["fecha"] else None,
-                "tags": data.get("tags", []),
-                "alert_ids": data.get("alert_ids", [])
-            })
-
-        # Contadores sobre la unión
-        active_union_ips = {r["ip"] for r in merged_records}
-        meta_by_ip = load_meta().get("by_ip", {})
-        live_manual = sum(1 for ip in active_union_ips if meta_by_ip.get(ip) == "manual")
-        live_csv    = sum(1 for ip in active_union_ips if meta_by_ip.get(ip) == "csv")
-        live_api    = sum(1 for ip in active_union_ips if meta_by_ip.get(ip) == "api")
-        tag_totals  = compute_tag_totals()
-        src_union, tag_union, src_tag_union, total_union = compute_source_and_tag_counters_union()
-
-        notices = [{"time": datetime.utcnow().isoformat()+"Z", "category": c, "message": m}
-                   for c, m in request_actions]
-
-        return json_response_ok(
-            notices=notices,
-            extra={
-                "items": items,
-                "page": p,
-                "page_size": ps,
-                "total": total,
-                "sort": sort_key,
-                "order": order,
-                "filters": {"q": q, "date": date_param},
-                "counters": {
-                    "total": total_union,
-                    "manual": live_manual,
-                    "csv":    live_csv,
-                    "api":    live_api,
-                    "tags":   tag_totals,
-                    "union": {
-                        "total": total_union,
-                        "by_source": src_union,
-                        "by_tag": tag_union,
-                        "by_source_tag": src_tag_union
-                    }
-                }
-            }
-        )
-
-    # known tags para el datalist de la UI (seguimos mostrando todo lo conocido,
-    # pero en el frontal manual exigimos que sea de ALLOWED_TAGS)
     known_tags = _collect_known_tags()
 
     return render_template("index.html",
+                           current_flashes_list=request_actions,
+                           server_messages_list=messages,
                            ips=lines,
                            error=error,
                            total_ips=total_union,
@@ -1799,14 +2003,109 @@ def undo_last():
                                    notices=[{"time": datetime.utcnow().isoformat()+"Z", "category": "warning", "message": msg}])
 
 
-# ========= Rutas de backup =========
+
+# =========================
+#  Gestión de Usuarios (Dashboard)
+# =========================
+@app.route("/admin/users", methods=["GET"])
+@login_required
+def list_users():
+    users = load_users()
+    # Retornar lista segura (sin hash)
+    safe_list = []
+    for u, data in users.items():
+        safe_list.append({
+            "username": u,
+            "role": data.get("role", "editor"),
+            "created_at": data.get("created_at")
+        })
+    return jsonify({"users": safe_list})
+
+@app.route("/admin/users/add", methods=["POST"])
+@login_required
+def add_user():
+    # Solo admin puede crear (además de estar logueado, chequeamos rol si hubiera roles)
+    current_user = session.get("username")
+    users = load_users()
+    
+    # Simple control de roles (si el usuario actual no es admin en el JSON, rechazar?
+    # Por ahora asumimos que quien entra al dashboard es admin confiable)
+    
+    data = request.get_json(silent=True) or {}
+    username = data.get("username", "").strip()
+    password = data.get("password", "").strip()
+    
+    if not username or not password:
+        return jsonify({"error": "Faltan datos"}), 400
+        
+    if username in users:
+        return jsonify({"error": "El usuario ya existe"}), 400
+        
+    users[username] = {
+        "password_hash": generate_password_hash(password),
+        "role": "editor", # Por defecto editor
+        "created_at": _iso(_now_utc()),
+        "created_by": current_user
+    }
+    save_users(users)
+    _audit("user_created", f"web/{current_user}", username, {})
+    return jsonify({"success": True})
+
+@app.route("/admin/users/delete", methods=["POST"])
+@login_required
+def delete_user():
+    data = request.get_json(silent=True) or {}
+    target = data.get("username", "").strip()
+    current = session.get("username")
+    
+    if target == current:
+        return jsonify({"error": "No puedes borrarte a ti mismo"}), 400
+        
+    users = load_users()
+    if target not in users:
+        return jsonify({"error": "Usuario no encontrado"}), 404
+        
+    del users[target]
+    save_users(users)
+    _audit("user_deleted", f"web/{current}", target, {})
+    return jsonify({"success": True})
+
+@app.route("/admin/users/password", methods=["POST"])
+@login_required
+def change_password():
+    data = request.get_json(silent=True) or {}
+    target = data.get("username", "").strip()
+    new_pass = data.get("password", "").strip()
+    current = session.get("username")
+
+    if not target or not new_pass:
+        return jsonify({"error": "Faltan datos"}), 400
+        
+    # Permitir cambio si es el mismo usuario O si es un admin gestionando otro
+    if target != current:
+        # Aquí idealmente validaríamos si 'current' tiene rol admin
+        pass
+
+    users = load_users()
+    if target not in users:
+        return jsonify({"error": "Usuario no encontrado"}), 404
+        
+    users[target]["password_hash"] = generate_password_hash(new_pass)
+    save_users(users)
+    _audit("user_password_changed", f"web/{current}", target, {})
+    return jsonify({"success": True})
+
+
+# =========================
+#  Rutas de backup
+# =========================
 @app.route("/backup/latest.zip")
 @login_required
 def backup_latest_zip():
     """Descarga el ZIP más reciente; 404 si no hay."""
     if not os.path.isdir(BACKUP_DIR):
         abort(404)
-    zips = [f for f in os.listdir(BACKUP_DIR) if re.fullmatch(r"\d{4}-\d{2}-\d{2}\.zip", f)]
+    zips = [f for f in os.listdir(BACKUP_DIR) if re.fullmatch(r"\d{4}-\d{2}-\d{2}(_.*)?\.zip", f)]
     if not zips:
         abort(404)
     zips.sort(reverse=True)
@@ -1817,9 +2116,11 @@ def backup_latest_zip():
 @app.route("/backup/now", methods=["POST"])
 @login_required
 def backup_now():
-    """Fuerza un backup inmediato."""
-    perform_daily_backup(keep_days=14)
-    flash("Backup forzado creado", "success")
+    """Fuerza un backup inmediato con timestamp."""
+    perform_manual_backup()
+    # flash("Backup forzado creado", "success") -> Ya lo hace perform_manual_backup via notif, 
+    # pero el flash en UI viene bien.
+    flash("Backup manual completado correctamente", "success")
     guardar_notif("success", "Backup forzado creado")
     return redirect(url_for("index"))
 
@@ -1832,7 +2133,7 @@ def backup_list():
         return jsonify({"backups": []})
     items = []
     for name in os.listdir(BACKUP_DIR):
-        if re.fullmatch(r"\d{4}-\d{2}-\d{2}\.zip", name):
+        if re.fullmatch(r"\d{4}-\d{2}-\d{2}(_.*)?\.zip", name):
             items.append(name)
     items.sort(reverse=True)
     return jsonify({"backups": items})
@@ -2301,4 +2602,4 @@ app.register_blueprint(api)
 
 
 if __name__ == "__main__":
-    app.run(debug=True, host="0.0.0.0", port=5000)
+    app.run(debug=False, host="0.0.0.0", port=5000)

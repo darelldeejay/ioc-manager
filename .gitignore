@@ -1,0 +1,26 @@
+
+.venv/
+__pycache__/
+*.pyc
+.gemini/
+
+# Seguridad y Secretos
+.env
+users.json
+cookies.txt
+
+# Logs
+*.log
+ioc-log.txt
+notif-log.json
+audit-log.jsonl
+
+# Backups y Datos
+backups/
+data/
+*.zip
+
+# Archivos de sistema/editor
+.vscode/
+.idea/
+.DS_Store
