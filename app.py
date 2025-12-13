@@ -1605,8 +1605,9 @@ def index():
             new_lines = [l for l in lines if not l.startswith(ip_to_delete + "|")]
             save_lines(new_lines, FEED_FILE)
 
-            # Quitar también del feed BPE si estuviera
+            # Quitar también del feed BPE y TEST si estuviera
             _remove_ip_from_feed(ip_to_delete, FEED_FILE_BPE)
+            _remove_ip_from_feed(ip_to_delete, FEED_FILE_TEST)
 
             # Limpiar meta + tag-files
             meta_del_ip(ip_to_delete)
