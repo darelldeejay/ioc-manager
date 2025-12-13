@@ -20,6 +20,22 @@ backups/
 data/
 *.zip
 
+# Datos de operación (feed y meta)
+# Se excluyen para que cada entorno tenga sus propios datos
+ioc-feed.txt
+ioc-feed-bpe.txt
+ioc-feed-test.txt
+ioc-meta.json
+api_payload.json
+contador_manual.txt
+.expiry_last
+
+# Scripts de Prueba y Debug (Solo Local)
+debug_*.py
+test_*.py
+fix_templates.py
+templates/test_*.html
+
 # Archivos de sistema/editor
 .vscode/
 .idea/
