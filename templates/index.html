@@ -41,7 +41,7 @@
   <link href="https://fonts.googleapis.com/css2?family=Inter:wght@400;500;600;700&display=swap" rel="stylesheet">
 
   <!-- Estilos propios -->
-  <link rel="stylesheet" href="{{ url_for('static', filename='css/index.css') }}">
+  <link rel="stylesheet" href="{{ url_for('static', filename='css/index.css') }}?v=2">
 
 
 </head>
@@ -331,7 +331,7 @@
           <!-- Subida por CSV -->
           <div class="row g-3 mb-1 align-items-end">
             <!-- Archivo -->
-            <div class="col-lg-5">
+            <div class="col-lg-3">
               <label class="form-label small mb-1">Seleccionar archivo</label>
               <input class="form-control" type="file" id="file" name="file" accept=".csv,.txt">
             </div>
@@ -348,69 +348,58 @@
               </select>
             </div>
 
-            <!-- Tags CSV -->
-            <div class="col-lg-3">
-              <label class="form-label small mb-1">Aplicar a (todas las filas)</label>
-              <div id="tagCsvGroup" class="d-flex flex-wrap align-items-center gap-3">
-                <div class="form-check m-0">
-                  <input class="form-check-input tag-csv" type="checkbox" value="Multicliente" id="tagCsvMulti">
-                  <label class="form-check-label" for="tagCsvMulti">Multicliente</label>
-                </div>
-                <div class="form-check m-0">
-                  <input class="form-check-input tag-csv" type="checkbox" value="BPE" id="tagCsvBpe">
-                  <label class="form-check-label" for="tagCsvBpe">BPE</label>
-                </div>
-                <input type="hidden" id="tagsCsvInput" name="tags_csv" value="">
+            <!-- Tags CSV (Ayuda explicativa en lugar de checkboxes) -->
+            <div class="col-lg-5">
+              <div class="alert alert-light border small mb-0 p-2 lh-sm">
+                <i class="bi bi-info-circle me-1"></i>
+                Formato: <strong>IP;Tags;AlertID</strong>
+                <br>Tags: <em>Multicliente, BPE, Test</em>
               </div>
             </div>
 
-            <!-- ✅ Feedback visual para CSV sin tags -->
-            <div id="tagCsvFeedback" class="invalid-feedback" style="display:none;">
-              Selecciona al menos un tag (Multicliente y/o BPE) para el CSV.
-            </div>
-
-            <!-- Botones -->
+            <!-- Botones (a la derecha) -->
             <div class="col-lg-2">
-              <!-- label “fantasma” para igualar altura de cabecera -->
               <label class="form-label small mb-1 d-none d-lg-block">&nbsp;</label>
               <div class="d-flex gap-2">
-                <button id="uploadCsvBtn" type="submit" class="btn btn-primary w-100">Subir archivo</button>
-                <a href="{{ url_for('static', filename='plantilla.csv') }}" class="btn btn-secondary w-100" download>
-                  Descargar plantilla
+                <button id="uploadCsvBtn" type="submit" class="btn btn-primary w-100">Subir</button>
+                <a href="{{ url_for('static', filename='plantilla.csv') }}" class="btn btn-secondary w-100"
+                  title="Descargar plantilla" download>
+                  <i class="bi bi-download"></i>
                 </a>
               </div>
             </div>
           </div>
+        </div>
 
-          <!-- Nota de ayuda (fuera de la fila para no desalinear) -->
-          <div class="row mb-3">
-            <div class="col-12">
-              <div class="form-text small">Solo archivos .csv o .txt con una IP por línea.</div>
+        <!-- Nota de ayuda (fuera de la fila para no desalinear) -->
+        <div class="row mb-3">
+          <div class="col-12">
+            <div class="form-text small">Solo archivos .csv o .txt con una IP por línea.</div>
+          </div>
+        </div>
+      </div>
+
+      <div class="tab-pane fade" id="pane-delete" role="tabpanel" aria-labelledby="tab-delete">
+        <!-- Acciones avanzadas -->
+        <div class="row g-3 mb-4">
+          <div class="col-lg-6">
+            <button type="button" class="btn btn-outline-warning w-100" data-bs-toggle="modal"
+              data-bs-target="#modalDeleteNet">
+              Eliminar por patrón (CIDR / Rango / IP+Máscara / IP)
+            </button>
+          </div>
+          <div class="col-lg-6">
+            <div class="hint-box">
+              <strong>Ejemplos válidos:</strong>
+              <ul class="mb-0">
+                <li><code>203.0.113.0/24</code> (CIDR)</li>
+                <li><code>203.0.113.10-203.0.113.50</code> (rango)</li>
+                <li><code>203.0.113.0 255.255.255.0</code> (IP + máscara)</li>
+                <li><code>203.0.113.5</code> (IP suelta)</li>
+              </ul>
             </div>
           </div>
         </div>
-
-        <div class="tab-pane fade" id="pane-delete" role="tabpanel" aria-labelledby="tab-delete">
-          <!-- Acciones avanzadas -->
-          <div class="row g-3 mb-4">
-            <div class="col-lg-6">
-              <button type="button" class="btn btn-outline-warning w-100" data-bs-toggle="modal"
-                data-bs-target="#modalDeleteNet">
-                Eliminar por patrón (CIDR / Rango / IP+Máscara / IP)
-              </button>
-            </div>
-            <div class="col-lg-6">
-              <div class="hint-box">
-                <strong>Ejemplos válidos:</strong>
-                <ul class="mb-0">
-                  <li><code>203.0.113.0/24</code> (CIDR)</li>
-                  <li><code>203.0.113.10-203.0.113.50</code> (rango)</li>
-                  <li><code>203.0.113.0 255.255.255.0</code> (IP + máscara)</li>
-                  <li><code>203.0.113.5</code> (IP suelta)</li>
-                </ul>
-              </div>
-            </div>
-          </div>
     </form>
   </div>
   </div>
@@ -478,185 +467,189 @@
   </div>
 
   <hr>
-  <h4 class="section-title">IPs bloqueadas</h4>
 
-  <!-- Controles server-side (progresivo; si falla JSON, queda fallback local) -->
-  <div class="toolbar-grid mb-3" id="serverToolbar">
-    <div>
-      <label class="form-label small mb-1">Buscar IP</label>
-      <input type="text" id="qInput" class="form-control" placeholder="Ej: 203.0.113.5">
-    </div>
-    <div class="d-flex gap-2">
+  <div class="constrained-section">
+    <h4 class="section-title">IPs bloqueadas</h4>
+
+    <!-- Controles server-side (progresivo; si falla JSON, queda fallback local) -->
+    <div class="toolbar-grid mb-3" id="serverToolbar">
       <div>
-        <label class="form-label small mb-1">Desde</label>
-        <input type="date" id="dateFrom" class="form-control">
+        <label class="form-label small mb-1">Buscar IP</label>
+        <input type="text" id="qInput" class="form-control" placeholder="Ej: 203.0.113.5">
+      </div>
+      <div class="d-flex gap-2">
+        <div>
+          <label class="form-label small mb-1">Desde</label>
+          <input type="date" id="dateFrom" class="form-control">
+        </div>
+        <div>
+          <label class="form-label small mb-1">Hasta</label>
+          <input type="date" id="dateTo" class="form-control">
+        </div>
       </div>
       <div>
-        <label class="form-label small mb-1">Hasta</label>
-        <input type="date" id="dateTo" class="form-control">
+        <label class="form-label small mb-1">Ordenar por</label>
+        <select id="sortSelect" class="form-select">
+          <option value="fecha" selected>Fecha alta</option>
+          <option value="ttl">TTL (expiración)</option>
+          <option value="ip">IP</option>
+        </select>
+      </div>
+      <div>
+        <label class="form-label small mb-1">Orden</label><br>
+        <div class="btn-group">
+          <button id="orderDesc" class="btn btn-outline-secondary btn-sm active" type="button"
+            data-order="desc">Desc</button>
+          <button id="orderAsc" class="btn btn-outline-secondary btn-sm" type="button" data-order="asc">Asc</button>
+        </div>
+      </div>
+      <div>
+        <label class="form-label small mb-1">Tamaño pág.</label>
+        <select id="pageSize" class="form-select">
+          <option>10</option>
+          <option>25</option>
+          <option selected>50</option>
+          <option>100</option>
+        </select>
+      </div>
+      <div class="d-flex align-items-end gap-2">
+        <button id="applyTableFilters" class="btn btn-outline-primary">Aplicar</button>
+        <button id="clearTableFilters" class="btn btn-outline-secondary">Limpiar</button>
       </div>
     </div>
-    <div>
-      <label class="form-label small mb-1">Ordenar por</label>
-      <select id="sortSelect" class="form-select">
-        <option value="fecha" selected>Fecha alta</option>
-        <option value="ttl">TTL (expiración)</option>
-        <option value="ip">IP</option>
-      </select>
+
+    <!-- Buscador local (fallback) -->
+    <div class="mb-3 d-none" id="localSearchWrap">
+      <input type="text" id="buscadorIp" class="form-control" placeholder="Buscar IP...">
     </div>
-    <div>
-      <label class="form-label small mb-1">Orden</label><br>
-      <div class="btn-group">
-        <button id="orderDesc" class="btn btn-outline-secondary btn-sm active" type="button"
-          data-order="desc">Desc</button>
-        <button id="orderAsc" class="btn btn-outline-secondary btn-sm" type="button" data-order="asc">Asc</button>
+
+    <div class="bulkbar d-flex justify-content-between align-items-center mb-2 p-2">
+      <div class="small text-muted">
+        <span id="bulkSelectedCount">0</span> seleccionada(s)
       </div>
+      <button id="bulkDeleteBtn" class="btn btn-outline-danger btn-sm" disabled>
+        🗑️ Eliminar seleccionadas
+      </button>
     </div>
-    <div>
-      <label class="form-label small mb-1">Tamaño pág.</label>
-      <select id="pageSize" class="form-select">
-        <option>10</option>
-        <option>25</option>
-        <option selected>50</option>
-        <option>100</option>
-      </select>
-    </div>
-    <div class="d-flex align-items-end gap-2">
-      <button id="applyTableFilters" class="btn btn-outline-primary">Aplicar</button>
-      <button id="clearTableFilters" class="btn btn-outline-secondary">Limpiar</button>
-    </div>
-  </div>
 
-  <!-- Buscador local (fallback) -->
-  <div class="mb-3 d-none" id="localSearchWrap">
-    <input type="text" id="buscadorIp" class="form-control" placeholder="Buscar IP...">
-  </div>
+    <div class="table-responsive">
+      <table class="table table-sm table-striped table-hover align-middle" id="tablaIps" style="font-size: 0.9rem;">
+        <thead>
+          <tr>
+            <th style="width: 40px;" class="text-center">
+              <input type="checkbox" id="chkAll">
+            </th>
+            <th style="width: 15%; min-width: 150px !important;">IP</th>
+            <th style="width: 12%; min-width: 110px !important;">Fecha</th>
+            <th style="width: 80px; min-width: 80px !important;">TTL</th>
+            <th style="width: 25%; min-width: 200px !important;">Tags</th>
+            <th style="width: auto;">Alertas / Ticket</th>
+            <th style="width: 100px; text-align: right;">Acción</th>
+          </tr>
+        </thead>
+        <tbody>
+          {% if ips and ips|length > 0 %}
+          {% for item in ips %}
+          {% set parts = item.split('|') %}
+          {% set ip_txt = parts[0].strip() %}
+          {% set tags = (ip_tags.get(ip_txt, []) if ip_tags is defined and ip_tags else []) %}
+          {% if ip_alerts is defined and ip_alerts %}
+          {% set alerts = ip_alerts.get(ip_txt, []) %}
+          {% else %}
+          {% set alerts = [] %}
+          {% endif %}
+          <tr>
+            <td>
+              <input type="checkbox" class="row-chk" value="{{ ip_txt }}">
+            </td>
+            <td class="fw-bold text-monospace">{{ ip_txt }}</td>
+            <td class="small">{{ parts[1] }}</td>
+            <td class="small">{{ '∞' if parts[2] == '0' else parts[2] }}</td>
+            <td>
+              {% if tags %}
+              <div class="d-flex flex-wrap gap-1">
+                {% for t in tags %}
+                <span class="badge border"
+                  style="background-color: {{ tag_color(t) }}; color:#fff; font-weight:normal;">
+                  {{ t }}
+                </span>
+                {% endfor %}
+              </div>
+              {% else %}
+              <span class="text-muted small">—</span>
+              {% endif %}
+            </td>
+            <td>
+              {# --- Ticket / Alert ID (API) --- #}
+              {% set tickets = ip_ticket_ids.get(ip_txt, []) if ip_ticket_ids is defined else [] %}
+              <div class="d-flex flex-wrap gap-1 align-items-center">
+                {% if tickets %}
+                {% for t in tickets %}
+                <span class="badge bg-secondary text-light border border-secondary fw-normal text-truncate"
+                  style="max-width:150px;" title="{{ t }}">{{ t }}</span>
+                {% endfor %}
+                {% endif %}
 
-  <div class="bulkbar d-flex justify-content-between align-items-center mb-2 p-2">
-    <div class="small text-muted">
-      <span id="bulkSelectedCount">0</span> seleccionada(s)
-    </div>
-    <button id="bulkDeleteBtn" class="btn btn-outline-danger btn-sm" disabled>
-      🗑️ Eliminar seleccionadas
-    </button>
-  </div>
+                {# --- Internal System Alerts --- #}
+                {% if alerts %}
+                <span class="badge text-bg-warning text-dark border border-warning" title="{{ alerts|join(', ') }}">
+                  {{ alerts|length }} sist.
+                </span>
+                {% endif %}
 
-  <div class="table-responsive">
-    <table class="table table-striped table-hover" id="tablaIps">
-      <thead>
-        <tr>
-          <th style="width:36px">
-            <input type="checkbox" id="chkAll">
-          </th>
-          <th>IP</th>
-          <th>Fecha</th>
-          <th>TTL</th>
-          <th>Tags</th>
-          <th>Alertas</th>
-          <th>Acción</th>
-        </tr>
-      </thead>
-      <tbody>
-        {% if ips and ips|length > 0 %}
-        {% for item in ips %}
-        {% set parts = item.split('|') %}
-        {% set ip_txt = parts[0].strip() %}
-        {% set tags = (ip_tags.get(ip_txt, []) if ip_tags is defined and ip_tags else []) %}
-        {% if ip_alerts is defined and ip_alerts %}
-        {% set alerts = ip_alerts.get(ip_txt, []) %}
-        {% else %}
-        {% set alerts = [] %}
-        {% endif %}
-        <tr>
-          <td>
-            <input type="checkbox" class="row-chk" value="{{ ip_txt }}">
-          </td>
-          <td>{{ ip_txt }}</td>
-          <td>{{ parts[1] }}</td>
-          <td>{{ '∞' if parts[2] == '0' else parts[2] }}</td>
-          <td>
-            {% if tags %}
-            {% for t in tags %}
-            <span class="badge" style="background-color: {{ tag_color(t) }}; color:#fff; margin-right:6px;">
-              {{ t }}
-            </span>
-            {% endfor %}
-            {% else %}
-            <span class="text-muted">—</span>
-            {% endif %}
-          </td>
-          <td>
-            {# --- Ticket / Alert ID (API) --- #}
-            {% set tickets = ip_ticket_ids.get(ip_txt, []) if ip_ticket_ids is defined else [] %}
-            {% if tickets %}
-            <div class="mb-1">
-              {% for t in tickets %}
-              <span class="badge bg-secondary text-light" title="Ticket API">{{ t }}</span>
-              {% endfor %}
-            </div>
-            {% endif %}
-
-            {# --- Internal System Alerts --- #}
-            {% if alerts %}
-            <span class="badge text-bg-info">
-              {{ alerts|length }} alerta{{ 's' if alerts|length != 1 else '' }}
-            </span>
-            <div class="alert-ids-list text-muted small">
-              {{ alerts|join(', ') }}
-            </div>
-            {% endif %}
-
-            {% if not tickets and not alerts %}
-            <span class="text-muted small">—</span>
-            {% endif %}
-          </td>
-          <td>
-            <button class="btn btn-sm btn-outline-danger" data-bs-toggle="modal"
-              data-bs-target="#confirmDelete{{ loop.index }}">Eliminar</button>
-            <div class="modal fade" id="confirmDelete{{ loop.index }}" tabindex="-1" aria-hidden="true">
-              <div class="modal-dialog modal-dialog-centered">
-                <div class="modal-content">
-                  <form method="POST">
-                    <div class="modal-header">
-                      <h5 class="modal-title">Confirmar eliminación</h5>
-                      <button type="button" class="btn-close" data-bs-dismiss="modal" aria-label="Cerrar"></button>
-                    </div>
-                    <div class="modal-body">
-                      ¿Eliminar <strong>{{ ip_txt }}</strong>?
-                    </div>
-                    <div class="modal-footer">
-                      <input type="hidden" name="delete_ip" value="{{ ip_txt }}">
-                      <button type="submit" class="btn btn-danger">Eliminar</button>
-                      <button type="button" class="btn btn-secondary" data-bs-dismiss="modal">Cancelar</button>
-                    </div>
-                  </form>
+                {% if not tickets and not alerts %}
+                <span class="text-muted small">—</span>
+                {% endif %}
+              </div>
+            </td>
+            <td style="text-align: right;">
+              <button class="btn btn-sm btn-outline-danger" data-bs-toggle="modal"
+                data-bs-target="#confirmDelete{{ loop.index }}">Eliminar</button>
+              <div class="modal fade" id="confirmDelete{{ loop.index }}" tabindex="-1" aria-hidden="true">
+                <div class="modal-dialog modal-dialog-centered">
+                  <div class="modal-content">
+                    <form method="POST">
+                      <div class="modal-header">
+                        <h5 class="modal-title">Confirmar eliminación</h5>
+                        <button type="button" class="btn-close" data-bs-dismiss="modal" aria-label="Cerrar"></button>
+                      </div>
+                      <div class="modal-body">
+                        ¿Eliminar <strong>{{ ip_txt }}</strong>?
+                      </div>
+                      <div class="modal-footer">
+                        <input type="hidden" name="delete_ip" value="{{ ip_txt }}">
+                        <button type="submit" class="btn btn-danger">Eliminar</button>
+                        <button type="button" class="btn btn-secondary" data-bs-dismiss="modal">Cancelar</button>
+                      </div>
+                    </form>
+                  </div>
                 </div>
               </div>
-            </div>
-          </td>
-        </tr>
-        {% endfor %}
-        {% else %}
-        <tr>
-          <td colspan="7" class="text-center text-muted">—</td>
-        </tr>
-        {% endif %}
-      </tbody>
-    </table>
-  </div>
-
-  <!-- Paginación server-side -->
-  <div class="d-flex align-items-center justify-content-between mt-2" id="pagerBar">
-    <div class="small text-muted" id="pageInfo">Página 1</div>
-    <div class="btn-group">
-      <button id="prevPage" class="btn btn-outline-secondary btn-sm">«</button>
-      <button id="nextPage" class="btn btn-outline-secondary btn-sm">»</button>
+            </td>
+          </tr>
+          {% endfor %}
+          {% else %}
+          <tr>
+            <td colspan="7" class="text-center text-muted">—</td>
+          </tr>
+          {% endif %}
+        </tbody>
+      </table>
     </div>
-  </div>
 
-  <div class="text-center mt-4">
-    <p class="text-muted">Proyecto hecho por Darell Pérez · Todos los derechos reservados</p>
-  </div>
+    <!-- Paginación server-side -->
+    <div class="d-flex align-items-center justify-content-between mt-2" id="pagerBar">
+      <div class="small text-muted" id="pageInfo">Página 1</div>
+      <div class="btn-group">
+        <button id="prevPage" class="btn btn-outline-secondary btn-sm">«</button>
+        <button id="nextPage" class="btn btn-outline-secondary btn-sm">»</button>
+      </div>
+    </div>
+
+    <div class="text-center mt-4 mb-3">
+      <p class="text-muted small">Proyecto hecho por Darell Pérez · Todos los derechos reservados · <span
+          class="badge bg-light text-dark border">v2025.12.21 Refactor</span></p>
+    </div>
   </div>
 
   <!-- Logo DPB fijo (abajo derecha, SIN TOCAR) -->
@@ -1069,17 +1062,10 @@
         } else {
           showManualTagError(false);
         }
-      } else {                        // === Flujo CSV (OBLIGATORIO) ===
-        const csv = selectedTags('tag-csv');
-        if (csv.length === 0) {
-          ev.preventDefault(); ev.stopPropagation();
-          showCsvTagError(true);
-          document.querySelector('.tag-csv')?.focus();
-          return;
-        } else {
-          showCsvTagError(false);
-        }
       }
+      // === Flujo CSV === 
+      // Ya no hay checkboxes de tags, vienen dentro del CSV.
+      // Se permite enviar el formulario directamente.
 
       // Spinners (igual que tenías)
       const manualBtn = document.getElementById('addManualBtn');

@@ -826,10 +826,11 @@ def _already_same(entry, tags, expires_at):
 # =========================
 #  Alta de IPs (helper)  >>> actualizado para TAGS y feeds separados
 # =========================
-def add_ips_validated(lines, existentes, iterable_ips, ttl_val, origin=None, contador_ruta=None, tags=None):
+def add_ips_validated(lines, existentes, iterable_ips, ttl_val, origin=None, contador_ruta=None, tags=None, alert_id=None):
     """
     ttl_val: '0' para permanente o número de días (str/int)
     tags: lista de tags (OBLIGATORIA: Multicliente y/o BPE)
+    alert_id: identificador de alerta opcional (solo si es 1 IP o si aplica a todas, normalmente NULL en cargas masivas simples)
     """
     añadidas = 0
     rechazadas = 0
@@ -867,7 +868,7 @@ def add_ips_validated(lines, existentes, iterable_ips, ttl_val, origin=None, con
         # Si ya está en el feed principal
         if ip_str in existentes:
             # fusionar tags en meta/tag files aunque esté duplicada
-            entry = _merge_meta_tags(ip_str, tags, expires_at_dt, origin or "manual", note="web", alert_id=None)
+            entry = _merge_meta_tags(ip_str, tags, expires_at_dt, origin or "manual", note="web", alert_id=alert_id)
             for t in tags:
                 _write_tag_line(t, ip_str, _now_utc(), ttl_seconds, expires_at_dt, origin or "manual", entry["tags"])
             rechazadas += 1  # se considera duplicada para el feed principal
@@ -901,7 +902,7 @@ def add_ips_validated(lines, existentes, iterable_ips, ttl_val, origin=None, con
             _append_line_unique(FEED_FILE_TEST, f"{ip_str}|{fecha}|{ttl_val}")
 
         # meta + tag files
-        entry = _merge_meta_tags(ip_str, tags, expires_at_dt, origin or "manual", note="web", alert_id=None)
+        entry = _merge_meta_tags(ip_str, tags, expires_at_dt, origin or "manual", note="web", alert_id=alert_id)
         for t in tags:
             _write_tag_line(t, ip_str, _now_utc(), ttl_seconds, expires_at_dt, origin or "manual", entry["tags"])
 
@@ -909,7 +910,8 @@ def add_ips_validated(lines, existentes, iterable_ips, ttl_val, origin=None, con
         guardar_notif("success", f"IP añadida: {ip_str}")
         _audit("add_manual" if origin == "manual" else f"add_{origin}", f"web/{session.get('username','admin')}" if origin=="manual" else "api/system", ip_str, {
             "ttl_days": ttl_days,
-            "tags": tags
+            "tags": tags,
+            "alert_id": alert_id
         })
 
         if contador_ruta and allow_multi:
@@ -1667,17 +1669,10 @@ def index():
                 ttl_csv_sel = "permanente"
             ttl_csv_val = "0" if ttl_csv_sel == "permanente" else ttl_csv_sel
 
-            # 2) Tags CSV (OBLIGATORIO: GUI y API)
-            raw_tags_csv = _parse_tags_field(request.form.get("tags_csv", ""))
-            tags_csv = _filter_allowed_tags(raw_tags_csv)
-            if not tags_csv:
-                flash("Debes seleccionar al menos un tag válido (Multicliente y/o BPE) para el CSV.", "danger")
-                try:
-                    guardar_notif("danger", "Intento de subida CSV sin tags (rechazado)")
-                except Exception:
-                    pass
-                _audit("csv_rejected_no_tags", f"web/{session.get('username','admin')}", {}, {})
-                return redirect(url_for("index"))
+            # 2) Tags CSV (OBLIGATORIO) -- Ahora vienen en el CSV, validamos por fila
+            # raw_tags_csv = _parse_tags_field(request.form.get("tags_csv", ""))
+            # tags_csv = _filter_allowed_tags(raw_tags_csv)
+            # if not tags_csv: ...
 
             # 3) Lectura segura del archivo
             try:
@@ -1692,32 +1687,51 @@ def index():
             valid_ips_total = 0
             rejected_total = 0
             added_lines_acc = []
+            
+            # Detectar delimitador simple (la primera linea que tenga ; gana, si no ,)
+            delimiter = ","
+            if content and any(";" in line for line in content[:5]):
+                delimiter = ";"
 
-            for raw in content:
-                raw = (raw or "").strip()
-                if not raw:
+            for raw_line in content:
+                raw_line = (raw_line or "").strip()
+                if not raw_line or raw_line.lower().startswith("ip" + delimiter): # Skip header
+                    continue
+                
+                parts = raw_line.split(delimiter)
+                # Formato: IP [;|] Tags [;|] AlertID
+                
+                raw_ip = parts[0].strip()
+                raw_tags = parts[1].strip() if len(parts) > 1 else ""
+                raw_alert = parts[2].strip() if len(parts) > 2 else None
+                
+                # Tags obligatorios en fila
+                row_tags = _filter_allowed_tags(_parse_tags_field(raw_tags))
+                if not row_tags:
+                    # Si no hay tags, rechazamos la fila
+                    rejected_total += 1
                     continue
 
                 try:
-                    expanded = expand_input_to_ips(raw)
+                    expanded = expand_input_to_ips(raw_ip)
                 except ValueError as e:
                     if str(e) == "accion_no_permitida":
-                        flash("⚠️ Acción no permitida: bloqueo de absolutamente todo", "accion_no_permitida")
                         try:
                             guardar_notif("accion_no_permitida", "Intento de bloqueo global (CSV)")
                         except Exception:
                             pass
-                        _audit("csv_policy_denied", f"web/{session.get('username','admin')}", {}, {"line": raw})
                         continue
                     rejected_total += 1
                     continue
 
+                # Inserción fila a fila para soportar metadata única
                 add_ok, add_bad, added_lines = add_ips_validated(
                     lines, existentes, expanded,
                     ttl_val=ttl_csv_val,
                     origin="csv",
                     contador_ruta=COUNTER_CSV,
-                    tags=tags_csv,
+                    tags=row_tags,
+                    alert_id=raw_alert
                 )
 
                 valid_ips_total += add_ok
@@ -1735,7 +1749,8 @@ def index():
             flash(f"{valid_ips_total} IP(s) añadida(s) correctamente (CSV)", "success")
             if added_lines_acc:
                 _set_last_action("add", added_lines_acc)
-            _audit("csv_added", f"web/{session.get('username','admin')}", {"count": valid_ips_total}, {"tags": tags_csv, "ttl": ttl_csv_val})
+            # Audit genérico (no detallamos tags aquí porque varían)
+            _audit("csv_added", f"web/{session.get('username','admin')}", {"count": valid_ips_total}, {"ttl": ttl_csv_val})
 
             if rejected_total:
                 try:

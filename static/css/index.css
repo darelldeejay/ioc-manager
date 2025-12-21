@@ -664,6 +664,12 @@ body {
   box-shadow: 0 18px 35px rgba(15, 23, 42, 0.85);
 }
 
+/* Wrapper para limitar el ancho de toda la sección inferior */
+.constrained-section {
+  max-width: 1600px;
+  margin-inline: auto;
+}
+
 [data-theme="light"] .table-responsive {
   border-color: #e5e7eb;
   background: #ffffff;
@@ -935,16 +941,35 @@ body {
 }
 
 /* Controles de tabla */
+/* Controles de tabla: Flexbox para que no se estiren */
 .toolbar-grid {
-  display: grid;
-  grid-template-columns: 1fr 1fr repeat(5, auto);
-  gap: .5rem;
-  align-items: end;
+  display: flex;
+  flex-wrap: wrap;
+  gap: 0.75rem;
+  align-items: flex-end;
 }
 
-@media (max-width: 992px) {
+.toolbar-grid>div {
+  /* Opcional: que no crezcan demasiado si no hace falta, 
+     o darlos un min-width si se quedan muy chicos */
+  min-width: 120px;
+}
+
+/* El buscador puede crecer un poco más si hay sitio */
+.toolbar-grid>div:first-child {
+  flex-grow: 1;
+  max-width: 300px;
+  /* Limitamos el ancho del buscador */
+}
+
+@media (max-width: 768px) {
   .toolbar-grid {
-    grid-template-columns: 1fr 1fr 1fr;
+    flex-direction: column;
+    align-items: stretch;
+  }
+
+  .toolbar-grid>div:first-child {
+    max-width: 100%;
   }
 }
 
