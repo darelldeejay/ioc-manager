@@ -624,6 +624,11 @@
                 <span class="badge border"
                   style="background-color: {{ tag_color(t) }}; color:#fff; font-weight:normal;">
                   {{ t }}
+                  {% if user_role != 'view_only' %}
+                  <i class="bi bi-x-circle ms-1" style="cursor: pointer; opacity: 0.8;"
+                    onclick="removeTag(this, '{{ ip_txt }}', '{{ t }}'); event.stopPropagation();"
+                    title="Quitar tag"></i>
+                  {% endif %}
                 </span>
                 {% endfor %}
               </div>
@@ -667,7 +672,21 @@
                         <button type="button" class="btn-close" data-bs-dismiss="modal" aria-label="Cerrar"></button>
                       </div>
                       <div class="modal-body">
+                        {% if 'BPE' in tags or 'bpe' in tags %}
+                        <div class="alert alert-warning border-warning">
+                          <div class="d-flex">
+                            <i class="bi bi-exclamation-triangle-fill fs-4 me-3"></i>
+                            <div>
+                              <strong>¡Atención: IP Crítica (BPE)!</strong><br>
+                              Esta IP pertenece a la lista BPE. Se eliminará de <strong>ambas</strong> listas (Principal
+                              y BPE).
+                            </div>
+                          </div>
+                        </div>
+                        ¿Confirmas eliminar <strong>{{ ip_txt }}</strong>?
+                        {% else %}
                         ¿Eliminar <strong>{{ ip_txt }}</strong>?
+                        {% endif %}
                       </div>
                       <div class="modal-footer">
                         <input type="hidden" name="delete_ip" value="{{ ip_txt }}">
@@ -1646,10 +1665,10 @@
           }</td>
         <td>${alertsCellHtml(row)}</td>
         <td>
-          <form method="POST" onsubmit="return confirm('¿Eliminar ${escapeHtml(row.ip)}?');">
-            <input type="hidden" name="delete_ip" value="${escapeHtml(row.ip)}">
-            <button type="submit" class="btn btn-sm btn-outline-danger">Eliminar</button>
-          </form>
+            <button type="button" class="btn btn-sm btn-outline-danger" 
+              onclick='confirmDeleteJS("${escapeHtml(row.ip)}", ${JSON.stringify(row.tags || [])})'>
+              Eliminar
+            </button>
         </td>
       `;
         tbody.appendChild(tr);
@@ -1777,6 +1796,53 @@
       // Inicializar lista de notificaciones
       if (typeof renderList === 'function') renderList();
     });
+
+    // --- Lógica para quitar tags ---
+    async function removeTag(element, ip, tag) {
+      if (!confirm(`¿Seguro que quieres quitar el tag "${tag}" de la IP ${ip}?`)) {
+        return;
+      }
+
+      try {
+        const res = await fetch('/api/remove-tag', {
+          method: 'POST',
+          headers: { 'Content-Type': 'application/json' },
+          body: JSON.stringify({ ip: ip, tag: tag })
+        });
+        const data = await res.json();
+
+        if (res.ok && data.ok) {
+          // Eliminar visualmente el chip
+        } else {
+          showInlineToast("danger", data.error || "Error al eliminar tag");
+        }
+      } catch (e) {
+        showInlineToast("danger", "Error de red al eliminar tag");
+      }
+    }
+
+    window.confirmDeleteJS = function (ip, tags) {
+      let msg = `¿Eliminar ${ip}?`;
+      if (tags && (tags.includes('BPE') || tags.includes('bpe'))) {
+        msg = `⚠️ ATENCIÓN: La IP ${ip} es CRÍTICA (BPE).\n\nSe eliminará de TODAS las listas (Principal y BPE).\n\n¿Estás seguro de continuar?`;
+      }
+
+      if (confirm(msg)) {
+        // Enviar POST programático
+        const form = document.createElement('form');
+        form.method = 'POST';
+        form.style.display = 'none';
+
+        const inp = document.createElement('input');
+        inp.type = 'hidden';
+        inp.name = 'delete_ip';
+        inp.value = ip;
+
+        form.appendChild(inp);
+        document.body.appendChild(form);
+        form.submit();
+      }
+    }
   </script>
   <!-- MODAL GRÁFICAS -->
   <div class="modal fade" id="metricsModal" tabindex="-1" aria-hidden="true">

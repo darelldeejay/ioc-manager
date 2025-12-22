@@ -58,7 +58,21 @@
 
         <div class="card shadow-sm">
             <div class="card-header bg-primary text-white d-flex justify-content-between align-items-center">
-                <span>Últimos registros del sistema</span>
+                <div class="d-flex align-items-center gap-3">
+                    <span>Últimos registros del sistema</span>
+
+                    <!-- Selector de Histórico -->
+                    <form method="GET" action="{{ url_for('audit_view') }}" class="d-flex align-items-center">
+                        <select name="log_file" class="form-select form-select-sm text-dark"
+                            style="width: auto; max-width: 250px;" onchange="this.form.submit()">
+                            <option value="" {% if not is_historical %}selected{% endif %}>🟢 Log Activo</option>
+                            {% for f in available_files %}
+                            <option value="{{ f }}" {% if current_file==f %}selected{% endif %}>📂 {{
+                                f.replace('audit-log.', '').replace('.jsonl', '') }}</option>
+                            {% endfor %}
+                        </select>
+                    </form>
+                </div>
 
                 <!-- Filtro Rápido JS -->
                 <input type="text" id="filterInput" class="form-control form-control-sm text-dark" style="width: 200px;"

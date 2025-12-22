@@ -806,6 +806,56 @@ def _merge_meta_tags(ip, new_tags, expires_at, source, note, alert_id=None):
     return entry
 
 
+def _remove_tag_meta(ip, tag_to_remove):
+    """Elimina un tag de la lista de tags en META_FILE."""
+    meta = load_meta()
+    details = meta.get("ip_details", {})
+    entry = details.get(ip)
+    
+    if entry and "tags" in entry:
+        old_tags = entry["tags"]
+        if tag_to_remove in old_tags:
+            new_tags = [t for t in old_tags if t != tag_to_remove]
+            entry["tags"] = new_tags
+            entry["last_update"] = _iso(_now_utc())
+            
+            # Registrar en historial del objeto
+            entry.setdefault("history", []).append({
+                "ts": _iso(_now_utc()),
+                "action": "remove_tag",
+                "tag_removed": tag_to_remove,
+                "source": "web"
+            })
+            
+            details[ip] = entry
+            meta["ip_details"] = details
+            save_meta(meta)
+
+
+def _remove_tag_meta(ip, tag_to_remove):
+    """Elimina un tag de la lista de tags en META_FILE."""
+    meta = load_meta()
+    details = meta.get("ip_details", {})
+    entry = details.get(ip)
+    
+    if entry and "tags" in entry:
+        old_tags = entry["tags"]
+        if tag_to_remove in old_tags:
+            new_tags = [t for t in old_tags if t != tag_to_remove]
+            entry["tags"] = new_tags
+            entry["last_update"] = _iso(_now_utc())
+            
+            # Registrar en historial del objeto
+            entry.setdefault("history", []).append({
+                "ts": _iso(_now_utc()),
+                "action": "remove_tag",
+                "tag_removed": tag_to_remove,
+                "source": "web"
+            })
+            
+            details[ip] = entry
+            meta["ip_details"] = details
+            save_meta(meta)
 def _already_same(entry, tags, expires_at):
     """
     Comprueba si tags y expiración son iguales.
@@ -1520,6 +1570,20 @@ def _collect_known_tags():
         pass
     out.sort(key=lambda x: x.lower())
     return out
+
+# =========================
+#  Hooks de Flask
+# =========================
+@app.before_request
+def before_request():
+    # Check diario de expiración y snapshots
+    try:
+        perform_daily_expiry_once()
+        take_daily_snapshot()  # Analytics
+        perform_log_rotation() # Log Rotation (Size check)
+    except Exception:
+        pass
+
 
 # === HISTORICAL SNAPSHOTS ===
 def load_history():
@@ -2500,22 +2564,85 @@ def notifications_read_all():
     return json_response_ok(notices=[{"time": datetime.utcnow().isoformat()+"Z", "category": "info", "message": "Notificaciones marcadas como leídas"}])
 
 
+# =========================
+#  Log Rotation Logic
+# =========================
+def perform_log_rotation():
+    """Rota logs si superan 5MB. Retención infinita (renombrado)."""
+    # Lista de ficheros a vigilar
+    targets = [AUDIT_LOG_FILE, "ioc-log.txt", "notif-log.json"]
+    limit_bytes = 5 * 1024 * 1024  # 5 MB
+
+    timestamp = datetime.now().strftime("%Y-%m-%d_%H%M")
+    
+    for fpath in targets:
+        try:
+            if os.path.exists(fpath) and os.path.getsize(fpath) > limit_bytes:
+                # Renombrar: audit-log.jsonl -> audit-log.2025-12-22_1030.jsonl
+                # Si tiene extensión, insertamos fecha antes. Si no, al final.
+                base, ext = os.path.splitext(fpath)
+                new_name = f"{base}.{timestamp}{ext}"
+                
+                # Evitar colisión si pasa muy rápido (aunque minuto suele bastar)
+                if os.path.exists(new_name):
+                    new_name = f"{base}.{timestamp}_{int(time.time())}{ext}"
+                    
+                os.rename(fpath, new_name)
+                # El sistema creará uno nuevo limpio en la siguiente escritura
+        except Exception:
+            pass
+
+def get_audit_log_files():
+    """Retorna lista de ficheros de log de auditoría disponibles (históricos)."""
+    directory = os.path.dirname(AUDIT_LOG_FILE) or "."
+    base_name = os.path.basename(AUDIT_LOG_FILE) # audit-log.jsonl
+    base_prefix = os.path.splitext(base_name)[0] # audit-log
+    
+    files = []
+    try:
+        for f in os.listdir(directory):
+            # Buscar ficheros que empiecen por audit-log. y no sean el propio lock ni el activo (exacto)
+            if f.startswith(base_prefix + ".") and f.endswith(".jsonl") and f != base_name:
+                files.append(f)
+    except Exception:
+        pass
+        
+    # Ordenar por nombre (que incluye fecha), descendente (más nuevos primero)
+    files.sort(reverse=True)
+    return files
+
+
 @app.route("/audit")
 @login_required
 def audit_view():
     if session.get("role") == "view_only":
-        # Opcional: restringir si se desea
         pass
+
+    # Parámetro opcional ?log_file=...
+    requested_file = request.args.get("log_file", "").strip()
+    
+    target_file = AUDIT_LOG_FILE
+    is_historical = False
+    
+    # Validación segura: solo permitimos nombres que coincidan con patrón de rotación
+    if requested_file:
+        # Debe estar en el mismo directorio y empezar por el prefijo
+        safe_name = os.path.basename(requested_file)
+        full_path = os.path.join(os.path.dirname(AUDIT_LOG_FILE) or ".", safe_name)
+        if os.path.exists(full_path) and safe_name.startswith("audit-log.") and safe_name.endswith(".jsonl"):
+            target_file = full_path
+            if safe_name != os.path.basename(AUDIT_LOG_FILE):
+                is_historical = True
 
     logs = []
     try:
-        if os.path.exists(AUDIT_LOG_FILE):
-            # Leemos las últimas 50 líneas para no cargar demasiado (o 1000)
-            # Para simpleza: leer todo y coger ultimas 200
-            with open(AUDIT_LOG_FILE, "r", encoding="utf-8") as f:
+        if os.path.exists(target_file):
+            with open(target_file, "r", encoding="utf-8") as f:
+                # Leer todo (para histórico/actual) y coger últimas 500 lineas
+                # Si es un fichero historico MUY grande, esto podría optimizarse, pero 5MB es manejable.
                 lines = f.readlines()
-                # Invertir para ver lo más nuevo primero
-                for line in reversed(lines[-200:]):
+                # Mostramos los últimos 500
+                for line in reversed(lines[-500:]):
                     try:
                         logs.append(json.loads(line))
                     except:
@@ -2523,7 +2650,14 @@ def audit_view():
     except Exception:
         pass
 
-    return render_template("audit.html", logs=logs)
+    # Obtener lista de ficheros disponibles para el selector
+    available_files = get_audit_log_files()
+
+    return render_template("audit.html", 
+                           logs=logs, 
+                           current_file=os.path.basename(target_file), 
+                           is_historical=is_historical,
+                           available_files=available_files)
 
 
 # =========================
@@ -2953,6 +3087,40 @@ app.register_blueprint(api)
 def api_counters_history():
     """Devuelve el histórico de contadores (JSON)."""
     return jsonify(load_history())
+
+
+@app.route("/api/remove-tag", methods=["POST"])
+@login_required
+def api_remove_tag():
+    """
+    Endpoint para quitar un tag específico de una IP.
+    Solo administradores o editores.
+    Payload: {"ip": "...", "tag": "..."}
+    """
+    if session.get("role") == "view_only":
+        return json_response_error("No tienes permisos (vista).", 403)
+
+    data = request.get_json(silent=True) or {}
+    ip = data.get("ip")
+    tag = data.get("tag")
+
+    if not ip or not tag:
+        return json_response_error("Faltan datos (ip, tag).")
+
+    try:
+        # 1. Quitar del fichero de metadatos
+        _remove_tag_meta(ip, tag)
+        
+        # 2. Quitar del fichero del tag específico
+        _remove_ip_from_tag_file(tag, ip) 
+        
+        # Auditoría
+        _audit("remove_tag", f"web/{session.get('username','admin')}", ip, {"tag": tag})
+        
+        return json_response_ok([], {"message": f"Tag '{tag}' eliminado de {ip}"})
+    except Exception as e:
+        return json_response_error(f"Error interno: {str(e)}", 500)
+
 
 if __name__ == "__main__":
     app.run(debug=False, host="0.0.0.0", port=5000)
