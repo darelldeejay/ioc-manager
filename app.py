@@ -2006,14 +2006,17 @@ def index():
             rejected_total = 0
             added_lines_acc = []
             
-            # Detectar delimitador simple (la primera linea que tenga ; gana, si no ,)
+            # Detectar delimitador: ; o | o ,
             delimiter = ","
-            if content and any(";" in line for line in content[:5]):
+            header_check = "\n".join(content[:5])
+            if ";" in header_check:
                 delimiter = ";"
-
+            elif "|" in header_check:
+                delimiter = "|"
+            
             for raw_line in content:
                 raw_line = (raw_line or "").strip()
-                if not raw_line or raw_line.lower().startswith("ip" + delimiter): # Skip header
+                if not raw_line or raw_line.lower().startswith("ip" + delimiter): 
                     continue
                 
                 parts = raw_line.split(delimiter)
@@ -2023,10 +2026,17 @@ def index():
                 raw_tags = parts[1].strip() if len(parts) > 1 else ""
                 raw_alert = parts[2].strip() if len(parts) > 2 else None
                 
-                # Tags obligatorios en fila
-                row_tags = _filter_allowed_tags(_parse_tags_field(raw_tags))
+                # Tags: Si no hay en el CSV, asignamos 'Multicliente' por defecto para facilitar uso
+                parsed_tags = _parse_tags_field(raw_tags)
+                if not parsed_tags:
+                    parsed_tags = ["Multicliente"]
+                
+                row_tags = _filter_allowed_tags(parsed_tags)
+                
                 if not row_tags:
-                    # Si no hay tags, rechazamos la fila
+                    # Si aun asi no hay tags validos (ej: puso tags invalidos)
+                    # Forzamos Multicliente si la IP es valida? No, mejor respetar filtro strict
+                    # Pero si venia vacio ya pusimos Multicliente.
                     rejected_total += 1
                     continue
 
