@@ -30,22 +30,18 @@ app = Flask(__name__)
 app.secret_key = os.getenv('FLASK_SECRET_KEY', 'dev-key-insegura-si-falta-env')
 
 BASE_DIR = os.path.dirname(os.path.realpath(__file__))
+# Carpeta para datos adicionales de la API por tags
+DATA_DIR = os.path.join(BASE_DIR, "data")
+TAGS_DIR = os.path.join(DATA_DIR, "tags")
+
 FEED_FILE = os.path.join(BASE_DIR, 'ioc-feed.txt')
 # === Nuevo feed BPE ===
 FEED_FILE_BPE = os.path.join(BASE_DIR, 'ioc-feed-bpe.txt')
 # === Nuevo feed de pruebas ===
-FEED_FILE_TEST = os.path.join(BASE_DIR, 'ioc-feed-test.txt')
+FEED_FILE_TEST = os.path.join(DATA_DIR, "ioc-feed-test.txt")
 
 LOG_FILE = os.path.join(BASE_DIR, 'ioc-log.txt')
 NOTIF_FILE = os.path.join(BASE_DIR, 'notif-log.json')
-
-# Auditoría y caducado diario (nuevos)
-AUDIT_FILE = os.path.join(BASE_DIR, 'audit-log.jsonl')
-EXPIRY_MARK = os.path.join(BASE_DIR, '.expiry_last')
-
-# Carpeta para datos adicionales de la API por tags
-DATA_DIR = os.path.join(BASE_DIR, "data")
-TAGS_DIR = os.path.join(DATA_DIR, "tags")
 
 # Counters históricos (compat), los totales vivos se calculan con meta
 COUNTER_MANUAL = os.path.join(BASE_DIR, 'contador_manual.txt')
@@ -53,7 +49,9 @@ COUNTER_CSV = os.path.join(BASE_DIR, 'contador_csv.txt')
 
 # Nuevo: meta lateral para origen por IP (no afecta al feed)
 # Ampliado para ip_details con tags/expiraciones; se mantiene compat con "by_ip"
-META_FILE = os.path.join(BASE_DIR, 'ioc-meta.json')
+META_FILE = os.path.join(DATA_DIR, "ioc-meta.json")
+HISTORY_FILE = os.path.join(DATA_DIR, "history.json")
+AUDIT_LOG_FILE = os.path.join(BASE_DIR, "audit-log.jsonl")
 
 # === LOCK FILES ===
 FEED_LOCK = FileLock(FEED_FILE + ".lock")
@@ -834,6 +832,7 @@ def add_ips_validated(lines, existentes, iterable_ips, ttl_val, origin=None, con
     """
     añadidas = 0
     rechazadas = 0
+    updated = 0
     added_lines = []  # para UNDO (solo de FEED_FILE si aplica)
     tags = _norm_tags(tags or [])
     # preparar expiración para meta/tag-files
@@ -871,6 +870,36 @@ def add_ips_validated(lines, existentes, iterable_ips, ttl_val, origin=None, con
             entry = _merge_meta_tags(ip_str, tags, expires_at_dt, origin or "manual", note="web", alert_id=alert_id)
             for t in tags:
                 _write_tag_line(t, ip_str, _now_utc(), ttl_seconds, expires_at_dt, origin or "manual", entry["tags"])
+            
+            # --- FIX: Actualizar línea en feed principal si el TTL se extiende ---
+            if allow_multi and ttl_days > 0:
+                # Buscar la línea existente
+                for i, ln in enumerate(lines):
+                    if ln.startswith(ip_str + "|"):
+                        parts = ln.split("|")
+                        if len(parts) >= 3:
+                            old_date_str = parts[1]
+                            old_ttl_str  = parts[2]
+                            try:
+                                old_ttl = int(old_ttl_str)
+                                old_date = datetime.strptime(old_date_str, "%Y-%m-%d")
+                                if old_ttl == 0:
+                                    # Ya es permanente, no hacemos nada (o reducimos? No, conservar lejana)
+                                    pass
+                                else:
+                                    old_exp = old_date + timedelta(days=old_ttl)
+                                    new_exp = _now_utc().replace(tzinfo=None) + timedelta(days=ttl_days)
+                                    if new_exp > old_exp:
+                                        # Extender: Actualizamos fecha a HOY y TTL al nuevo
+                                        fecha_hoy = datetime.now().strftime("%Y-%m-%d")
+                                        lines[i] = f"{ip_str}|{fecha_hoy}|{ttl_days}"
+                                        updated += 1
+
+                            except Exception:
+                                pass
+                        break
+            # ---------------------------------------------------------------------
+
             rechazadas += 1  # se considera duplicada para el feed principal
             # asegurar reflejo BPE si aplica
             if allow_bpe:
@@ -921,9 +950,11 @@ def add_ips_validated(lines, existentes, iterable_ips, ttl_val, origin=None, con
             except Exception:
                 pass
 
-        añadidas += 1
+        if ip_str not in existentes:
+            añadidas += 1
 
-    return añadidas, rechazadas, added_lines
+    return añadidas, rechazadas, added_lines, updated
+
 
 
 # =========================
@@ -1014,7 +1045,7 @@ def _backup_critical_files(destination_dir):
     
     # 1. Archivos definidos como constantes globales (rutas absolutas)
     # Algunos pueden ser None o no existir
-    critical_vars = [FEED_FILE, FEED_FILE_BPE, META_FILE, NOTIF_FILE]
+    critical_vars = [FEED_FILE, FEED_FILE_BPE, FEED_FILE_TEST, META_FILE, NOTIF_FILE, HISTORY_FILE]
     for fpath in critical_vars:
         if fpath and os.path.exists(fpath):
             _safe_copy(fpath, destination_dir)
@@ -1095,7 +1126,6 @@ def perform_daily_backup(keep_days=14):
             return
 
         _ensure_dir(day_dir)
-        _ensure_dir(day_dir)
         # Copia unificada de todo (feeds, users, env, data...)
         _backup_critical_files(day_dir)
 
@@ -1105,6 +1135,7 @@ def perform_daily_backup(keep_days=14):
             f.write(today)
 
         _rotate_backups(keep_days=keep_days)
+        take_daily_snapshot() # Hook para el snapshot diario
 
         guardar_notif("info", f"Backup diario creado: {today}")
     except Exception as e:
@@ -1120,7 +1151,6 @@ def perform_manual_backup():
         now_str = datetime.now().strftime("%Y-%m-%d_%H%M%S")
         _ensure_dir(BACKUP_DIR)
         
-        # Carpeta temporal para armar el zip (usamos sufijo para no colisionar)
         day_dir = os.path.join(BACKUP_DIR, now_str)
         zip_path = os.path.join(BACKUP_DIR, f"{now_str}.zip")
 
@@ -1146,6 +1176,62 @@ def perform_manual_backup():
     except Exception as e:
         guardar_notif("danger", f"Error en backup manual: {str(e)}")
         return False
+
+
+# === HELPER FOR METRICS ===
+def compute_source_and_tag_counters_union():
+    """
+    Calcula contadores unificados (Main + BPE + Test) deduplicando IPs.
+    Retorna: (src_counts, tag_counts, src_tag_counts, total_unique_ips)
+    """
+    # 1. Cargar todas las líneas
+    lines_main = load_lines(FEED_FILE)
+    lines_bpe  = load_lines(FEED_FILE_BPE)
+    lines_test = load_lines(FEED_FILE_TEST)
+    
+    # 2. Unificar IPs (set) para deduplicar
+    # Formato feed: IP|DATE|TTL
+    all_ips = set()
+    for l in lines_main: all_ips.add(l.split("|")[0].strip())
+    for l in lines_bpe:  all_ips.add(l.split("|")[0].strip())
+    for l in lines_test: all_ips.add(l.split("|")[0].strip())
+    
+    total = len(all_ips)
+    
+    # 3. Cargar metadatos para Origen y Tags
+    meta = load_meta()
+    by_ip = meta.get("by_ip", {})
+    ip_details = meta.get("ip_details", {})
+    
+    # Inicializar contadores
+    src_counts = {"manual": 0, "csv": 0, "api": 0}
+    tag_counts = {}
+    src_tag_counts = {}  # "manual:BPE": 10
+    
+    for ip in all_ips:
+        # --- Origen ---
+        origin = by_ip.get(ip, "manual") # Default to manual if unknown? Or 'unknown'?
+        # Normalizar claves de origen (legacy vs new)
+        if origin not in src_counts:
+            # Si hay nuevos orígenes, añádelos dinámicamente o agrúpalos
+            src_counts[origin] = src_counts.get(origin, 0) + 1
+        else:
+            src_counts[origin] += 1
+            
+        # --- Tags ---
+        # Tags vienen de ip_details[ip]["tags"] (list)
+        
+        final_tags = set(ip_details.get(ip, {}).get("tags", []))
+        
+        for t in final_tags:
+            tag_counts[t] = tag_counts.get(t, 0) + 1
+            
+            # --- Source x Tag ---
+            st_key = f"{origin}:{t}"
+            src_tag_counts[st_key] = src_tag_counts.get(st_key, 0) + 1
+            
+    return src_counts, tag_counts, src_tag_counts, total
+
 
 
 # =========================
@@ -1343,6 +1429,16 @@ def _tag_color_hsl(tag: str) -> str:
     """Color estable por tag (HSL -> hex) para usar en la UI."""
     if not tag:
         return "#6c757d"
+    
+    # Colores fijos para tags del sistema (Premium Look)
+    t_lower = tag.lower()
+    if "multicliente" in t_lower:
+        return "#0d6efd" # Primary Blue
+    if "bpe" in t_lower:
+        return "#fd7e14" # Orange
+    if "test" in t_lower:
+        return "#6c757d" # Secondary Grey
+    
     h = int(hashlib.sha256(tag.encode("utf-8")).hexdigest(), 16) % 360
     s = 60
     l = 45
@@ -1367,10 +1463,35 @@ def _tag_color_hsl(tag: str) -> str:
         b = hue2rgb(p, q, h_ - 1/3)
     return "#{:02x}{:02x}{:02x}".format(int(r*255), int(g*255), int(b*255))
 
+
+def _days_remaining_filter(date_str, ttl_str):
+    """Calcula días restantes para la UI dado fecha (str) y ttl (str/int)."""
+    try:
+        # Si ttl es 0 o "0", es infinito
+        ttl = int(ttl_str)
+        if ttl == 0:
+            return None
+    except (ValueError, TypeError):
+        # Si falla conversión, asumimos infinito o inválido
+        return None
+
+    try:
+        if isinstance(date_str, str):
+            d = datetime.strptime(date_str, "%Y-%m-%d")
+        else:
+            d = date_str  # por si acaso llega ya dt
+        
+        # Reutilizamos lógica existente _days_left
+        return _days_left(d, ttl)
+    except Exception:
+        return None
+
+
 @app.context_processor
 def inject_helpers():
     return {
-        "tag_color": _tag_color_hsl
+        "tag_color": _tag_color_hsl,
+        "days_remaining": _days_remaining_filter
     }
 
 
@@ -1399,6 +1520,52 @@ def _collect_known_tags():
         pass
     out.sort(key=lambda x: x.lower())
     return out
+
+# === HISTORICAL SNAPSHOTS ===
+def load_history():
+    if not os.path.exists(HISTORY_FILE):
+        return []
+    try:
+        with open(HISTORY_FILE, "r", encoding="utf-8") as f:
+            return json.load(f)
+    except:
+        return []
+
+def save_history(data):
+    with FileLock(HISTORY_FILE + ".lock"):
+        with open(HISTORY_FILE, "w", encoding="utf-8") as f:
+            json.dump(data, f, indent=2)
+
+def take_daily_snapshot():
+    """
+    Toma una 'foto' de los contadores actuales y la guarda si no existe entrada para hoy.
+    """
+    today_str = datetime.now().strftime("%Y-%m-%d")
+    hist = load_history()
+    
+    # Check si ya existe entrada de hoy
+    for entry in hist:
+        if entry.get("date") == today_str:
+            return  # Ya tenemos snapshot de hoy
+            
+    # Calcular métricas globales (Union)
+    src_union, tag_union, src_tag_union, total_union = compute_source_and_tag_counters_union()
+    
+    snapshot = {
+        "date": today_str,
+        "ts": time.time(),
+        "total": total_union,
+        "sources": src_union,
+        "tags": tag_union,
+        "source_tags": src_tag_union
+    }
+    
+    hist.append(snapshot)
+    # Retención simple (ej: 90 días)
+    if len(hist) > 90:
+        hist = hist[-90:]
+        
+    save_history(hist)
 
 
 # =========================
@@ -1565,7 +1732,13 @@ def index():
 
     # Expiración diaria (una vez/día)
     perform_daily_expiry_once()
+    perform_daily_expiry_once()
     repair_meta_sources()
+    try:
+        take_daily_snapshot()  # Metrics Snapshot (Punto 2 Mejoras)
+    except Exception as e:
+        print(f"Error taking snapshot: {e}")
+        flash(f"Error snapshot: {e}", "danger")
 
     error = None
     
@@ -1794,7 +1967,7 @@ def index():
                     continue
 
                 # Inserción fila a fila para soportar metadata única
-                add_ok, add_bad, added_lines = add_ips_validated(
+                add_ok, add_bad, added_lines, _ = add_ips_validated(
                     lines, existentes, expanded,
                     ttl_val=ttl_csv_val,
                     origin="csv",
@@ -1891,13 +2064,14 @@ def index():
                         pre_notified = True
                         _audit("manual_rejected", f"web/{session.get('username','admin')}", single_ip, {"reason": reason})
 
-                add_ok, add_bad, added_lines = add_ips_validated(
+                add_ok, add_bad, added_lines, updated_ok = add_ips_validated(
                     lines, existentes, expanded, ttl_val=ttl_val,
                     origin="manual", contador_ruta=COUNTER_MANUAL, tags=tags_manual,
                     alert_id=ticket_number
                 )
 
-                if add_ok > 0:
+                if add_ok > 0 or updated_ok > 0:
+
                     save_lines(lines, FEED_FILE)
                     if single_input:
                         guardar_notif("success", f"IP añadida: {single_ip}")
@@ -2326,6 +2500,32 @@ def notifications_read_all():
     return json_response_ok(notices=[{"time": datetime.utcnow().isoformat()+"Z", "category": "info", "message": "Notificaciones marcadas como leídas"}])
 
 
+@app.route("/audit")
+@login_required
+def audit_view():
+    if session.get("role") == "view_only":
+        # Opcional: restringir si se desea
+        pass
+
+    logs = []
+    try:
+        if os.path.exists(AUDIT_LOG_FILE):
+            # Leemos las últimas 50 líneas para no cargar demasiado (o 1000)
+            # Para simpleza: leer todo y coger ultimas 200
+            with open(AUDIT_LOG_FILE, "r", encoding="utf-8") as f:
+                lines = f.readlines()
+                # Invertir para ver lo más nuevo primero
+                for line in reversed(lines[-200:]):
+                    try:
+                        logs.append(json.loads(line))
+                    except:
+                        pass
+    except Exception:
+        pass
+
+    return render_template("audit.html", logs=logs)
+
+
 # =========================
 #  API (Blueprint) con tags + alert_id
 # =========================
@@ -2747,6 +2947,12 @@ def api_root():
 # Registrar blueprint
 app.register_blueprint(api)
 
+
+@app.route("/api/counters/history", methods=["GET"])
+@login_required
+def api_counters_history():
+    """Devuelve el histórico de contadores (JSON)."""
+    return jsonify(load_history())
 
 if __name__ == "__main__":
     app.run(debug=False, host="0.0.0.0", port=5000)

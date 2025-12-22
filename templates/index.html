@@ -120,6 +120,13 @@
             </button>
           </form>
 
+          <!-- AUDIT LOG (Nuevo) -->
+          <a href="{{ url_for('audit_view') }}"
+            class="btn btn-outline-info btn-sm rounded-pill d-flex align-items-center gap-1" title="Ver Historial">
+            <i class="bi bi-journal-text"></i>
+            <span class="d-none d-lg-inline">Auditoría</span>
+          </a>
+
           <!-- LOGOUT -->
           <a href="/logout" class="btn btn-outline-light btn-sm rounded-pill d-flex align-items-center gap-1">
             <i class="bi bi-box-arrow-right"></i>
@@ -237,7 +244,11 @@
 
     <!-- Botones de backup -->
     <div class="d-flex gap-2 justify-content-center mb-3">
-      <a class="btn btn-outline-secondary btn-sm" href="/backup/latest.zip">⬇️ Descargar último backup</a>
+      <a class="btn btn-outline-secondary btn-sm" href="/backup/latest.zip"><i class="bi bi-download"></i> Último
+        Backup</a>
+      <button type="button" class="btn btn-outline-info btn-sm" id="btnShowGraphs">
+        <i class="bi bi-graph-up"></i> Ver Gráficas
+      </button>
     </div>
 
     <!-- Solo errores graves si el backend los envía en 'error' -->
@@ -595,7 +606,17 @@
             </td>
             <td class="fw-bold text-monospace">{{ ip_txt }}</td>
             <td class="small">{{ parts[1] }}</td>
-            <td class="small">{{ '∞' if parts[2] == '0' else parts[2] }}</td>
+            <td class="small">
+              {% if parts[2] == '0' %}
+              ∞
+              {% else %}
+              {{ parts[2] }}
+              {% set left = days_remaining(parts[1], parts[2]) %}
+              {% if left is not none %}
+              <br><small class="text-muted">({{ left }} d. rest.)</small>
+              {% endif %}
+              {% endif %}
+            </td>
             <td>
               {% if tags %}
               <div class="d-flex flex-wrap gap-1">
@@ -1756,6 +1777,148 @@
       // Inicializar lista de notificaciones
       if (typeof renderList === 'function') renderList();
     });
+  </script>
+  <!-- MODAL GRÁFICAS -->
+  <div class="modal fade" id="metricsModal" tabindex="-1" aria-hidden="true">
+    <div class="modal-dialog modal-xl">
+      <div class="modal-content">
+        <div class="modal-header">
+          <h5 class="modal-title"><i class="bi bi-graph-up me-2"></i>Evolución de Métricas</h5>
+          <button type="button" class="btn-close" data-bs-dismiss="modal" aria-label="Close"></button>
+        </div>
+        <div class="modal-body">
+          <div class="row g-4">
+            <!-- Gráfico Total -->
+            <div class="col-lg-6">
+              <div class="card h-100">
+                <div class="card-header bg-transparent fw-bold text-center">Total IPs Activas</div>
+                <div class="card-body">
+                  <canvas id="chartTotal"></canvas>
+                </div>
+              </div>
+            </div>
+            <!-- Gráfico Fuentes -->
+            <div class="col-lg-6">
+              <div class="card h-100">
+                <div class="card-header bg-transparent fw-bold text-center">Distribución por Origen</div>
+                <div class="card-body">
+                  <canvas id="chartSources"></canvas>
+                </div>
+              </div>
+            </div>
+          </div>
+        </div>
+      </div>
+    </div>
+  </div>
+
+  <!-- Chart.js CDN -->
+  <script src="https://cdn.jsdelivr.net/npm/chart.js"></script>
+
+  <script>
+    document.addEventListener("DOMContentLoaded", () => {
+      const btnShowGraphs = document.getElementById("btnShowGraphs");
+      if (btnShowGraphs) {
+        btnShowGraphs.addEventListener("click", () => {
+          fetchAndRenderGraphs();
+        });
+      }
+    });
+
+    let chartTotalInstance = null;
+    let chartSourcesInstance = null;
+
+    async function fetchAndRenderGraphs() {
+      // Abrir modal
+      const myModal = new bootstrap.Modal(document.getElementById('metricsModal'));
+      myModal.show();
+
+      try {
+        const res = await fetch("/api/counters/history");
+        const data = await res.json();
+
+        if (!data || data.length === 0) {
+          console.warn("No history data");
+          return;
+        }
+
+        // Preparar datos
+        // Data array sorted by TS? Usually append-only so yes.
+        const labels = data.map(d => d.date); // "YYYY-MM-DD"
+        const totals = data.map(d => d.total);
+
+        // Sources dataset
+        // extract all known sources keys across all data
+        const allSrcKeys = new Set();
+        data.forEach(d => {
+          if (d.sources) Object.keys(d.sources).forEach(k => allSrcKeys.add(k));
+        });
+
+        // Build datasets for sources
+        const sourceDatasets = Array.from(allSrcKeys).map((key, index) => {
+          return {
+            label: key,
+            data: data.map(d => (d.sources ? (d.sources[key] || 0) : 0)),
+            backgroundColor: getColorForSource(key),
+            borderColor: getColorForSource(key),
+            fill: false,
+            tension: 0.2
+          };
+        });
+
+        // 1) Render Chart Total
+        const ctxTotal = document.getElementById("chartTotal").getContext("2d");
+        if (chartTotalInstance) chartTotalInstance.destroy();
+
+        chartTotalInstance = new Chart(ctxTotal, {
+          type: 'line',
+          data: {
+            labels: labels,
+            datasets: [{
+              label: 'Total IPs',
+              data: totals,
+              borderColor: '#0d6efd',
+              backgroundColor: 'rgba(13, 110, 253, 0.1)',
+              fill: true,
+              tension: 0.3
+            }]
+          },
+          options: { responsive: true }
+        });
+
+        // 2) Render Chart Sources
+        const ctxSrc = document.getElementById("chartSources").getContext("2d");
+        if (chartSourcesInstance) chartSourcesInstance.destroy();
+
+        chartSourcesInstance = new Chart(ctxSrc, {
+          type: 'line',
+          data: {
+            labels: labels,
+            datasets: sourceDatasets
+          },
+          options: { responsive: true }
+        });
+
+      } catch (err) {
+        console.error("Error loading graphs:", err);
+        // alert("Error al cargar gráficos");
+      }
+    }
+
+    function getColorForSource(key) {
+      // Simple hash or predefined
+      const colors = {
+        "manual": "#0d6efd", // primary
+        "csv": "#0dcaf0",    // info
+        "api": "#ffc107"     // warning
+      };
+      if (colors[key]) return colors[key];
+      // Hash string to color fallback
+      let hash = 0;
+      for (let i = 0; i < key.length; i++) hash = key.charCodeAt(i) + ((hash << 5) - hash);
+      const c = (hash & 0x00FFFFFF).toString(16).toUpperCase();
+      return "#" + "00000".substring(0, 6 - c.length) + c;
+    }
   </script>
 </body>
 
