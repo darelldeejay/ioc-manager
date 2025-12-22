@@ -2777,6 +2777,27 @@ def _parse_ttl_seconds(obj) -> int:
     # por defecto: 24h
     return 86400
 
+@app.route("/api/summary", methods=["GET"])
+@require_api_token
+def api_summary():
+    """
+    Endpoint ligero para monitorización externa (Zabbix/Grafana).
+    Retorna contadores en tiempo real.
+    """
+    try:
+        src_counts, tag_counts, _, total = compute_source_and_tag_counters_union()
+        
+        return jsonify({
+            "ok": True,
+            "timestamp": datetime.utcnow().isoformat() + "Z",
+            "total_ips": total,
+            "sources": src_counts,
+            "tags": tag_counts
+        })
+    except Exception as e:
+        return jsonify({"ok": False, "error": str(e)}), 500
+
+
 @api.route("/bloquear-ip", methods=["POST", "DELETE"])
 def bloquear_ip_api():
     # Idempotencia para POST
