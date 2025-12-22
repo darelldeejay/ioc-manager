@@ -146,6 +146,18 @@
 
     <!-- ======= RESUMEN AMPLIADO ======= -->
     <!-- NUEVAS TARJETAS DE RESUMEN -->
+    <!-- Tabs de Feeds (Dinámico) -->
+    <ul class="nav nav-tabs mb-3">
+      {% for key, cfg in feeds_config.items() %}
+      <li class="nav-item">
+        <a class="nav-link {{ 'active' if current_feed == key else '' }}" href="{{ url_for('index', feed=key) }}">
+          <i class="{{ cfg.icon }} me-1"></i> {{ cfg.label }}
+        </a>
+      </li>
+      {% endfor %}
+    </ul>
+
+    <!-- NUEVAS TARJETAS DE RESUMEN -->
     <div class="row g-3 mb-4">
       <!-- Tarjeta total IPs activas -->
       <div class="col-12 col-md-6 col-xl-3">
@@ -157,16 +169,7 @@
           </div>
         </div>
       </div>
-      <!-- Tabs de Feeds (Dinámico) -->
-      <ul class="nav nav-tabs mb-3">
-        {% for key, cfg in feeds_config.items() %}
-        <li class="nav-item">
-          <a class="nav-link {{ 'active' if current_feed == key else '' }}" href="{{ url_for('index', feed=key) }}">
-            <i class="{{ cfg.icon }} me-1"></i> {{ cfg.label }}
-          </a>
-        </li>
-        {% endfor %}
-      </ul>
+
 
       <!-- Toolbar: Buscador y Acciones -->
       <!-- Tarjeta IPs por origen -->
@@ -273,11 +276,17 @@
           <!-- Alta manual -->
           <div class="row g-3 mb-1 align-items-end">
             <!-- IP -->
-            <div class="col-lg-5">
+            <div class="col-lg-4">
               <label for="ipInput" class="form-label small mb-1">IP / Red / Rango / IP+Máscara</label>
               <input id="ipInput" type="text" class="form-control" name="ip" autocomplete="off"
-                placeholder="Ej: 1.2.3.4 · 1.2.3.0/24 · 1.2.3.4-1.2.3.20">
+                placeholder="Ej: 1.2.3.4 · 1.2.3.0/24">
               <div id="ipFeedback" class="invalid-feedback"></div>
+            </div>
+
+            <!-- Ticket -->
+            <div class="col-lg-2">
+              <label class="form-label small mb-1">Ticket # <span class="text-danger">*</span></label>
+              <input type="text" class="form-control" name="ticket_number" placeholder="Ej: TKT-123" required>
             </div>
 
             <!-- TTL -->
@@ -293,7 +302,7 @@
             </div>
 
             <!-- Tags (obligatorio) -->
-            <div class="col-lg-3">
+            <div class="col-lg-2">
               <label class="form-label small mb-1">Aplicar a</label>
               <div id="tagManualGroup" class="d-flex flex-wrap align-items-center gap-3">
                 <div class="form-check m-0">

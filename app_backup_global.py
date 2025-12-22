@@ -1551,10 +1551,9 @@ def test_notif():
 
 # Definición de Feeds (Extensible)
 FEEDS_CONFIG = {
-    "global":       {"label": "Global / Todos", "icon": "bi-globe", "virtual": True},
-    "multicliente": {"file": FEED_FILE, "label": "Multicliente", "icon": "bi-hdd-network"},
-    "bpe":          {"file": FEED_FILE_BPE, "label": "Feed BPE", "icon": "bi-bank"},
-    "test":         {"file": FEED_FILE_TEST, "label": "Feed Test", "icon": "bi-cone-striped"},
+    "main": {"file": FEED_FILE, "label": "Principal (Multicliente)", "icon": "bi-hdd-network"},
+    "bpe":  {"file": FEED_FILE_BPE, "label": "Feed BPE", "icon": "bi-bank"},
+    "test": {"file": FEED_FILE_TEST, "label": "Feed Test", "icon": "bi-cone-striped"},
 }
 
 @app.route("/", methods=["GET", "POST"])
@@ -1569,70 +1568,20 @@ def index():
 
     error = None
     
-    # --- RBAC Logic ---
-    current_username = session.get("username")
-    all_users = load_users()
-    user_data = all_users.get(current_username, {})
+    # Selector de Feed Dinámico
+    feed_param = request.args.get("feed", "main").lower()
     
-    # Por defecto, ver todo ("*") si no se especifica
-    allowed_feeds = user_data.get("allowed_feeds", ["*"])
+    # Validación defensiva: si el param no existe en config, fallback a main
+    if feed_param not in FEEDS_CONFIG:
+        feed_param = "main"
     
-    # Filtrar configuración de feeds
-    visible_feeds = {}
-    for k, v in FEEDS_CONFIG.items():
-        if "*" in allowed_feeds or k in allowed_feeds:
-            visible_feeds[k] = v
-            
-    # Si no tiene feeds visibles (raro), error o vacío
-    if not visible_feeds:
-        flash("No tienes acceso a ningún feed.", "danger")
-        return render_template("index.html", current_feed="none", feeds_config={}, ips=[])
-
-    # Selector de Feed Dinámico (Default: Global o el primero disponible)
-    feed_param = request.args.get("feed", "global").lower()
-    
-    # Validación defensiva + Seguridad RBAC
-    if feed_param not in visible_feeds:
-        # Fallback al primero disponible (preferiblemente 'global' si existe, sino cualquiera)
-        if "global" in visible_feeds:
-            feed_param = "global"
-        else:
-            feed_param = next(iter(visible_feeds))
-    
-    current_feed_config = visible_feeds[feed_param]
-    
-    # Lógica de carga: Virtual (Agregador) vs Fichero único
-    lines = []
-    if current_feed_config.get("virtual"):
-        # Modo Global: Cargar y fusionar todos los feeds VISIBLES que tengan 'file'
-        seen_ips = set()
-        for key, cfg in visible_feeds.items():
-            if "file" in cfg:
-                feed_lines = load_lines(cfg["file"])
-                for line in feed_lines:
-                    # Formato línea: IP|FECHA|TTL
-                    parts = line.split("|")
-                    ip = parts[0]
-                    if ip not in seen_ips:
-                        lines.append(line)
-                        seen_ips.add(ip)
-        # Ordenar alfabéticamente
-        lines.sort(key=lambda x: x.split("|")[0])
-    else:
-        # Modo Feed Individual
-        lines = load_lines(current_feed_config["file"])
+    current_feed_config = FEEDS_CONFIG[feed_param]
+    lines = load_lines(current_feed_config["file"])
         
     existentes = {l.split("|", 1)[0] for l in lines}
 
     # ----- Mutaciones (POST) -----
     if request.method == "POST":
-        # Check permissions
-        user_role = user_data.get("role", "editor")
-        if user_role == "view_only":
-            flash("Acción no permitida: Tu rol es de solo lectura.", "danger")
-            _audit("access_denied", f"web/{current_username}", "write_action", {})
-            return redirect(url_for("index"))
-
         # Eliminar todas (feed principal + BPE + Test + metadatos)
         if "delete-all" in request.form:
             # cargar todo para UNDO
@@ -1834,7 +1783,6 @@ def index():
 
         # Alta manual (Tag OBLIGATORIO: Multicliente y/o BPE)
         raw_input = request.form.get("ip", "").strip()
-        ticket_number = request.form.get("ticket_number", "").strip() or None
         ttl_man_sel = request.form.get("ttl_manual", "permanente")
         ttl_val = "0" if ttl_man_sel == "permanente" else ttl_man_sel
 
@@ -1847,11 +1795,6 @@ def index():
         
         raw_tags_manual = _parse_tags_field(combined_raw)
         tags_manual = _filter_allowed_tags(raw_tags_manual)
-
-        if not ticket_number:
-            flash("El campo Ticket es obligatorio.", "danger")
-            _audit("manual_rejected_no_ticket", f"web/{session.get('username','admin')}", {}, {})
-            return redirect(url_for("index"))
 
         if not tags_manual:
             flash("Debes seleccionar al menos un tag válido (Multicliente y/o BPE).", "danger")
@@ -1893,8 +1836,7 @@ def index():
 
                 add_ok, add_bad, added_lines = add_ips_validated(
                     lines, existentes, expanded, ttl_val=ttl_val,
-                    origin="manual", contador_ruta=COUNTER_MANUAL, tags=tags_manual,
-                    alert_id=ticket_number
+                    origin="manual", contador_ruta=COUNTER_MANUAL, tags=tags_manual
                 )
 
                 if add_ok > 0:
@@ -2003,7 +1945,7 @@ def index():
 
     return render_template("index.html",
                            current_feed=feed_param,
-                           feeds_config=visible_feeds,
+                           feeds_config=FEEDS_CONFIG,
                            current_flashes_list=request_actions,
                            server_messages_list=messages,
                            ips=lines,
@@ -2019,7 +1961,6 @@ def index():
                            union_by_tag=tag_union,
                            union_by_source_tag=src_tag_union,
                            messages=messages,
-                           user_role=user_data.get("role", "editor"),
                            request_actions=request_actions,
                            ip_tags=ip_tags,
                            ip_alerts=ip_alerts,
@@ -2123,14 +2064,9 @@ def list_users():
     # Retornar lista segura (sin hash)
     safe_list = []
     for u, data in users.items():
-        feeds = data.get("allowed_feeds", [])
-        if not isinstance(feeds, list):
-            feeds = [feeds] if feeds else []
-            
         safe_list.append({
             "username": u,
             "role": data.get("role", "editor"),
-            "allowed_feeds": feeds,
             "created_at": data.get("created_at")
         })
     return jsonify({"users": safe_list})
@@ -2148,8 +2084,6 @@ def add_user():
     data = request.get_json(silent=True) or {}
     username = data.get("username", "").strip()
     password = data.get("password", "").strip()
-    role = data.get("role", "view_only").strip()
-    allowed_feeds = data.get("allowed_feeds", [])
     
     if not username or not password:
         return jsonify({"error": "Faltan datos"}), 400
@@ -2159,43 +2093,12 @@ def add_user():
         
     users[username] = {
         "password_hash": generate_password_hash(password),
-        "role": role,
-        "allowed_feeds": allowed_feeds,
+        "role": "editor", # Por defecto editor
         "created_at": _iso(_now_utc()),
         "created_by": current_user
     }
     save_users(users)
-    _audit("user_created", f"web/{current_user}", username, {"role": role, "feeds": allowed_feeds})
-    return jsonify({"success": True})
-
-@app.route("/admin/users/edit", methods=["POST"])
-@login_required
-def edit_user():
-    current_user = session.get("username")
-    users = load_users()
-    
-    data = request.get_json(silent=True) or {}
-    username = data.get("username", "").strip()
-    password = data.get("password", "").strip()
-    role = data.get("role", "view_only").strip()
-    allowed_feeds = data.get("allowed_feeds", [])
-    
-    if not username:
-        return jsonify({"error": "Faltan datos"}), 400
-        
-    if username not in users:
-        return jsonify({"error": "El usuario no existe"}), 404
-        
-    # Actualizar datos
-    users[username]["role"] = role
-    users[username]["allowed_feeds"] = allowed_feeds
-    
-    # Solo actualizar contraseña si se envía una nueva
-    if password:
-        users[username]["password_hash"] = generate_password_hash(password)
-    
-    save_users(users)
-    _audit("user_updated", f"web/{current_user}", username, {"role": role, "feeds": allowed_feeds, "pw_changed": bool(password)})
+    _audit("user_created", f"web/{current_user}", username, {})
     return jsonify({"success": True})
 
 @app.route("/admin/users/delete", methods=["POST"])
