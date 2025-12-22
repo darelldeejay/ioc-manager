@@ -982,6 +982,7 @@ def add_ips_validated(lines, existentes, iterable_ips, ttl_val, origin=None, con
             existentes.add(ip_str)
             added_lines.append(line_txt)
             meta_set_origin(ip_str, origin or "manual")
+            añadidas += 1
 
         # FEED BPE si corresponde
         if allow_bpe:
