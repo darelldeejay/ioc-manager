@@ -46,6 +46,7 @@ NOTIF_FILE = os.path.join(BASE_DIR, 'notif-log.json')
 # Counters históricos (compat), los totales vivos se calculan con meta
 COUNTER_MANUAL = os.path.join(BASE_DIR, 'contador_manual.txt')
 COUNTER_CSV = os.path.join(BASE_DIR, 'contador_csv.txt')
+COUNTER_API = os.path.join(BASE_DIR, 'contador_api.txt')
 
 # Nuevo: meta lateral para origen por IP (no afecta al feed)
 # Ampliado para ip_details con tags/expiraciones; se mantiene compat con "by_ip"
