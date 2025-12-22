@@ -2929,43 +2929,24 @@ def bloquear_ip_api():
                     if want_multi and ip_str not in existentes:
                         line_txt = f"{ip_str}|{fecha}|{ttl_days}"
                         lines.append(line_txt)
-                        existentes.add(ip_str)
-                        meta_set_origin(ip_str, "api")
-                        log("Añadida", ip_str)
-
-                    # Registrar origen API también cuando sólo venga con BPE/Test
-                    if not want_multi:
-                        try:
-                            meta_set_origin(ip_str, "api")
-                        except Exception:
-                            pass
-
-                    # Merge en meta detalles + escrituras por tag (con expiración efectiva + alert_id)
-                    entry = _merge_meta_tags(ip_str, tags, effective_expires, origin, note, alert_id=alert_id)
-
-                    # Escribir una línea por tag nuevo (append-only)
-                    prev_tags = set(current.get("tags", [])) if current else set()
-                    for t in [x for x in tags if x not in prev_tags]:
-                        _write_tag_line(t, ip_str, _now_utc(), ttl_s, effective_expires, origin, entry["tags"])
-
-                    # Reflejar en feed BPE si corresponde
-                    if want_bpe:
-                        line_txt_bpe = f"{ip_str}|{fecha}|{ttl_days}"
-                        _append_line_unique(FEED_FILE_BPE, line_txt_bpe)
-
-                    # Feed Test
-                    if want_test:
-                        line_txt_test = f"{ip_str}|{fecha}|{ttl_days}"
-                        _append_line_unique(FEED_FILE_TEST, line_txt_test)
-
-                    item_result["ips"].append({
-                        "ip": ip_str,
-                        "status": "ok",
-                        "tags": entry["tags"],
-                        "expires_at": entry["expires_at"],
-                        "alert_ids": entry.get("alert_ids", [])
-                    })
-                    item_result["count"] += 1
+                    
+                    entry = meta_details.get(ip_str)
+                    if entry:
+                        # Si la IP fue procesada (añadida/actualizada), reflejar su estado actual
+                        item_result["ips"].append({
+                            "ip": ip_str,
+                            "status": "ok", # add_ips_validated maneja si es nuevo o update
+                            "tags": entry["tags"],
+                            "expires_at": entry["expires_at"],
+                            "alert_ids": entry.get("alert_ids", [])
+                        })
+                        item_result["count"] += 1
+                    else:
+                        # Si no está en meta, significa que no fue añadida/actualizada por add_ips_validated
+                        # (ej. ya existía con los mismos parámetros y force=False, o hubo un error interno)
+                        # add_ips_validated no devuelve un detalle granular de "already_exists" por IP
+                        # para cada IP en el batch, así que esto es una simplificación.
+                        item_result["ips"].append({"ip": ip_str, "status": "not_processed"})
 
                 processed.append(item_result)
             except Exception as e:
