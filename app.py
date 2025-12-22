@@ -124,6 +124,17 @@ def json_response_error(message, code=400, notices=None, extra=None):
     return jsonify(payload), code
 
 
+from functools import wraps
+
+def require_api_token(f):
+    @wraps(f)
+    def decorated_function(*args, **kwargs):
+        token = request.headers.get("X-API-Key") or request.args.get("token")
+        if not token or token != TOKEN_API:
+            return jsonify({"ok": False, "error": "Unauthorized"}), 401
+        return f(*args, **kwargs)
+    return decorated_function
+
 # =========================
 #  Utilidades auxiliares
 # =========================
