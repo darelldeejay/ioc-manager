@@ -2890,64 +2890,35 @@ def bloquear_ip_api():
                     raise ValueError("No se obtuvieron IPs válidas y públicas del item")
 
                 item_result = {"count": 0, "ips": []}
-                want_multi = "Multicliente" in tags
-                want_bpe = "BPE" in tags
-                want_test  = "Test" in tags
+                
+                # Usar la función centralizada para garantizar consistencia y CONTADORES
+                add_ok, add_bad, added_lines_item, updated_item = add_ips_validated(
+                    lines, existentes, targets,
+                    ttl_val=ttl_days,  # Convertido arriba
+                    origin="api",
+                    contador_ruta=COUNTER_API,
+                    tags=tags,
+                    alert_id=alert_id
+                )
+
+                # Re-cargar meta para obtener los detalles frescos
+                meta = load_meta()
+                meta_details = meta.get("ip_details", {})
 
                 for ip_str in targets:
-                    if ip_str == "0.0.0.0":
-                        item_result["ips"].append({"ip": ip_str, "status": "policy_denied"})
-                        continue
-
-                    # meta details actual (si existe)
-                    meta = load_meta()
-                    current = meta.get("ip_details", {}).get(ip_str)
-
-                    # Fusión de TTL/tags si ya existe
-                    effective_expires = expires_at
-                    cur_exp = None
-                    if current:
-                        try:
-                            cur_exp = datetime.fromisoformat(current["expires_at"].replace("Z","+00:00"))
-                        except Exception:
-                            cur_exp = None
-                        if cur_exp and abs((cur_exp - expires_at).total_seconds()) > 1:
-                            # tomamos la expiración más lejana (no es conflicto)
-                            effective_expires = cur_exp if cur_exp > expires_at else expires_at
-
-                        # Idempotencia semántica exacta (mismos tags y misma expiración)
-                        if not force and _already_same(current, tags or current.get("tags", []), effective_expires):
-                            # Aunque sea "igual", si viene un alert_id nuevo, lo añadimos
-                            if alert_id:
-                                _merge_meta_tags(ip_str, tags or current.get("tags", []), effective_expires, origin, note, alert_id=alert_id)
-                            item_result["ips"].append({"ip": ip_str, "status": "already_exists"})
-                            continue
-
-                    fecha = datetime.now().strftime("%Y-%m-%d")
-
-                    # FEED principal solo si Multicliente
-                    if want_multi and ip_str not in existentes:
-                        line_txt = f"{ip_str}|{fecha}|{ttl_days}"
-                        lines.append(line_txt)
-                    
                     entry = meta_details.get(ip_str)
                     if entry:
-                        # Si la IP fue procesada (añadida/actualizada), reflejar su estado actual
                         item_result["ips"].append({
                             "ip": ip_str,
-                            "status": "ok", # add_ips_validated maneja si es nuevo o update
+                            "status": "ok",
                             "tags": entry["tags"],
                             "expires_at": entry["expires_at"],
                             "alert_ids": entry.get("alert_ids", [])
                         })
-                        item_result["count"] += 1
                     else:
-                        # Si no está en meta, significa que no fue añadida/actualizada por add_ips_validated
-                        # (ej. ya existía con los mismos parámetros y force=False, o hubo un error interno)
-                        # add_ips_validated no devuelve un detalle granular de "already_exists" por IP
-                        # para cada IP en el batch, así que esto es una simplificación.
-                        item_result["ips"].append({"ip": ip_str, "status": "not_processed"})
+                         item_result["ips"].append({"ip": ip_str, "status": "not_processed"})
 
+                item_result["count"] = add_ok + updated_item
                 processed.append(item_result)
             except Exception as e:
                 errors.append({"index": idx, "error": str(e)})
