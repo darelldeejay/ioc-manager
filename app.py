@@ -246,8 +246,13 @@ def load_meta():
 def save_meta(meta):
     try:
         with META_LOCK:
-            with open(META_FILE, "w", encoding="utf-8") as f:
+            # Atomic write pattern: write to tmp -> fsync -> replace
+            tmp_file = META_FILE + ".tmp"
+            with open(tmp_file, "w", encoding="utf-8") as f:
                 json.dump(meta, f, ensure_ascii=False, indent=2)
+                f.flush()
+                os.fsync(f.fileno())
+            os.replace(tmp_file, META_FILE)
     except Exception:
         pass
 
@@ -661,9 +666,23 @@ def save_lines(lines, feed_path=FEED_FILE):
         lock = FileLock(feed_path + ".lock")
     
     with lock:
-        with open(feed_path, "w", encoding="utf-8") as f:
-            for l in lines:
-                f.write(l + "\n")
+        # Atomic write pattern
+        tmp_file = feed_path + ".tmp"
+        try:
+            with open(tmp_file, "w", encoding="utf-8") as f:
+                for l in lines:
+                    f.write(l + "\n")
+                f.flush()
+                os.fsync(f.fileno())
+            os.replace(tmp_file, feed_path)
+        except Exception:
+            # Clean up temp file on error if it exists
+            if os.path.exists(tmp_file):
+                try:
+                    os.remove(tmp_file)
+                except:
+                    pass
+            raise
 
 
 def log(accion, ip):
