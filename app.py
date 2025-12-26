@@ -2345,10 +2345,14 @@ def index():
             these_tags = list(ip_tags_map.get(ip, []))
             these_alerts = ip_details.get(ip, {}).get("alert_ids", [])
             
+            # calcular dias restantes
+            left_days = days_remaining(r.get("fecha",""), r.get("ttl",0))
+            
             json_items.append({
                 "ip": ip,
                 "fecha_alta": r.get("fecha"),
                 "ttl": r.get("ttl"),
+                "days_remaining": left_days,
                 "tags": these_tags,
                 "alert_ids": these_alerts
             })
@@ -2400,7 +2404,8 @@ def index():
                            ip_tags=ip_tags,
                            ip_alerts=ip_alerts,
                            ip_ticket_ids=ip_alert_ids,
-                           known_tags=known_tags)
+                           known_tags=known_tags,
+                           days_remaining=days_remaining)
 
 
 @app.route("/feed/ioc-feed.txt")
@@ -2618,6 +2623,22 @@ def change_password():
     _audit("user_password_changed", f"web/{current}", target, {})
     return jsonify({"success": True})
 
+
+# =========================
+#  Helpers de Vista
+# =========================
+def days_remaining(date_str, ttl_str):
+    try:
+        ttl = int(ttl_str)
+        if ttl == 0:
+            return None
+        d = datetime.strptime(date_str, "%Y-%m-%d")
+        exp = d + timedelta(days=ttl)
+        # _now_utc() devuelve offset-aware, strip para comparar con strptime naive
+        left = (exp - datetime.utcnow()).days
+        return max(0, left)
+    except:
+        return None
 
 # =========================
 #  Rutas de backup

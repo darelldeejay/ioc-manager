@@ -1686,11 +1686,17 @@
         items.forEach((row) => {
           const tr = document.createElement('tr');
           const ttlText = (row.ttl === 0 || row.ttl === '0') ? '∞' : String(row.ttl);
+
+          let ttlHtml = ttlText;
+          if (row.days_remaining !== undefined && row.days_remaining !== null) {
+            ttlHtml += `<br><small class="text-muted">(${row.days_remaining} d. rest.)</small>`;
+          }
+
           tr.innerHTML = `
         <td><input type="checkbox" class="row-chk" value="${escapeHtml(row.ip)}"></td>
         <td>${escapeHtml(row.ip)}</td>
         <td>${escapeHtml(row.fecha_alta || '')}</td>
-        <td>${escapeHtml(ttlText)}</td>
+        <td class="small">${ttlHtml}</td>
         <td>${(row.tags && row.tags.length)
               ? row.tags.map(tagBadge).join(' ')
               : '<span class="text-muted">—</span>'
