@@ -509,6 +509,36 @@
       </div>
     </div>
 
+
+    <!-- Modal Editar TTL -->
+    <div class="modal fade" id="modalEditTTL" tabindex="-1" aria-hidden="true">
+      <div class="modal-dialog modal-sm">
+        <div class="modal-content">
+          <div class="modal-header">
+            <h5 class="modal-title fs-6">Editar TTL</h5>
+            <button type="button" class="btn-close" data-bs-dismiss="modal" aria-label="Cerrar"></button>
+          </div>
+          <div class="modal-body">
+            <div class="mb-2">
+              <strong>IP:</strong> <span id="editTTLIp" class="text-monospace"></span>
+            </div>
+            <label class="form-label small">Nuevo TTL</label>
+            <select class="form-select form-select-sm" id="editTTLSelect">
+              <option value="0">Permanente</option>
+              <option value="1">1 día</option>
+              <option value="3">3 días</option>
+              <option value="7">7 días</option>
+              <option value="30">30 días</option>
+            </select>
+          </div>
+          <div class="modal-footer">
+            <button type="button" class="btn btn-primary btn-sm" onclick="saveEditTTL()">Guardar</button>
+            <button type="button" class="btn btn-secondary btn-sm" data-bs-dismiss="modal">Cancelar</button>
+          </div>
+        </div>
+      </div>
+    </div>
+
     <hr>
 
     <div class="constrained-section">
@@ -1073,7 +1103,10 @@
       /* ========================================================
          Estado de tabla (server-side)
          ======================================================== */
-      var tableState = {
+      const USER_ROLE = "{{ user_role }}"; // injected by server
+
+      let serverMode = false;
+      let tableState = {
         page: 1,
         page_size: 50,
         sort: 'fecha',
@@ -1082,302 +1115,358 @@
         date_from: '',
         date_to: ''
       };
-      let serverMode = true; // intentamos server JSON; si falla, fallback local
 
-      /* ========================================================
-         Buscador local (fallback)
-         ======================================================== */
-      function initLocalSearchFallback() {
-        const wrap = document.getElementById('localSearchWrap');
-        wrap.classList.remove('d-none');
-        const input = document.getElementById('buscadorIp');
-        const table = document.getElementById('tablaIps');
-        if (input && table) {
-          input.addEventListener('keyup', function () {
-            const filtro = input.value.toLowerCase();
-            const filas = table.getElementsByTagName('tr');
-            for (let i = 1; i < filas.length; i++) {
-              const celdas = filas[i].getElementsByTagName('td');
-              if (celdas.length > 1) {
-                const ip = celdas[1].textContent.toLowerCase();
-                filas[i].style.display = ip.includes(filtro) ? '' : 'none';
+      window.initInstantValidate = function () {// intentamos server JSON; si falla, fallback local
+
+        /* ========================================================
+           Buscador local (fallback)
+           ======================================================== */
+        function initLocalSearchFallback() {
+          const wrap = document.getElementById('localSearchWrap');
+          wrap.classList.remove('d-none');
+          const input = document.getElementById('buscadorIp');
+          const table = document.getElementById('tablaIps');
+          if (input && table) {
+            input.addEventListener('keyup', function () {
+              const filtro = input.value.toLowerCase();
+              const filas = table.getElementsByTagName('tr');
+              for (let i = 1; i < filas.length; i++) {
+                const celdas = filas[i].getElementsByTagName('td');
+                if (celdas.length > 1) {
+                  const ip = celdas[1].textContent.toLowerCase();
+                  filas[i].style.display = ip.includes(filtro) ? '' : 'none';
+                }
               }
+            });
+          }
+        }
+
+        /* ========================================================
+           Marcar tipo de acción (manual vs csv)
+           ======================================================== */
+        (function wireActionMarkers() {
+          const mark = (type) => {
+            try {
+              sessionStorage.setItem('lastActionType', type);
+              sessionStorage.setItem('lastActionTs', String(Date.now()));
+            } catch { }
+          };
+
+          document.getElementById('addManualBtn')?.addEventListener('click', () => mark('manual'));
+          document.getElementById('uploadCsvBtn')?.addEventListener('click', () => mark('csv'));
+
+          document.getElementById('mainForm')?.addEventListener('submit', () => {
+            const fileHasValue = !!document.querySelector('input[type="file"][name="file"]')?.value;
+            if (!sessionStorage.getItem('lastActionType')) {
+              mark(fileHasValue ? 'csv' : 'manual');
             }
           });
+        })();
+
+        /* ========================================================
+           Helpers Tags (manual y csv)
+           ======================================================== */
+        function selectedTags(cls) {
+          return Array.from(document.querySelectorAll('.' + cls + ':checked')).map(el => el.value);
         }
-      }
-
-      /* ========================================================
-         Marcar tipo de acción (manual vs csv)
-         ======================================================== */
-      (function wireActionMarkers() {
-        const mark = (type) => {
-          try {
-            sessionStorage.setItem('lastActionType', type);
-            sessionStorage.setItem('lastActionTs', String(Date.now()));
-          } catch { }
-        };
-
-        document.getElementById('addManualBtn')?.addEventListener('click', () => mark('manual'));
-        document.getElementById('uploadCsvBtn')?.addEventListener('click', () => mark('csv'));
-
-        document.getElementById('mainForm')?.addEventListener('submit', () => {
-          const fileHasValue = !!document.querySelector('input[type="file"][name="file"]')?.value;
-          if (!sessionStorage.getItem('lastActionType')) {
-            mark(fileHasValue ? 'csv' : 'manual');
-          }
+        function syncHiddenTags() {
+          const man = selectedTags('tag-manual');
+          const csv = selectedTags('tag-csv');
+          const manInput = document.getElementById('tagsManualInput');
+          const csvInput = document.getElementById('tagsCsvInput');
+          if (manInput) manInput.value = man.join(',');
+          if (csvInput) csvInput.value = csv.join(',');
+        }
+        document.querySelectorAll('.tag-manual, .tag-csv').forEach(el => {
+          el.addEventListener('change', syncHiddenTags);
         });
-      })();
 
-      /* ========================================================
-         Helpers Tags (manual y csv)
-         ======================================================== */
-      function selectedTags(cls) {
-        return Array.from(document.querySelectorAll('.' + cls + ':checked')).map(el => el.value);
-      }
-      function syncHiddenTags() {
-        const man = selectedTags('tag-manual');
-        const csv = selectedTags('tag-csv');
-        const manInput = document.getElementById('tagsManualInput');
-        const csvInput = document.getElementById('tagsCsvInput');
-        if (manInput) manInput.value = man.join(',');
-        if (csvInput) csvInput.value = csv.join(',');
-      }
-      document.querySelectorAll('.tag-manual, .tag-csv').forEach(el => {
-        el.addEventListener('change', syncHiddenTags);
-      });
+        function showManualTagError(show) {
+          const fb = document.getElementById('tagManualFeedback');
+          const hidden = document.getElementById('tagsManualInput');
+          if (!fb || !hidden) return;
+          fb.style.display = show ? 'block' : 'none';
+          hidden.classList.toggle('is-invalid', !!show);
+        }
 
-      function showManualTagError(show) {
-        const fb = document.getElementById('tagManualFeedback');
-        const hidden = document.getElementById('tagsManualInput');
-        if (!fb || !hidden) return;
-        fb.style.display = show ? 'block' : 'none';
-        hidden.classList.toggle('is-invalid', !!show);
-      }
+        function showCsvTagError(show) {
+          const fb = document.getElementById('tagCsvFeedback');
+          const group = document.getElementById('tagCsvGroup');
+          if (!fb || !group) return;
+          fb.style.display = show ? 'block' : 'none';
+          group.classList.toggle('is-invalid', !!show);
+        }
 
-      function showCsvTagError(show) {
-        const fb = document.getElementById('tagCsvFeedback');
-        const group = document.getElementById('tagCsvGroup');
-        if (!fb || !group) return;
-        fb.style.display = show ? 'block' : 'none';
-        group.classList.toggle('is-invalid', !!show);
-      }
-
-      const setLoading = (btn, textWhileLoading) => {
-        if (!btn) return;
-        btn.dataset.originalHtml = btn.innerHTML;
-        btn.disabled = true;
-        btn.innerHTML = `
+        const setLoading = (btn, textWhileLoading) => {
+          if (!btn) return;
+          btn.dataset.originalHtml = btn.innerHTML;
+          btn.disabled = true;
+          btn.innerHTML = `
       <span class="spinner-border spinner-border-sm" role="status" aria-hidden="true"></span>
       <span class="ms-1">${textWhileLoading}</span>
     `;
-      };
+        };
 
-      document.getElementById('mainForm')?.addEventListener('submit', (ev) => {
-        // --- Validación de tags ---
-        syncHiddenTags();
-        const fileHasValue = !!document.querySelector('input[type="file"][name="file"]')?.value;
+        document.getElementById('mainForm')?.addEventListener('submit', (ev) => {
+          // --- Validación de tags ---
+          syncHiddenTags();
+          const fileHasValue = !!document.querySelector('input[type="file"][name="file"]')?.value;
 
-        if (!fileHasValue) {            // === Flujo MANUAL ===
-          const man = selectedTags('tag-manual');
-          if (man.length === 0) {
-            ev.preventDefault(); ev.stopPropagation();
-            showManualTagError(true);
-            document.querySelector('.tag-manual')?.focus();
-            return;
-          } else {
-            showManualTagError(false);
+          if (!fileHasValue) {            // === Flujo MANUAL ===
+            const man = selectedTags('tag-manual');
+            if (man.length === 0) {
+              ev.preventDefault(); ev.stopPropagation();
+              showManualTagError(true);
+              document.querySelector('.tag-manual')?.focus();
+              return;
+            } else {
+              showManualTagError(false);
+            }
           }
-        }
-        // === Flujo CSV === 
-        // Ya no hay checkboxes de tags, vienen dentro del CSV.
-        // Se permite enviar el formulario directamente.
+          // === Flujo CSV === 
+          // Ya no hay checkboxes de tags, vienen dentro del CSV.
+          // Se permite enviar el formulario directamente.
 
-        // Spinners (igual que tenías)
-        const manualBtn = document.getElementById('addManualBtn');
-        const csvBtn = document.getElementById('uploadCsvBtn');
-        if (fileHasValue) {
-          setLoading(csvBtn, 'Subiendo…');
-        } else {
-          setLoading(manualBtn, 'Añadiendo…');
-        }
-      });
-
-      window.addEventListener('pageshow', () => {
-        ['addManualBtn', 'uploadCsvBtn'].forEach(id => {
-          const b = document.getElementById(id);
-          if (b && b.dataset.originalHtml) {
-            b.innerHTML = b.dataset.originalHtml;
-            b.disabled = false;
-            delete b.dataset.originalHtml;
+          // Spinners (igual que tenías)
+          const manualBtn = document.getElementById('addManualBtn');
+          const csvBtn = document.getElementById('uploadCsvBtn');
+          if (fileHasValue) {
+            setLoading(csvBtn, 'Subiendo…');
+          } else {
+            setLoading(manualBtn, 'Añadiendo…');
           }
         });
-      });
 
-      // (Función showCombinedActionToast eliminada - reemplazada por script inline en index.html)
+        window.addEventListener('pageshow', () => {
+          ['addManualBtn', 'uploadCsvBtn'].forEach(id => {
+            const b = document.getElementById(id);
+            if (b && b.dataset.originalHtml) {
+              b.innerHTML = b.dataset.originalHtml;
+              b.disabled = false;
+              delete b.dataset.originalHtml;
+            }
+          });
+        });
 
-      function mapToastColor(kind) {
-        if (kind === 'error' || kind === 'danger' || kind === 'accion_no_permitida') return 'danger';
-        if (kind === 'warning') return 'warning';
-        if (kind === 'success') return 'success';
-        return 'primary';
-      }
+        // (Función showCombinedActionToast eliminada - reemplazada por script inline en index.html)
 
-      function escapeHtml(text) {
-        if (!text) return '';
-        const map = { '&': '&amp;', '<': '&lt;', '>': '&gt;', '"': '&quot;', "'": '&#039;' };
-        return text.replace(/[&<>"']/g, function (m) { return map[m]; });
-      }
+        function mapToastColor(kind) {
+          if (kind === 'error' || kind === 'danger' || kind === 'accion_no_permitida') return 'danger';
+          if (kind === 'warning') return 'warning';
+          if (kind === 'success') return 'success';
+          return 'primary';
+        }
 
-      function showInlineToast(kind, text, delay = 6000) {
-        const portal = document.getElementById('toast-portal');
-        const el = document.createElement('div');
-        el.className = 'toast align-items-center text-bg-' + mapToastColor(kind) + ' border-0';
-        el.innerHTML = `
+        function escapeHtml(text) {
+          if (!text) return '';
+          const map = { '&': '&amp;', '<': '&lt;', '>': '&gt;', '"': '&quot;', "'": '&#039;' };
+          return text.replace(/[&<>"']/g, function (m) { return map[m]; });
+        }
+
+        function showInlineToast(kind, text, delay = 6000) {
+          const portal = document.getElementById('toast-portal');
+          const el = document.createElement('div');
+          el.className = 'toast align-items-center text-bg-' + mapToastColor(kind) + ' border-0';
+          el.innerHTML = `
       <div class="d-flex">
         <div class="toast-body">${escapeHtml(text || '')}</div>
         <button type="button" class="btn-close btn-close-white me-2 m-auto"
                 data-bs-dismiss="toast" aria-label="Close"></button>
       </div>`;
-        portal.appendChild(el);
-        new bootstrap.Toast(el, { autohide: true, delay }).show();
-      }
+          portal.appendChild(el);
+          new bootstrap.Toast(el, { autohide: true, delay }).show();
+        }
 
-      document.getElementById('markReadBtn').addEventListener('click', async () => {
-        try { await fetch('/notifications/read-all', { method: 'POST' }); } catch (e) { }
-        markAllReadUI();
-        showInlineToast('success', 'Notificaciones marcadas como leídas');
-      });
-      const offcanvasEl = document.getElementById('offcanvasNotifs');
-      if (offcanvasEl) {
-        offcanvasEl.addEventListener('shown.bs.offcanvas', async () => {
+        document.getElementById('markReadBtn').addEventListener('click', async () => {
           try { await fetch('/notifications/read-all', { method: 'POST' }); } catch (e) { }
           markAllReadUI();
+          showInlineToast('success', 'Notificaciones marcadas como leídas');
         });
-      }
-
-      const PAGE_SIZE_NOTIF = 10;
-
-      // Usamos window.serverMessages que se inyectó en el HTML
-      let notifData = (window.serverMessages || []).map((m, i) => {
-        const txt = m.message || '';
-        const theMatch = txt.match(/^(\d{4}-\d{2}-\d{2})(?:\s+(\d{2}:\d{2}:\d{2}))?\s+(.*)$/);
-        let dt = null;
-        let cleanMsg = txt;
-        if (theMatch) {
-          const ymd = theMatch[1];
-          const hms = theMatch[2] || '00:00:00';
-          dt = new Date(`${ymd}T${hms}`);
-          cleanMsg = theMatch[3];
+        const offcanvasEl = document.getElementById('offcanvasNotifs');
+        if (offcanvasEl) {
+          offcanvasEl.addEventListener('shown.bs.offcanvas', async () => {
+            try { await fetch('/notifications/read-all', { method: 'POST' }); } catch (e) { }
+            markAllReadUI();
+          });
         }
-        return { id: i + 1, category: m.category, message: cleanMsg, date: dt };
-      });
 
-      notifData.sort((a, b) => {
-        const ad = a.date ? a.date.getTime() : -Infinity;
-        const bd = b.date ? b.date.getTime() : -Infinity;
-        return bd - ad;
-      });
+        const PAGE_SIZE_NOTIF = 10;
 
-      const listEl = document.getElementById('notifList');
-      const pagEl = document.getElementById('notifPagination');
-      const infoEl = document.getElementById('notifCountInfo');
-
-      let filterType = '';
-      let filterDate = '';
-      let currentPage = 1;
-
-      document.getElementById('applyFilters').addEventListener('click', () => {
-        filterType = document.getElementById('filterType').value;
-        filterDate = document.getElementById('filterDate').value;
-        currentPage = 1;
-        renderList();
-      });
-      document.getElementById('clearFilters').addEventListener('click', () => {
-        document.getElementById('filterType').value = '';
-        document.getElementById('filterDate').value = '';
-        filterType = filterDate = '';
-        currentPage = 1;
-        renderList();
-      });
-
-      function filtered() {
-        return notifData.filter(n => {
-          if (filterType && n.category !== filterType) return false;
-          if (filterDate) {
-            const d = n.date;
-            if (!d || isNaN(d.getTime())) return false; // Protección contra fechas inválidas
-            try {
-              const ymd = d.toISOString().slice(0, 10);
-              if (ymd !== filterDate) return false;
-            } catch (e) { return false; }
+        // Usamos window.serverMessages que se inyectó en el HTML
+        let notifData = (window.serverMessages || []).map((m, i) => {
+          const txt = m.message || '';
+          const theMatch = txt.match(/^(\d{4}-\d{2}-\d{2})(?:\s+(\d{2}:\d{2}:\d{2}))?\s+(.*)$/);
+          let dt = null;
+          let cleanMsg = txt;
+          if (theMatch) {
+            const ymd = theMatch[1];
+            const hms = theMatch[2] || '00:00:00';
+            dt = new Date(`${ymd}T${hms}`);
+            cleanMsg = theMatch[3];
           }
-          return true;
+          return { id: i + 1, category: m.category, message: cleanMsg, date: dt };
         });
-      }
 
-      function renderList() {
-        const data = filtered();
-        const totalPages = Math.max(1, Math.ceil(data.length / PAGE_SIZE_NOTIF));
-        if (currentPage > totalPages) currentPage = totalPages;
+        notifData.sort((a, b) => {
+          const ad = a.date ? a.date.getTime() : -Infinity;
+          const bd = b.date ? b.date.getTime() : -Infinity;
+          return bd - ad;
+        });
 
-        const start = (currentPage - 1) * PAGE_SIZE_NOTIF;
-        const pageItems = data.slice(start, start + PAGE_SIZE_NOTIF);
+        const listEl = document.getElementById('notifList');
+        const pagEl = document.getElementById('notifPagination');
+        const infoEl = document.getElementById('notifCountInfo');
 
-        infoEl.textContent = `Mostrando ${pageItems.length} de ${data.length} notificaciones`;
+        let filterType = '';
+        let filterDate = '';
+        let currentPage = 1;
 
-        listEl.innerHTML = '';
-        if (data.length === 0) {
-          listEl.innerHTML = `<div class="p-2 text-danger small">
+        document.getElementById('applyFilters').addEventListener('click', () => {
+          filterType = document.getElementById('filterType').value;
+          filterDate = document.getElementById('filterDate').value;
+          currentPage = 1;
+          renderList();
+        });
+        document.getElementById('clearFilters').addEventListener('click', () => {
+          document.getElementById('filterType').value = '';
+          document.getElementById('filterDate').value = '';
+          filterType = filterDate = '';
+          currentPage = 1;
+          renderList();
+        });
+
+        function filtered() {
+          return notifData.filter(n => {
+            if (filterType && n.category !== filterType) return false;
+            if (filterDate) {
+              const d = n.date;
+              if (!d || isNaN(d.getTime())) return false; // Protección contra fechas inválidas
+              try {
+                const ymd = d.toISOString().slice(0, 10);
+                if (ymd !== filterDate) return false;
+              } catch (e) { return false; }
+            }
+            return true;
+          });
+        }
+
+        function renderList() {
+          const data = filtered();
+          const totalPages = Math.max(1, Math.ceil(data.length / PAGE_SIZE_NOTIF));
+          if (currentPage > totalPages) currentPage = totalPages;
+
+          const start = (currentPage - 1) * PAGE_SIZE_NOTIF;
+          const pageItems = data.slice(start, start + PAGE_SIZE_NOTIF);
+
+          infoEl.textContent = `Mostrando ${pageItems.length} de ${data.length} notificaciones`;
+
+          listEl.innerHTML = '';
+          if (data.length === 0) {
+            listEl.innerHTML = `<div class="p-2 text-danger small">
             DEBUG: Count=0<br>
             RawLen=${(window.serverMessages || []).length}<br>
             Sample=${escapeHtml(JSON.stringify((window.serverMessages || []).slice(0, 1)))}
         </div>`;
-        }
-        pageItems.forEach(n => {
-          const cls = mapToastColor(n.category);
-          const pill = n.category === 'success' ? '✅' :
-            n.category === 'warning' ? '⚠️' :
-              (n.category === 'danger' || n.category === 'accion_no_permitida') ? '❌' : 'ℹ️';
-          const dtTxt = n.date ? n.date.toLocaleString() : '';
-          const item = document.createElement('div');
-          // FIX: Forzar text-dark porque bg-white no cambia el color de texto, y en modo oscuro el texto es blanco -> invisible
-          item.className = `border rounded p-2 bg-white text-dark mb-1`;
-          item.innerHTML = `
+          }
+          pageItems.forEach(n => {
+            const cls = mapToastColor(n.category);
+            const pill = n.category === 'success' ? '✅' :
+              n.category === 'warning' ? '⚠️' :
+                (n.category === 'danger' || n.category === 'accion_no_permitida') ? '❌' : 'ℹ️';
+            const dtTxt = n.date ? n.date.toLocaleString() : '';
+            const item = document.createElement('div');
+            // FIX: Forzar text-dark porque bg-white no cambia el color de texto, y en modo oscuro el texto es blanco -> invisible
+            item.className = `border rounded p-2 bg-white text-dark mb-1`;
+            item.innerHTML = `
         <div class="d-flex align-items-center justify-content-between">
           <span class="badge text-bg-${cls}">${pill}</span>
           <span class="small text-muted ms-2">${escapeHtml(dtTxt)}</span>
         </div>
         <div class="mt-1">${escapeHtml(n.message)}</div>
       `;
-          listEl.appendChild(item);
-        });
-
-        pagEl.innerHTML = '';
-        const mkPage = (p, label = p, disabled = false, active = false) => {
-          const li = document.createElement('li');
-          li.className = `page-item ${disabled ? 'disabled' : ''} ${active ? 'active' : ''}`;
-          const a = document.createElement('a');
-          a.className = 'page-link';
-          a.href = '#';
-          a.textContent = label;
-          a.addEventListener('click', (e) => {
-            e.preventDefault();
-            if (!disabled && currentPage !== p) {
-              currentPage = p;
-              renderList();
-            }
+            listEl.appendChild(item);
           });
-          li.appendChild(a);
-          return li;
-        };
-        const pages = Math.max(1, Math.ceil(data.length / PAGE_SIZE_NOTIF));
-        pagEl.appendChild(mkPage(Math.max(1, currentPage - 1), '«', currentPage === 1, false));
-        for (let p = 1; p <= pages; p++) pagEl.appendChild(mkPage(p, String(p), false, p === currentPage));
-        pagEl.appendChild(mkPage(Math.min(pages, currentPage + 1), '»', currentPage >= pages, false));
+
+          pagEl.innerHTML = '';
+          const mkPage = (p, label = p, disabled = false, active = false) => {
+            const li = document.createElement('li');
+            li.className = `page-item ${disabled ? 'disabled' : ''} ${active ? 'active' : ''}`;
+            const a = document.createElement('a');
+            a.className = 'page-link';
+            a.href = '#';
+            a.textContent = label;
+            a.addEventListener('click', (e) => {
+              e.preventDefault();
+              if (!disabled && currentPage !== p) {
+                currentPage = p;
+                renderList();
+              }
+            });
+            li.appendChild(a);
+            return li;
+          };
+          const pages = Math.max(1, Math.ceil(data.length / PAGE_SIZE_NOTIF));
+          pagEl.appendChild(mkPage(Math.max(1, currentPage - 1), '«', currentPage === 1, false));
+          for (let p = 1; p <= pages; p++) pagEl.appendChild(mkPage(p, String(p), false, p === currentPage));
+          pagEl.appendChild(mkPage(Math.min(pages, currentPage + 1), '»', currentPage >= pages, false));
+        }
+
+
+
       }
 
 
+      /* ========================================================
+         Inline TTL Edit Logic
+         ======================================================== */
+      let currentEditIp = null;
+      let currentEditTags = [];
+
+      function openEditTTL(ip, tags) {
+        currentEditIp = ip;
+        currentEditTags = tags || [];
+        document.getElementById('editTTLIp').textContent = ip;
+        document.getElementById('editTTLSelect').value = "0";
+        const modal = new bootstrap.Modal(document.getElementById('modalEditTTL'));
+        modal.show();
+      }
+
+      async function saveEditTTL() {
+        const ttlVal = document.getElementById('editTTLSelect').value;
+        if (!currentEditIp) return;
+
+        const payload = {
+          origen: "web-edit",
+          force: true,
+          items: [{
+            ip: currentEditIp,
+            tags: currentEditTags,
+            ttl: ttlVal,
+            nota: "Updated via inline edit"
+          }]
+        };
+
+        try {
+          const r = await fetch('/api/bloquear-ip', {
+            method: 'POST',
+            headers: { 'Content-Type': 'application/json' },
+            body: JSON.stringify(payload)
+          });
+          const ans = await r.json();
+          // Hide modal
+          const modalEl = document.getElementById('modalEditTTL');
+          const modal = bootstrap.Modal.getInstance(modalEl);
+          modal.hide();
+
+          if (r.ok && (ans.status === 'ok' || ans.status === 'partial_ok')) {
+            reloadTable(false);
+          } else {
+            alert("Error al actualizar: " + (ans.error || JSON.stringify(ans)));
+          }
+        } catch (e) {
+          alert("Error de red: " + e.message);
+        }
+      }
 
       (function initDeletePreview() {
         const input = document.getElementById('delete_net_input');
@@ -1703,10 +1792,20 @@
             }</td>
         <td>${alertsCellHtml(row)}</td>
         <td>
-            <button type="button" class="btn btn-sm btn-outline-danger" 
-              onclick='confirmDeleteJS("${escapeHtml(row.ip)}", ${JSON.stringify(row.tags || [])})'>
-              Eliminar
-            </button>
+            <div class="d-flex gap-1 justify-content-end">
+              ${(USER_ROLE !== 'view_only') ?
+              `<button type="button" class="btn btn-sm btn-outline-primary" 
+                  title="Editar TTL"
+                  onclick='openEditTTL("${escapeHtml(row.ip)}", ${JSON.stringify(row.tags || [])})'>
+                  <i class="bi bi-pencil"></i>
+                 </button>` : ''
+            }
+              <button type="button" class="btn btn-sm btn-outline-danger" 
+                title="Eliminar"
+                onclick='confirmDeleteJS("${escapeHtml(row.ip)}", ${JSON.stringify(row.tags || [])})'>
+                <i class="bi bi-trash"></i>
+              </button>
+            </div>
         </td>
       `;
           tbody.appendChild(tr);

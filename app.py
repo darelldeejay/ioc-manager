@@ -905,11 +905,12 @@ def _already_same(entry, tags, expires_at):
 # =========================
 #  Alta de IPs (helper)  >>> actualizado para TAGS y feeds separados
 # =========================
-def add_ips_validated(lines, existentes, iterable_ips, ttl_val, origin=None, contador_ruta=None, tags=None, alert_id=None):
+def add_ips_validated(lines, existentes, iterable_ips, ttl_val, origin=None, contador_ruta=None, tags=None, alert_id=None, force=False):
     """
     ttl_val: '0' para permanente o número de días (str/int)
     tags: lista de tags (OBLIGATORIA: Multicliente y/o BPE)
     alert_id: identificador de alerta opcional (solo si es 1 IP o si aplica a todas, normalmente NULL en cargas masivas simples)
+    force: si True, actualiza el TTL aunque sea menor (downgrade) o igual.
     """
     añadidas = 0
     rechazadas = 0
@@ -952,8 +953,8 @@ def add_ips_validated(lines, existentes, iterable_ips, ttl_val, origin=None, con
             for t in tags:
                 _write_tag_line(t, ip_str, _now_utc(), ttl_seconds, expires_at_dt, origin or "manual", entry["tags"])
             
-            # --- FIX: Actualizar línea en feed principal si el TTL se extiende ---
-            if allow_multi and ttl_days > 0:
+            # --- FIX: Actualizar línea en feed principal si el TTL se extiende O si es FORCE ---
+            if allow_multi and (ttl_days > 0 or force):
                 # Buscar la línea existente
                 for i, ln in enumerate(lines):
                     if ln.startswith(ip_str + "|"):
@@ -964,22 +965,29 @@ def add_ips_validated(lines, existentes, iterable_ips, ttl_val, origin=None, con
                             try:
                                 old_ttl = int(old_ttl_str)
                                 old_date = datetime.strptime(old_date_str, "%Y-%m-%d")
-                                if old_ttl == 0:
-                                    # Ya es permanente, no hacemos nada (o reducimos? No, conservar lejana)
+                                
+                                should_update = False
+                                if force:
+                                    should_update = True
+                                elif old_ttl == 0:
+                                    # Ya es permanente, no hacemos nada salvo force
                                     pass
                                 else:
                                     old_exp = old_date + timedelta(days=old_ttl)
                                     new_exp = _now_utc().replace(tzinfo=None) + timedelta(days=ttl_days)
                                     if new_exp > old_exp:
-                                        # Extender: Actualizamos fecha a HOY y TTL al nuevo
-                                        fecha_hoy = datetime.now().strftime("%Y-%m-%d")
-                                        lines[i] = f"{ip_str}|{fecha_hoy}|{ttl_days}"
-                                        updated += 1
+                                        should_update = True
+                                
+                                if should_update:
+                                    # Actualizamos fecha a HOY y TTL al nuevo
+                                    fecha_hoy = datetime.now().strftime("%Y-%m-%d")
+                                    lines[i] = f"{ip_str}|{fecha_hoy}|{ttl_days}"
+                                    updated += 1
 
                             except Exception:
                                 pass
                         break
-            # ---------------------------------------------------------------------
+            # ---------------------------------------------------------------------\
 
             rechazadas += 1  # se considera duplicada para el feed principal
             # asegurar reflejo BPE si aplica
@@ -3044,7 +3052,8 @@ def bloquear_ip_api():
                     origin="api",
                     contador_ruta=COUNTER_API,
                     tags=tags,
-                    alert_id=alert_id
+                    alert_id=alert_id,
+                    force=force
                 )
 
                 # Re-cargar meta para obtener los detalles frescos
