@@ -520,6 +520,24 @@
           <label class="form-label small mb-1">Buscar IP</label>
           <input type="text" id="qInput" class="form-control" placeholder="Ej: 203.0.113.5">
         </div>
+        <div>
+          <label class="form-label small mb-1">Origen</label>
+          <select id="originSelect" class="form-select">
+            <option value="all">Todos</option>
+            <option value="manual">Manual</option>
+            <option value="csv">CSV</option>
+            <option value="api">API</option>
+          </select>
+        </div>
+        <div>
+          <label class="form-label small mb-1">Tag</label>
+          <select id="tagSelect" class="form-select">
+            <option value="all">Todos</option>
+            <option value="Multicliente">Multicliente</option>
+            <option value="BPE">BPE</option>
+            <option value="Test">Test</option>
+          </select>
+        </div>
         <div class="d-flex gap-2">
           <div>
             <label class="form-label small mb-1">Desde</label>
@@ -1569,6 +1587,8 @@
       const nextBtn = document.getElementById('nextPage');
 
       const qInput = document.getElementById('qInput');
+      const originSelect = document.getElementById('originSelect'); // NUEVO
+      const tagSelect = document.getElementById('tagSelect');       // NUEVO
       const dateFrom = document.getElementById('dateFrom');
       const dateTo = document.getElementById('dateTo');
       const sortSelect = document.getElementById('sortSelect');
@@ -1583,6 +1603,10 @@
       sortSelect.addEventListener('change', () => { tableState.sort = sortSelect.value; reloadTable(true); });
       pageSizeSel.addEventListener('change', () => { tableState.page_size = parseInt(pageSizeSel.value, 10) || 50; tableState.page = 1; reloadTable(true); });
 
+      // Listeners directos para filtros
+      if (originSelect) originSelect.addEventListener('change', () => { tableState.page = 1; reloadTable(true); });
+      if (tagSelect) tagSelect.addEventListener('change', () => { tableState.page = 1; reloadTable(true); });
+
       applyBtn.addEventListener('click', () => {
         tableState.q = qInput.value.trim();
         tableState.date_from = dateFrom.value || '';
@@ -1593,6 +1617,8 @@
 
       clearBtn.addEventListener('click', () => {
         qInput.value = ''; dateFrom.value = ''; dateTo.value = '';
+        if (originSelect) originSelect.value = 'all';
+        if (tagSelect) tagSelect.value = 'all';
         sortSelect.value = 'fecha'; tableState.sort = 'fecha';
         tableState.order = 'desc'; orderDesc.classList.add('active'); orderAsc.classList.remove('active');
         pageSizeSel.value = '50'; tableState.page_size = 50; tableState.page = 1;
@@ -1610,6 +1636,10 @@
           params.set('page_size', String(tableState.page_size));
           params.set('sort', tableState.sort);
           params.set('order', tableState.order);
+          // Nuevos filtros
+          if (originSelect && originSelect.value && originSelect.value !== 'all') params.set('origin', originSelect.value);
+          if (tagSelect && tagSelect.value && tagSelect.value !== 'all') params.set('tag', tagSelect.value);
+
           if (tableState.q) params.set('q', tableState.q);
           const hasRange = (tableState.date_from || tableState.date_to);
           if (hasRange) {

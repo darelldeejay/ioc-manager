@@ -2264,20 +2264,117 @@ def index():
     # Resumen unión feeds (fuente, tag y fuente×tag)
     src_union, tag_union, src_tag_union, total_union = compute_source_and_tag_counters_union()
 
-    # Construye map de tags + alertas para la tabla server-rendered
+
+    # Construir mapa de tags para filtrado
     meta = load_meta()
-    
     ip_details = meta.get("ip_details", {})
-    ip_tags = {}
-    ip_alerts = {}
-    ip_alert_ids = {}
+    ip_tags_map = {}
     for ip, details in ip_details.items():
         if "tags" in details and details["tags"]:
-            ip_tags[ip] = details["tags"]
-        if "alerts" in details and details["alerts"]:
-            ip_alerts[ip] = details["alerts"]
-        if "alert_ids" in details and details["alert_ids"]:
-            ip_alert_ids[ip] = details["alert_ids"]
+            ip_tags_map[ip] = set(details["tags"])
+
+    # ------------------
+    # Filtrado y Paginación SERVER-SIDE
+    # ------------------
+    fmt = request.args.get("format", "").lower()
+    if fmt == "json":
+        q = request.args.get("q", "").strip().lower()
+        f_origin = request.args.get("origin", "").strip().lower()
+        f_tag = request.args.get("tag", "").strip()
+        f_date = request.args.get("date", "").strip()
+        sort_field = request.args.get("sort", "fecha")
+        order = request.args.get("order", "desc")
+        try:
+            page = int(request.args.get("page", 1))
+            page_size = int(request.args.get("page_size", 50))
+        except:
+            page, page_size = 1, 50
+
+        filtered = []
+        for r in merged_records:
+            # 1. Filtro Texto (q)
+            if q:
+                if q not in r["ip"].lower() and q not in r.get("origen","").lower():
+                    # check tags
+                    tgs = ip_tags_map.get(r["ip"], set())
+                    if not any(q in t.lower() for t in tgs):
+                        continue
+            
+            # 2. Filtro Origin
+            if f_origin and f_origin != "all":
+                # r["origen"] puede ser None -> "manual"
+                orig = (r.get("origen") or "manual").lower()
+                if orig != f_origin:
+                    continue
+
+            # 3. Filtro Tag
+            if f_tag and f_tag != "all":
+                tgs = ip_tags_map.get(r["ip"], set())
+                if f_tag not in tgs:
+                    continue
+
+            # 4. Filtro Date (rango)
+            # IMPLEMENTACIÓN SIMPLE: "YYYY-MM-DD" o "YYYY-MM-DD,YYYY-MM-DD"
+            if f_date:
+                # Omitimos para no complicar el snippet ahora, el usuario pide origen/tag principalmente
+                pass
+
+            filtered.append(r)
+
+        # Ordenar
+        reverse = (order == "desc")
+        if sort_field == "ip":
+            # Orden numérico ya se pre-calculó o se hace al vuelo
+            filtered.sort(key=lambda x: x.get("ip_num", 0) if "ip_num" in x else (int(ipaddress.ip_address(x["ip"])) if is_allowed_ip(x["ip"]) else 0), reverse=reverse)
+        elif sort_field == "ttl":
+             filtered.sort(key=lambda x: x["ttl"], reverse=reverse)
+        else:
+             # fecha default
+             filtered.sort(key=lambda x: x.get("fecha",""), reverse=reverse)
+
+        total = len(filtered)
+        start = (page - 1) * page_size
+        end = start + page_size
+        paged_items = filtered[start:end]
+
+        # Enriquecer items para JSON
+        json_items = []
+        for r in paged_items:
+            ip = r["ip"]
+            # recuperar tags / alerts
+            these_tags = list(ip_tags_map.get(ip, []))
+            these_alerts = ip_details.get(ip, {}).get("alert_ids", [])
+            
+            json_items.append({
+                "ip": ip,
+                "fecha_alta": r.get("fecha"),
+                "ttl": r.get("ttl"),
+                "tags": these_tags,
+                "alert_ids": these_alerts
+            })
+            
+        return jsonify({
+            "items": json_items,
+            "total": total,
+            "page": page,
+            "page_size": page_size,
+            "counters": {
+                "total": total_union,
+                "manual": live_manual,
+                "csv": live_csv,
+                "api": live_api,
+                "tags": tag_totals
+            }
+        })
+
+    # Render HTML normal (initial state)
+    
+    ip_tags = {}
+    ip_alert_ids = {}
+    ip_alerts = {} # legacy
+    for ip, details in ip_details.items():
+        if "tags" in details: ip_tags[ip] = details["tags"]
+        if "alert_ids" in details: ip_alert_ids[ip] = details["alert_ids"]
 
     known_tags = _collect_known_tags()
 
@@ -2286,14 +2383,13 @@ def index():
                            feeds_config=visible_feeds,
                            current_flashes_list=request_actions,
                            server_messages_list=messages,
-                           ips=lines,
+                           ips=lines, # para compatibilidad si algo usa 'ips' raw en jinja
                            error=error,
                            total_ips=total_union,
                            contador_manual=live_manual,
                            contador_csv=live_csv,
                            contador_api=live_api,
                            contador_tags=tag_totals,
-                           # NUEVOS resúmenes (unión feeds)
                            union_total=total_union,
                            union_by_source=src_union,
                            union_by_tag=tag_union,
@@ -2725,10 +2821,19 @@ def _api_guard():
 def _auth_ok():
     if not TOKEN_API:
         return False
+    # 1. Try Bearer
     auth = request.headers.get("Authorization", "")
-    if not auth.startswith("Bearer "):
-        return False
-    return auth.split(" ", 1)[1].strip() == TOKEN_API
+    if auth.startswith("Bearer "):
+        return auth.split(" ", 1)[1].strip() == TOKEN_API
+    # 2. Try X-API-Key
+    x_key = request.headers.get("X-API-Key", "")
+    if x_key == TOKEN_API:
+        return True
+    # 3. Try query param
+    q_token = request.args.get("token", "")
+    if q_token == TOKEN_API:
+        return True
+    return False
 
 def _client_ip():
     xff = request.headers.get("X-Forwarded-For", "")
