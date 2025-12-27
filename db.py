@@ -1,0 +1,85 @@
+
+import sqlite3
+import os
+import json
+from datetime import datetime, timezone
+
+DB_FILE = os.path.join(os.path.dirname(os.path.realpath(__file__)), "ioc_manager.db")
+
+def get_db():
+    conn = sqlite3.connect(DB_FILE)
+    conn.row_factory = sqlite3.Row
+    return conn
+
+def init_db():
+    conn = get_db()
+    c = conn.cursor()
+    
+    # Tabla: Usuarios
+    c.execute('''
+    CREATE TABLE IF NOT EXISTS users (
+        username TEXT PRIMARY KEY,
+        password_hash TEXT NOT NULL,
+        role TEXT DEFAULT 'editor',
+        created_at TEXT,
+        last_login TEXT,
+        allowed_feeds TEXT -- JSON list
+    )
+    ''')
+    
+    # Tabla: Metadata IPv4 (Estado actual)
+    # Stores tags, source, ttl, and misc details.
+    # The actual "feed" is still generated from this state + flat files, or we move to full DB?
+    # Requirement: "Pasar ip_details + audit a SQLite".
+    c.execute('''
+    CREATE TABLE IF NOT EXISTS ip_metadata (
+        ip TEXT PRIMARY KEY,
+        source TEXT DEFAULT 'manual', -- manual, csv, api
+        tags TEXT, -- JSON list ["Multicliente", "BPE"]
+        added_at TEXT,
+        ttl TEXT DEFAULT '0', -- 0=permanent, or days
+        expiration_date TEXT,
+        alert_ids TEXT, -- JSON list of tickets
+        history TEXT -- JSON list of changes
+    )
+    ''')
+
+    # Tabla: Auditoría
+    c.execute('''
+    CREATE TABLE IF NOT EXISTS audit_log (
+        id INTEGER PRIMARY KEY AUTOINCREMENT,
+        ts TEXT NOT NULL,
+        event TEXT NOT NULL,
+        actor TEXT,
+        scope TEXT,
+        details TEXT -- JSON
+    )
+    ''')
+
+    # Indices
+    c.execute('CREATE INDEX IF NOT EXISTS idx_audit_ts ON audit_log(ts)')
+    c.execute('CREATE INDEX IF NOT EXISTS idx_audit_event ON audit_log(event)')
+    c.execute('CREATE INDEX IF NOT EXISTS idx_meta_source ON ip_metadata(source)')
+
+    conn.commit()
+    conn.close()
+
+def _iso(dt: datetime) -> str:
+    if dt is None: return None
+    return dt.astimezone(timezone.utc).replace(microsecond=0).isoformat().replace("+00:00", "Z")
+
+# --- Helpers de acceso (CRUD basico) ---
+
+def db_audit(event, actor, scope, details=None):
+    try:
+        conn = get_db()
+        conn.execute(
+            "INSERT INTO audit_log (ts, event, actor, scope, details) VALUES (?, ?, ?, ?, ?)",
+            (_iso(datetime.now(timezone.utc)), event, actor, scope, json.dumps(details or {}, ensure_ascii=False))
+        )
+        conn.commit()
+        conn.close()
+    except Exception as e:
+        print(f"DB Log Error: {e}")
+
+# ... (Más helpers se añadirán según se necesiten en app.py)

@@ -1,0 +1,256 @@
+{
+  "by_ip": {
+    "8.8.4.4": "api",
+    "1.2.3.4": "api"
+  },
+  "ip_details": {
+    "8.8.4.4": {
+      "ip": "8.8.4.4",
+      "tags": [
+        "Multicliente",
+        "Test"
+      ],
+      "expires_at": "2025-12-28T20:13:54Z",
+      "source": "api",
+      "history": [
+        {
+          "ts": "2025-12-27T14:18:06Z",
+          "action": "upsert",
+          "tags_added": [
+            "Multicliente",
+            "Test"
+          ],
+          "expires_at": "2025-12-28T14:18:06Z",
+          "note": "web",
+          "source": "api",
+          "alert_id": null
+        },
+        {
+          "ts": "2025-12-27T14:19:11Z",
+          "action": "upsert",
+          "tags_added": [],
+          "expires_at": "2025-12-28T14:19:11Z",
+          "note": "web",
+          "source": "api",
+          "alert_id": null
+        },
+        {
+          "ts": "2025-12-27T14:20:00Z",
+          "action": "upsert",
+          "tags_added": [],
+          "expires_at": "2025-12-28T14:20:00Z",
+          "note": "web",
+          "source": "api",
+          "alert_id": null
+        },
+        {
+          "ts": "2025-12-27T14:28:52Z",
+          "action": "upsert",
+          "tags_added": [],
+          "expires_at": "2025-12-28T14:28:52Z",
+          "note": "web",
+          "source": "api",
+          "alert_id": null
+        },
+        {
+          "ts": "2025-12-27T14:29:48Z",
+          "action": "upsert",
+          "tags_added": [],
+          "expires_at": "2025-12-28T14:29:48Z",
+          "note": "web",
+          "source": "api",
+          "alert_id": null
+        },
+        {
+          "ts": "2025-12-27T14:40:13Z",
+          "action": "upsert",
+          "tags_added": [],
+          "expires_at": "2025-12-28T14:40:13Z",
+          "note": "web",
+          "source": "api",
+          "alert_id": null
+        },
+        {
+          "ts": "2025-12-27T19:42:08Z",
+          "action": "upsert",
+          "tags_added": [],
+          "expires_at": "2025-12-28T19:42:08Z",
+          "note": "web",
+          "source": "api",
+          "alert_id": null
+        },
+        {
+          "ts": "2025-12-27T20:13:54Z",
+          "action": "upsert",
+          "tags_added": [],
+          "expires_at": "2025-12-28T20:13:54Z",
+          "note": "web",
+          "source": "api",
+          "alert_id": null
+        }
+      ],
+      "last_update": "2025-12-27T20:13:54Z",
+      "alert_ids": []
+    },
+    "1.2.3.4": {
+      "ip": "1.2.3.4",
+      "tags": [
+        "Multicliente",
+        "Test"
+      ],
+      "expires_at": "2025-12-28T20:13:54Z",
+      "source": "api",
+      "history": [
+        {
+          "ts": "2025-12-27T14:18:06Z",
+          "action": "upsert",
+          "tags_added": [
+            "Multicliente",
+            "Test"
+          ],
+          "expires_at": "2025-12-28T14:18:06Z",
+          "note": "web",
+          "source": "api",
+          "alert_id": null
+        },
+        {
+          "ts": "2025-12-27T14:18:06Z",
+          "action": "upsert",
+          "tags_added": [],
+          "expires_at": "2025-12-28T14:18:06Z",
+          "note": "web",
+          "source": "api",
+          "alert_id": null
+        },
+        {
+          "ts": "2025-12-27T14:19:11Z",
+          "action": "upsert",
+          "tags_added": [],
+          "expires_at": "2025-12-28T14:19:11Z",
+          "note": "web",
+          "source": "api",
+          "alert_id": null
+        },
+        {
+          "ts": "2025-12-27T14:19:11Z",
+          "action": "upsert",
+          "tags_added": [],
+          "expires_at": "2025-12-28T14:19:11Z",
+          "note": "web",
+          "source": "api",
+          "alert_id": null
+        },
+        {
+          "ts": "2025-12-27T14:20:00Z",
+          "action": "upsert",
+          "tags_added": [],
+          "expires_at": "2025-12-28T14:20:00Z",
+          "note": "web",
+          "source": "api",
+          "alert_id": null
+        },
+        {
+          "ts": "2025-12-27T14:20:00Z",
+          "action": "upsert",
+          "tags_added": [],
+          "expires_at": "2025-12-28T14:20:00Z",
+          "note": "web",
+          "source": "api",
+          "alert_id": null
+        },
+        {
+          "ts": "2025-12-27T14:28:52Z",
+          "action": "upsert",
+          "tags_added": [],
+          "expires_at": "2025-12-28T14:28:52Z",
+          "note": "web",
+          "source": "api",
+          "alert_id": null
+        },
+        {
+          "ts": "2025-12-27T14:28:52Z",
+          "action": "upsert",
+          "tags_added": [],
+          "expires_at": "2025-12-28T14:28:52Z",
+          "note": "web",
+          "source": "api",
+          "alert_id": null
+        },
+        {
+          "ts": "2025-12-27T14:29:48Z",
+          "action": "upsert",
+          "tags_added": [],
+          "expires_at": "2025-12-28T14:29:48Z",
+          "note": "web",
+          "source": "api",
+          "alert_id": null
+        },
+        {
+          "ts": "2025-12-27T14:29:48Z",
+          "action": "upsert",
+          "tags_added": [],
+          "expires_at": "2025-12-28T14:29:48Z",
+          "note": "web",
+          "source": "api",
+          "alert_id": null
+        },
+        {
+          "ts": "2025-12-27T14:40:13Z",
+          "action": "upsert",
+          "tags_added": [],
+          "expires_at": "2025-12-28T14:40:13Z",
+          "note": "web",
+          "source": "api",
+          "alert_id": null
+        },
+        {
+          "ts": "2025-12-27T14:40:13Z",
+          "action": "upsert",
+          "tags_added": [],
+          "expires_at": "2025-12-28T14:40:13Z",
+          "note": "web",
+          "source": "api",
+          "alert_id": null
+        },
+        {
+          "ts": "2025-12-27T19:42:08Z",
+          "action": "upsert",
+          "tags_added": [],
+          "expires_at": "2025-12-28T19:42:08Z",
+          "note": "web",
+          "source": "api",
+          "alert_id": null
+        },
+        {
+          "ts": "2025-12-27T19:42:08Z",
+          "action": "upsert",
+          "tags_added": [],
+          "expires_at": "2025-12-28T19:42:08Z",
+          "note": "web",
+          "source": "api",
+          "alert_id": null
+        },
+        {
+          "ts": "2025-12-27T20:13:54Z",
+          "action": "upsert",
+          "tags_added": [],
+          "expires_at": "2025-12-28T20:13:54Z",
+          "note": "web",
+          "source": "api",
+          "alert_id": null
+        },
+        {
+          "ts": "2025-12-27T20:13:54Z",
+          "action": "upsert",
+          "tags_added": [],
+          "expires_at": "2025-12-28T20:13:54Z",
+          "note": "web",
+          "source": "api",
+          "alert_id": null
+        }
+      ],
+      "last_update": "2025-12-27T20:13:54Z",
+      "alert_ids": []
+    }
+  }
+}

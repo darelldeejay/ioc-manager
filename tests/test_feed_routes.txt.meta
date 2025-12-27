@@ -1,0 +1,300 @@
+{
+  "by_ip": {
+    "6.6.6.6": "csv",
+    "7.7.7.7": "csv",
+    "5.5.5.5": "manual"
+  },
+  "ip_details": {
+    "6.6.6.6": {
+      "ip": "6.6.6.6",
+      "tags": [
+        "Multicliente"
+      ],
+      "expires_at": "2025-12-28T20:13:54Z",
+      "source": "csv",
+      "history": [
+        {
+          "ts": "2025-12-27T14:18:06Z",
+          "action": "upsert",
+          "tags_added": [
+            "Multicliente"
+          ],
+          "expires_at": "2025-12-28T14:18:06Z",
+          "note": "web",
+          "source": "csv",
+          "alert_id": "TEST-CSV"
+        },
+        {
+          "ts": "2025-12-27T14:18:32Z",
+          "action": "upsert",
+          "tags_added": [],
+          "expires_at": "2025-12-28T14:18:32Z",
+          "note": "web",
+          "source": "csv",
+          "alert_id": "TEST-CSV"
+        },
+        {
+          "ts": "2025-12-27T14:19:11Z",
+          "action": "upsert",
+          "tags_added": [],
+          "expires_at": "2025-12-28T14:19:11Z",
+          "note": "web",
+          "source": "csv",
+          "alert_id": "TEST-CSV"
+        },
+        {
+          "ts": "2025-12-27T14:20:00Z",
+          "action": "upsert",
+          "tags_added": [],
+          "expires_at": "2025-12-28T14:20:00Z",
+          "note": "web",
+          "source": "csv",
+          "alert_id": "TEST-CSV"
+        },
+        {
+          "ts": "2025-12-27T14:28:52Z",
+          "action": "upsert",
+          "tags_added": [],
+          "expires_at": "2025-12-28T14:28:52Z",
+          "note": "web",
+          "source": "csv",
+          "alert_id": "TEST-CSV"
+        },
+        {
+          "ts": "2025-12-27T14:29:48Z",
+          "action": "upsert",
+          "tags_added": [],
+          "expires_at": "2025-12-28T14:29:48Z",
+          "note": "web",
+          "source": "csv",
+          "alert_id": "TEST-CSV"
+        },
+        {
+          "ts": "2025-12-27T14:40:13Z",
+          "action": "upsert",
+          "tags_added": [],
+          "expires_at": "2025-12-28T14:40:13Z",
+          "note": "web",
+          "source": "csv",
+          "alert_id": "TEST-CSV"
+        },
+        {
+          "ts": "2025-12-27T19:42:08Z",
+          "action": "upsert",
+          "tags_added": [],
+          "expires_at": "2025-12-28T19:42:08Z",
+          "note": "web",
+          "source": "csv",
+          "alert_id": "TEST-CSV"
+        },
+        {
+          "ts": "2025-12-27T20:13:54Z",
+          "action": "upsert",
+          "tags_added": [],
+          "expires_at": "2025-12-28T20:13:54Z",
+          "note": "web",
+          "source": "csv",
+          "alert_id": "TEST-CSV"
+        }
+      ],
+      "last_update": "2025-12-27T20:13:54Z",
+      "alert_ids": [
+        "TEST-CSV"
+      ]
+    },
+    "7.7.7.7": {
+      "ip": "7.7.7.7",
+      "tags": [
+        "Multicliente"
+      ],
+      "expires_at": "2025-12-28T20:13:54Z",
+      "source": "csv",
+      "history": [
+        {
+          "ts": "2025-12-27T14:18:06Z",
+          "action": "upsert",
+          "tags_added": [
+            "Multicliente"
+          ],
+          "expires_at": "2025-12-28T14:18:06Z",
+          "note": "web",
+          "source": "csv",
+          "alert_id": "TEST-CSV"
+        },
+        {
+          "ts": "2025-12-27T14:18:32Z",
+          "action": "upsert",
+          "tags_added": [],
+          "expires_at": "2025-12-28T14:18:32Z",
+          "note": "web",
+          "source": "csv",
+          "alert_id": "TEST-CSV"
+        },
+        {
+          "ts": "2025-12-27T14:19:12Z",
+          "action": "upsert",
+          "tags_added": [],
+          "expires_at": "2025-12-28T14:19:12Z",
+          "note": "web",
+          "source": "csv",
+          "alert_id": "TEST-CSV"
+        },
+        {
+          "ts": "2025-12-27T14:20:00Z",
+          "action": "upsert",
+          "tags_added": [],
+          "expires_at": "2025-12-28T14:20:00Z",
+          "note": "web",
+          "source": "csv",
+          "alert_id": "TEST-CSV"
+        },
+        {
+          "ts": "2025-12-27T14:28:52Z",
+          "action": "upsert",
+          "tags_added": [],
+          "expires_at": "2025-12-28T14:28:52Z",
+          "note": "web",
+          "source": "csv",
+          "alert_id": "TEST-CSV"
+        },
+        {
+          "ts": "2025-12-27T14:29:48Z",
+          "action": "upsert",
+          "tags_added": [],
+          "expires_at": "2025-12-28T14:29:48Z",
+          "note": "web",
+          "source": "csv",
+          "alert_id": "TEST-CSV"
+        },
+        {
+          "ts": "2025-12-27T14:40:13Z",
+          "action": "upsert",
+          "tags_added": [],
+          "expires_at": "2025-12-28T14:40:13Z",
+          "note": "web",
+          "source": "csv",
+          "alert_id": "TEST-CSV"
+        },
+        {
+          "ts": "2025-12-27T19:42:08Z",
+          "action": "upsert",
+          "tags_added": [],
+          "expires_at": "2025-12-28T19:42:08Z",
+          "note": "web",
+          "source": "csv",
+          "alert_id": "TEST-CSV"
+        },
+        {
+          "ts": "2025-12-27T20:13:54Z",
+          "action": "upsert",
+          "tags_added": [],
+          "expires_at": "2025-12-28T20:13:54Z",
+          "note": "web",
+          "source": "csv",
+          "alert_id": "TEST-CSV"
+        }
+      ],
+      "last_update": "2025-12-27T20:13:54Z",
+      "alert_ids": [
+        "TEST-CSV"
+      ]
+    },
+    "5.5.5.5": {
+      "ip": "5.5.5.5",
+      "tags": [
+        "Multicliente"
+      ],
+      "expires_at": "2025-12-28T20:13:54Z",
+      "source": "manual",
+      "history": [
+        {
+          "ts": "2025-12-27T14:18:07Z",
+          "action": "upsert",
+          "tags_added": [
+            "Multicliente"
+          ],
+          "expires_at": "2025-12-28T14:18:06Z",
+          "note": "web",
+          "source": "manual",
+          "alert_id": "TEST-001"
+        },
+        {
+          "ts": "2025-12-27T14:18:33Z",
+          "action": "upsert",
+          "tags_added": [],
+          "expires_at": "2025-12-28T14:18:33Z",
+          "note": "web",
+          "source": "manual",
+          "alert_id": "TEST-001"
+        },
+        {
+          "ts": "2025-12-27T14:19:12Z",
+          "action": "upsert",
+          "tags_added": [],
+          "expires_at": "2025-12-28T14:19:12Z",
+          "note": "web",
+          "source": "manual",
+          "alert_id": "TEST-001"
+        },
+        {
+          "ts": "2025-12-27T14:20:01Z",
+          "action": "upsert",
+          "tags_added": [],
+          "expires_at": "2025-12-28T14:20:01Z",
+          "note": "web",
+          "source": "manual",
+          "alert_id": "TEST-001"
+        },
+        {
+          "ts": "2025-12-27T14:28:52Z",
+          "action": "upsert",
+          "tags_added": [],
+          "expires_at": "2025-12-28T14:28:52Z",
+          "note": "web",
+          "source": "manual",
+          "alert_id": "TEST-001"
+        },
+        {
+          "ts": "2025-12-27T14:29:48Z",
+          "action": "upsert",
+          "tags_added": [],
+          "expires_at": "2025-12-28T14:29:48Z",
+          "note": "web",
+          "source": "manual",
+          "alert_id": "TEST-001"
+        },
+        {
+          "ts": "2025-12-27T14:40:13Z",
+          "action": "upsert",
+          "tags_added": [],
+          "expires_at": "2025-12-28T14:40:13Z",
+          "note": "web",
+          "source": "manual",
+          "alert_id": "TEST-001"
+        },
+        {
+          "ts": "2025-12-27T19:42:08Z",
+          "action": "upsert",
+          "tags_added": [],
+          "expires_at": "2025-12-28T19:42:08Z",
+          "note": "web",
+          "source": "manual",
+          "alert_id": "TEST-001"
+        },
+        {
+          "ts": "2025-12-27T20:13:54Z",
+          "action": "upsert",
+          "tags_added": [],
+          "expires_at": "2025-12-28T20:13:54Z",
+          "note": "web",
+          "source": "manual",
+          "alert_id": "TEST-001"
+        }
+      ],
+      "last_update": "2025-12-27T20:13:54Z",
+      "alert_ids": [
+        "TEST-001"
+      ]
+    }
+  }
+}

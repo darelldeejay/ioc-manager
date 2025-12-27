@@ -112,13 +112,16 @@
             </button>
           </div>
 
-          <!-- BACKUP AHORA -->
-          <form method="POST" action="{{ url_for('backup_now') }}" class="d-none d-md-inline">
-            <button class="btn btn-outline-success btn-sm rounded-pill d-flex align-items-center gap-1" type="submit">
-              <i class="bi bi-cloud-arrow-up"></i>
-              <span>Backup ahora</span>
-            </button>
-          </form>
+
+
+          <!-- DIAGNOSTICS (Moved here) -->
+          {% if session.get('role') in ['admin', 'editor'] %}
+          <button class="btn btn-outline-warning btn-sm rounded-pill d-flex align-items-center gap-1" type="button"
+            id="runDiagnosticsBtn" onclick="runDiagnostics()" title="Autodiagnóstico">
+            <i class="bi bi-heart-pulse"></i>
+            <span class="d-none d-lg-inline">Salud</span>
+          </button>
+          {% endif %}
 
           <!-- AUDIT LOG (Nuevo) -->
           <a href="{{ url_for('audit_view') }}"
@@ -151,6 +154,24 @@
       </p>
     </div>
 
+    <!-- ======= MAINTENANCE BANNER ======= -->
+    {% if maintenance_mode %}
+    <div class="alert alert-warning border-warning d-flex align-items-center mb-4 shadow-sm">
+      <i class="bi bi-cone-striped fs-3 me-3 text-warning"></i>
+      <div>
+        <strong class="text-dark">MODO MANTENIMIENTO ACTIVO</strong>
+        <div class="small text-muted">Las modificaciones están bloqueadas. Solo lectura.</div>
+      </div>
+      {% if user_role == 'admin' %}
+      <div class="ms-auto">
+        <button class="btn btn-warning btn-sm fw-bold" onclick="toggleMaintenance(false)">
+          Desactivar
+        </button>
+      </div>
+      {% endif %}
+    </div>
+    {% endif %}
+
     <!-- ======= RESUMEN AMPLIADO ======= -->
     <!-- NUEVAS TARJETAS DE RESUMEN -->
     <!-- Tabs de Feeds (Dinámico) -->
@@ -164,7 +185,12 @@
           <div class="card-body">
             <h6 class="text-uppercase mb-1">IPs activas</h6>
             <div class="display-6">{{ total_ips or 0 }}</div>
-            <small class="text-muted">En todos los feeds</small>
+            <div class="d-flex justify-content-between align-items-center mt-2">
+              <small class="text-muted">En todos los feeds</small>
+              <button type="button" class="btn btn-outline-primary btn-sm" id="btnShowGraphs" title="Ver Gráficas">
+                <i class="bi bi-graph-up me-1"></i> Gráficas
+              </button>
+            </div>
           </div>
         </div>
       </div>
@@ -225,9 +251,31 @@
                 Backup diario automático si hay cambios.
               </small>
             </p>
-            <a href="{{ url_for('backup_list') }}" class="btn btn-outline-secondary btn-sm">
+            <form method="POST" action="{{ url_for('backup_now') }}" class="mb-2 w-100">
+              <button class="btn btn-success btn-sm w-100 text-start" type="submit">
+                <i class="bi bi-cloud-plus"></i> Generar Nuevo
+              </button>
+            </form>
+            <a href="/backup/latest.zip" class="btn btn-outline-success btn-sm mb-2 w-100 text-start">
+              <i class="bi bi-download"></i> Descargar Último
+            </a>
+            <a href="{{ url_for('backup_list') }}" class="btn btn-outline-secondary btn-sm mb-2 w-100 text-start">
               <i class="bi bi-clock-history"></i> Ver backups
             </a>
+
+            <button class="btn btn-outline-primary btn-sm mb-2 w-100 text-start" data-bs-toggle="modal"
+              data-bs-target="#modalRestore">
+              <i class="bi bi-upload"></i> Restaurar
+            </button>
+
+
+            {% if user_role == 'admin' %}
+            <div class="form-check form-switch small mt-2">
+              <input class="form-check-input" type="checkbox" id="maintenanceSwitch"
+                onchange="toggleMaintenance(this.checked)" {{ 'checked' if maintenance_mode else '' }}>
+              <label class="form-check-label" for="maintenanceSwitch">Mantenimiento</label>
+            </div>
+            {% endif %}
           </div>
         </div>
       </div>
@@ -235,13 +283,8 @@
     <!-- ======= FIN RESUMEN AMPLIADO ======= -->
 
     <!-- Botones de backup -->
-    <div class="d-flex gap-2 justify-content-center mb-3">
-      <a class="btn btn-outline-secondary btn-sm" href="/backup/latest.zip"><i class="bi bi-download"></i> Último
-        Backup</a>
-      <button type="button" class="btn btn-outline-info btn-sm" id="btnShowGraphs">
-        <i class="bi bi-graph-up"></i> Ver Gráficas
-      </button>
-    </div>
+    <!-- Botones de backup MOVIDOS A TARJETAS -->
+    <!-- (Eliminado bloque flotante) -->
 
     <!-- Solo errores graves si el backend los envía en 'error' -->
     {% if error %}
@@ -528,6 +571,35 @@
             <button type="button" class="btn btn-secondary btn-sm" data-bs-dismiss="modal">Cancelar</button>
           </div>
         </div>
+      </div>
+    </div>
+
+    <!-- Modal Restaurar Backup -->
+    <div class="modal fade" id="modalRestore" tabindex="-1" aria-hidden="true">
+      <div class="modal-dialog">
+        <form method="POST" action="{{ url_for('backup_restore_upload') }}" enctype="multipart/form-data"
+          class="modal-content"
+          onsubmit="return confirm('⚠️ PELIGRO: ESTA ACCIÓN SOBRESCRIBIRÁ TODOS LOS DATOS ACTUALES.\n\nSe creará una copia de seguridad automática antes de restaurar.\n\n¿Estás seguro de continuar?');">
+          <div class="modal-header">
+            <h5 class="modal-title text-primary"><i class="bi bi-upload me-2"></i>Restaurar Backup</h5>
+            <button type="button" class="btn-close" data-bs-dismiss="modal" aria-label="Cerrar"></button>
+          </div>
+          <div class="modal-body">
+            <div class="alert alert-warning small">
+              <i class="bi bi-exclamation-triangle-fill me-1"></i>
+              <strong>Atención:</strong> Vas a importar una copia de seguridad.<br>
+              Todos los datos actuales serán reemplazados por los del archivo.
+            </div>
+            <div class="mb-3">
+              <label for="backup_file" class="form-label">Archivo ZIP</label>
+              <input type="file" class="form-control" name="backup_file" id="backup_file" accept=".zip" required>
+            </div>
+          </div>
+          <div class="modal-footer">
+            <button type="submit" class="btn btn-primary">Restaurar ahora</button>
+            <button type="button" class="btn btn-secondary" data-bs-dismiss="modal">Cancelar</button>
+          </div>
+        </form>
       </div>
     </div>
 
@@ -2171,6 +2243,91 @@
         for (let i = 0; i < key.length; i++) hash = key.charCodeAt(i) + ((hash << 5) - hash);
         const c = (hash & 0x00FFFFFF).toString(16).toUpperCase();
         return "#" + "00000".substring(0, 6 - c.length) + c;
+      }
+      // --- Toggle Maintenance ---
+      async function toggleMaintenance(active) {
+        try {
+          // Revert checkbox state immediately (optimistic UI causing issues if fail, but better UX usually)
+          // We'll let reload handle the state.
+          const res = await fetch('/maintenance/toggle', {
+            method: 'POST',
+            headers: { 'Content-Type': 'application/json' },
+            body: JSON.stringify({ active: active })
+          });
+          if (res.ok) {
+            window.location.reload();
+          } else {
+            const d = await res.json();
+            alert("Error: " + (d.error || res.statusText));
+            // revert checkbox if exists
+            const el = document.getElementById('maintenanceSwitch');
+            if (el) el.checked = !active;
+          }
+        } catch (e) {
+          alert("Error de conexión: " + e);
+          if (el) el.checked = !active;
+        }
+      }
+
+      async function runDiagnostics() {
+        const btn = document.getElementById("runDiagnosticsBtn");
+        if (!btn) return;
+        const orig = btn.innerHTML;
+        btn.disabled = true;
+        btn.innerHTML = `<span class="spinner-border spinner-border-sm me-1"></span>`;
+
+        try {
+          const r = await fetch("/api/run-diagnostics", { method: "POST" });
+          const d = await r.json();
+
+          if (r.ok && d.ok) {
+            showInlineToast("success", "Autodiagnóstico: TODO OK");
+          } else {
+            showInlineToast("danger", "Autodiagnóstico: FALLO (ver notificaciones)");
+          }
+        } catch (e) {
+          showInlineToast("danger", "Error de red al ejecutar diagnósticos");
+        } finally {
+          if (btn) {
+            btn.disabled = false;
+            btn.innerHTML = orig;
+          }
+        }
+      }
+      async function runDiagnostics() {
+        const btn = document.getElementById("runDiagnosticsBtn");
+        const orig = btn.innerHTML;
+        btn.disabled = true;
+        btn.innerHTML = `<span class="spinner-border spinner-border-sm me-1"></span> Ejecutando...`;
+
+        try {
+          const r = await fetch("/api/run-diagnostics", { method: "POST" });
+          const d = await r.json();
+
+          if (r.ok && d.ok) {
+            showInlineToast("success", "Autodiagnóstico: TODO OK");
+          } else {
+            showInlineToast("danger", "Autodiagnóstico: FALLO (ver notificaciones)");
+            console.error("Diagnostics Output:", d.output);
+          }
+          // Recargar notificaciones para ver el resultado registrado
+          if (typeof renderList === 'function') {
+            // Pequeño delay para asegurar que el backend escribió
+            setTimeout(() => {
+              // Hack: forzar recarga recargando la página o re-fetch si tuviéramos endpoint
+              // Como renderList usa `serverMessages` inyectado, necesitamos reload completo o fetch notifs.
+              // Por simplicidad, recargamos notificaciones vía API si existiera endpoint GET, 
+              // pero como no lo hay expuesto fácil para JSON, haremos reload parcial o dejaremos que el usuario vea la campana
+              // Mejor: reload de la página tras éxito/fallo crítico si queremos ver la notificación ya.
+              // O simplemente avisar.
+            }, 1000);
+          }
+        } catch (e) {
+          showInlineToast("danger", "Error de red al ejecutar diagnósticos");
+        } finally {
+          btn.disabled = false;
+          btn.innerHTML = orig;
+        }
       }
     </script>
 </body>

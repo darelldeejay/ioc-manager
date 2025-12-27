@@ -8,6 +8,8 @@ import ipaddress
 import os
 import re
 import json
+import shutil
+import zipfile
 from functools import wraps
 import threading
 import time
@@ -16,7 +18,9 @@ import hashlib
 from werkzeug.security import generate_password_hash, check_password_hash
 from dotenv import load_dotenv
 from filelock import FileLock, Timeout
-
+import sys
+import subprocess
+import requests
 
 load_dotenv()
 
@@ -28,6 +32,16 @@ mimetypes.add_type('application/javascript', '.js')
 app = Flask(__name__)
 # Clave secreta desde .env
 app.secret_key = os.getenv('FLASK_SECRET_KEY', 'dev-key-insegura-si-falta-env')
+TOKEN_API = os.getenv("TOKEN_API")
+TEAMS_WEBHOOK_URL = os.getenv("TEAMS_WEBHOOK_URL")
+MAINTENANCE_MODE = False
+
+
+@app.context_processor
+def inject_globals():
+    return {
+        'maintenance_mode': MAINTENANCE_MODE
+    }
 
 BASE_DIR = os.path.dirname(os.path.realpath(__file__))
 # Carpeta para datos adicionales de la API por tags
@@ -302,6 +316,178 @@ def repair_meta_sources():
     if changed:
         meta["by_ip"] = by_ip
         save_meta(meta)
+
+# -------- TEAMS NOTIFICATION HELPER (Async) --------
+def send_teams_alert(title, text, color="0076D7", sections=None):
+    """
+    Envía una tarjeta a MS Teams de forma ASÍNCRONA (hilo secundario).
+    No bloquea la ejecución principal.
+    
+    color: Hex string sin # (ej: '0076D7' azul, '28A745' verde, 'DC3545' rojo)
+    sections: Lista de dicts para secciones extra (ej: [{"activityTitle": "User:", "activitySubtitle": "admin"}])
+    """
+    if not TEAMS_WEBHOOK_URL:
+        # Si no hay URL configurada, ignoramos silenciosamente
+        return
+
+    def _send():
+        try:
+            payload = {
+                "@type": "MessageCard",
+                "@context": "http://schema.org/extensions",
+                "themeColor": color,
+                "summary": title,
+                "sections": [{
+                    "activityTitle": title,
+                    "activitySubtitle": text,
+                    "markdown": True
+                }]
+            }
+
+            if sections:
+                payload["sections"].extend(sections)
+            
+            # --- Anti-dedup / Timestamp ---
+            payload["sections"].append({
+                "activitySubtitle": f"_{datetime.now().strftime('%Y-%m-%d %H:%M:%S')}_"
+            })
+            # ------------------------------
+
+            # Timeout corto para no colgar hilos si Teams va mal
+            requests.post(TEAMS_WEBHOOK_URL, json=payload, timeout=5)
+        except Exception:
+            # Fallo silencioso intencionado para no llenar logs de errores de red irrelevantes
+            pass
+
+    # Lanzar en hilo daemon para que no bloquee el cierre de la app si quedase colgado
+    t = threading.Thread(target=_send)
+    t.daemon = True
+    t.start()
+
+
+class TeamsAggregator:
+    def __init__(self):
+        self.buffer_lock = threading.Lock()
+        self.buffer = []  # List of events: {'type': 'add|update', 'ip':..., 'user':..., 'source':...}
+        self.last_flush = time.time()
+        self.running = True
+        
+        # Start background flusher
+        self.t = threading.Thread(target=self._loop, daemon=True)
+        self.t.start()
+
+    def add_batch(self, added_items, updated_items, user="system", source="web", ticket=None):
+        if not added_items and not updated_items:
+            return
+
+        with self.buffer_lock:
+            # Add "Added" events
+            for sw in added_items:
+                self.buffer.append({
+                    "action": "add",
+                    "ip": sw["ip"],
+                    "tags": sw.get("tags", []),
+                    "ttl": sw.get("ttl", 0),
+                    "user": user,
+                    "source": source,
+                    "ticket": ticket or sw.get("alert_id"),
+                    "ts": time.time()
+                })
+            
+            # Add "Updated" events
+            for sw in updated_items:
+                self.buffer.append({
+                    "action": "update",
+                    "ip": sw["ip"],
+                    "tags": sw.get("tags", []),
+                    "old_ttl": sw.get("old_ttl"),
+                    "new_ttl": sw.get("new_ttl"),
+                    "user": user,
+                    "source": source,
+                    "ts": time.time()
+                })
+
+    def _loop(self):
+        while self.running:
+            time.sleep(5)  # Chequear cada 5s si toca flush (cada 60s)
+            
+            should_flush = False
+            with self.buffer_lock:
+                if self.buffer and (time.time() - self.last_flush > 60):
+                    should_flush = True
+            
+            if should_flush:
+                self.flush()
+
+    def flush(self):
+        with self.buffer_lock:
+            if not self.buffer:
+                return
+            
+            # Copiar y limpiar buffer
+            events = list(self.buffer)
+            self.buffer.clear()
+            self.last_flush = time.time()
+
+        # Procesar eventos fuera del lock
+        self._send_digest(events)
+
+    def _send_digest(self, events):
+        if not events:
+            return
+            
+        # Agrupar estadísticas
+        total_adds = sum(1 for e in events if e["action"] == "add")
+        total_updates = sum(1 for e in events if e["action"] == "update")
+        
+        # Obtener usuarios y fuentes únicos
+        users = {e["user"] for e in events}
+        sources = {e["source"] for e in events}
+        
+        user_str = ", ".join(users)
+        source_str = ", ".join(sources)
+        
+        # Título dinámico
+        title = f"🔔 Resumen IOC Manager ({len(events)} eventos)"
+        
+        # Construir cuerpo detallado (limitado a unos pocos ejemplos si son muchos)
+        detail_lines = []
+        
+        # Mostrar los primeros 5 adds
+        adds = [e for e in events if e["action"] == "add"]
+        if adds:
+            detail_lines.append(f"**Nuevas ({len(adds)}):**")
+            for e in adds[:5]:
+                ticket_info = f" (Ticket: {e['ticket']})" if e.get('ticket') else ""
+                detail_lines.append(f"- {e['ip']} [{', '.join(e['tags'])}] {ticket_info}")
+            if len(adds) > 5:
+                detail_lines.append(f"- ... y {len(adds)-5} más.")
+                
+        # Mostrar los primeros 5 updates
+        updates = [e for e in events if e["action"] == "update"]
+        if updates:
+            detail_lines.append(f"**Actualizadas ({len(updates)}):**")
+            for e in updates[:5]:
+                detail_lines.append(f"- {e['ip']} (TTL prolongado)")
+            if len(updates) > 5:
+                detail_lines.append(f"- ... y {len(updates)-5} más.")
+
+        text_body = "\n".join(detail_lines)
+        
+        sections = [
+            {"activityTitle": "Resumen", "activitySubtitle": f"Adds: {total_adds} | Updates: {total_updates}"},
+            {"activityTitle": "Contexto", "activitySubtitle": f"Usuarios: {user_str} | Origen: {source_str}"}
+        ]
+        
+        # Determinar color: Verde si hay adds, Azul si solo updates
+        color = "28A745" if total_adds > 0 else "0076D7"
+        
+        send_teams_alert(title, text_body, color, sections=sections)
+
+# Instancia global
+teams_aggregator = TeamsAggregator()
+
+
 
 def meta_bulk_del(ips):
     if not ips:
@@ -915,7 +1101,12 @@ def add_ips_validated(lines, existentes, iterable_ips, ttl_val, origin=None, con
     añadidas = 0
     rechazadas = 0
     updated = 0
-    added_lines = []  # para UNDO (solo de FEED_FILE si aplica)
+    added_lines = []  # para UNDO (solo de FEED_FILE si aplica) (backward compat, string line)
+    
+    # NEW: Detailed lists for Notification System
+    added_items = []    # List of dicts: {'ip':..., 'tags':..., 'ttl':...}
+    updated_items = []  # List of dicts: {'ip':..., 'old_ttl':..., 'new_ttl':..., 'tags':...}
+
     tags = _norm_tags(tags or [])
     # preparar expiración para meta/tag-files
     try:
@@ -983,6 +1174,15 @@ def add_ips_validated(lines, existentes, iterable_ips, ttl_val, origin=None, con
                                     fecha_hoy = datetime.now().strftime("%Y-%m-%d")
                                     lines[i] = f"{ip_str}|{fecha_hoy}|{ttl_days}"
                                     updated += 1
+                                    
+                                    # Collect detail
+                                    updated_items.append({
+                                        "ip": ip_str,
+                                        "tags": tags,
+                                        "old_ttl": old_ttl,
+                                        "new_ttl": ttl_days,
+                                        "alert_id": alert_id
+                                    })
 
                             except Exception:
                                 pass
@@ -1004,6 +1204,7 @@ def add_ips_validated(lines, existentes, iterable_ips, ttl_val, origin=None, con
         fecha = datetime.now().strftime("%Y-%m-%d")
 
         # FEED Multicliente (principal) solo si tiene ese tag
+        # FEED Multicliente (principal) solo si tiene ese tag
         if allow_multi:
             line_txt = f"{ip_str}|{fecha}|{ttl_val}"
             lines.append(line_txt)
@@ -1011,6 +1212,17 @@ def add_ips_validated(lines, existentes, iterable_ips, ttl_val, origin=None, con
             added_lines.append(line_txt)
             meta_set_origin(ip_str, origin or "manual")
             añadidas += 1
+            
+            # Collect detail
+            added_items.append({
+                "ip": ip_str,
+                "tags": tags,
+                "ttl": ttl_days,
+                "alert_id": alert_id
+            })
+    
+
+
 
         # FEED BPE si corresponde
         if allow_bpe:
@@ -1043,7 +1255,7 @@ def add_ips_validated(lines, existentes, iterable_ips, ttl_val, origin=None, con
         if ip_str not in existentes:
             añadidas += 1
 
-    return añadidas, rechazadas, added_lines, updated
+    return añadidas, rechazadas, added_lines, updated, added_items, updated_items
 
 
 
@@ -1821,6 +2033,55 @@ def test_notif():
     return render_template("test_notif.html", messages=messages)
 
 # Definición de Feeds (Extensible)
+# === MAINTENANCE MODE ===
+MAINTENANCE_MODE = False
+
+@app.before_request
+def check_maintenance():
+    # Permitir siempre estáticos y login/logout
+    if request.endpoint in ['static', 'login', 'logout', 'cleanup_inactive_sessions']:
+        return
+
+    # Si está activo el mantenimiento
+    if MAINTENANCE_MODE:
+        # Permitir al admin gestionar el mantenimiento y backups
+        # (Asumimos que el toggle y restore requieren ser admin, validado en la ruta)
+        if request.endpoint in ['maintenance_toggle', 'backup_restore_upload']:
+            return
+        
+        # Permitir lecturas (GET) para ver el estado, salvo que se quiera bloqueo total
+        if request.method == 'GET':
+             return
+        
+        # Bloquear escrituras (POST) para el resto
+        msg = "⚠️ Mantenimiento en curso. Las modificaciones están bloqueadas."
+        if request.is_json or request.headers.get("X-Requested-With") == "XMLHttpRequest":
+            return jsonify({"error": "MAINTENANCE_MODE", "message": msg}), 503
+        
+        flash(msg, "warning")
+        return redirect(url_for('index'))
+
+@app.route("/maintenance/toggle", methods=["POST"])
+@login_required
+def maintenance_toggle():
+    global MAINTENANCE_MODE
+    # Verificar Rol Admin (simple check de sesión o user_data)
+    # user = load_users().get(session.get("username"))
+    # if user.get("role") != "admin": ... (simplificado: confiamos en @login_required + check interno si hiciera falta)
+    # Por ahora permitimos toggle a cualquier usuario logueado o restringimos?
+    # Mejor restringir a admin si existe ese concepto estricto, pero user_role se carga dentro de view.
+    # Haremos un check rápido:
+    current_username = session.get("username")
+    all_users = load_users()
+    user_data = all_users.get(current_username, {})
+    if user_data.get("role") != "admin":
+         return jsonify({"ok": False, "error": "Solo admin puede activar mantenimiento"}), 403
+         
+    target = request.json.get("active", False)
+    MAINTENANCE_MODE = target
+    log("Mantenimiento", f"Cambiado a {MAINTENANCE_MODE} por {current_username}")
+    return jsonify({"ok": True, "active": MAINTENANCE_MODE})
+
 FEEDS_CONFIG = {
     "global":       {"label": "Global / Todos", "icon": "bi-globe", "virtual": True},
     "multicliente": {"file": FEED_FILE, "label": "Multicliente", "icon": "bi-hdd-network"},
@@ -1963,6 +2224,16 @@ def index():
             # Notifs + UNDO
             guardar_notif("warning", f"IP eliminada: {ip_to_delete}")
             flash(f"IP eliminada: {ip_to_delete}", "warning")
+            
+            # --- Notify Teams ---
+            send_teams_alert(
+                "🗑️ IP Eliminada (Manual)", 
+                f"IP: **{ip_to_delete}**\nUsuario: {session.get('username','admin')}", 
+                color="DC3545",
+                sections=[{"activityTitle": "User", "activitySubtitle": session.get('username','admin')}]
+            )
+            # --------------------
+
             if orig_line:
                 _set_last_action("delete", [orig_line])
 
@@ -2034,6 +2305,11 @@ def index():
             rejected_total = 0
             added_lines_acc = []
             
+            # --- Aggregation Lists ---
+            csv_added_objs = []
+            csv_updated_objs = []
+            # -------------------------
+
             # Detectar delimitador: ; o | o ,
             delimiter = ","
             header_check = "\n".join(content[:5])
@@ -2041,6 +2317,13 @@ def index():
                 delimiter = ";"
             elif "|" in header_check:
                 delimiter = "|"
+
+            # --- CRITICAL FIX: Reload Main Feed ---
+            # Don't use 'lines' from the view/filter, as it might be BPE/Global.
+            # We always write CSVs to the Main Feed (FEED_FILE).
+            lines = load_lines(FEED_FILE)
+            existentes = {l.split("|", 1)[0] for l in lines}
+            # -------------------------------------
             
             for raw_line in content:
                 raw_line = (raw_line or "").strip()
@@ -2081,7 +2364,7 @@ def index():
                     continue
 
                 # Inserción fila a fila para soportar metadata única
-                add_ok, add_bad, added_lines, _ = add_ips_validated(
+                add_ok, add_bad, added_lines, updated_count, added_objs, updated_objs = add_ips_validated(
                     lines, existentes, expanded,
                     ttl_val=ttl_csv_val,
                     origin="csv",
@@ -2093,9 +2376,22 @@ def index():
                 valid_ips_total += add_ok
                 rejected_total += add_bad
                 added_lines_acc.extend(added_lines)
+                
+                # Accumulate for Teams
+                csv_added_objs.extend(added_objs)
+                csv_updated_objs.extend(updated_objs)
 
             # 4) Persistir feed y notificar
             save_lines(lines, FEED_FILE)
+            
+            # --- Notify Teams (Batch) ---
+            teams_aggregator.add_batch(
+                csv_added_objs, 
+                csv_updated_objs, 
+                user=f"web/{session.get('username','admin')}", 
+                source="csv"
+            )
+            # ----------------------------
 
             if valid_ips_total:
                 try:
@@ -2178,11 +2474,22 @@ def index():
                         pre_notified = True
                         _audit("manual_rejected", f"web/{session.get('username','admin')}", single_ip, {"reason": reason})
 
-                add_ok, add_bad, added_lines, updated_ok = add_ips_validated(
+                add_ok, add_bad, added_lines, updated_ok, added_objs, updated_objs = add_ips_validated(
                     lines, existentes, expanded, ttl_val=ttl_val,
                     origin="manual", contador_ruta=COUNTER_MANUAL, tags=tags_manual,
                     alert_id=ticket_number
                 )
+                
+                # --- Notify Teams ---
+                teams_aggregator.add_batch(
+                    added_objs, 
+                    updated_objs, 
+                    user=f"web/{session.get('username','admin')}", 
+                    source="manual",
+                    ticket=ticket_number
+                )
+                teams_aggregator.flush() # Force flush for immediate manual feedback
+                # --------------------
 
                 if add_ok > 0 or updated_ok > 0:
 
@@ -2685,6 +2992,97 @@ def backup_now():
     return redirect(url_for("index"))
 
 
+@app.route("/backup/restore", methods=["POST"])
+@login_required
+def backup_restore_upload():
+    # Admin check (User Role)
+    current_username = session.get("username")
+    all_users = load_users()
+    user_data = all_users.get(current_username, {})
+    if user_data.get("role") != "admin":
+         flash("Solo admin puede restaurar backups.", "danger")
+         return redirect(url_for("index"))
+
+    # File check
+    if 'backup_file' not in request.files:
+         flash("No se ha subido ningún archivo.", "danger")
+         return redirect(url_for("index"))
+
+    file = request.files['backup_file']
+    if file.filename == "":
+         flash("Nombre de archivo vacío.", "danger")
+         return redirect(url_for("index"))
+
+    if not file.filename.endswith(".zip"):
+         flash("El archivo debe ser un .zip", "danger")
+         return redirect(url_for("index"))
+
+    try:
+         # 1. Safety Backup (Always)
+         perform_manual_backup() 
+
+         # 2. Save Upload
+         temp_dir = os.path.join(BASE_DIR, "temp_restore")
+         if os.path.exists(temp_dir):
+             shutil.rmtree(temp_dir)
+         os.makedirs(temp_dir)
+         
+         zip_path = os.path.join(temp_dir, "uploaded.zip")
+         file.save(zip_path)
+
+         # 3. Validation & Unzip
+         with zipfile.ZipFile(zip_path, 'r') as zip_ref:
+              zip_ref.extractall(temp_dir)
+         
+         # Sanity Check
+         if not os.path.exists(os.path.join(temp_dir, "ioc-feed.txt")):
+              raise Exception("ZIP inválido: falta ioc-feed.txt")
+
+         # 4. Restore (Overwrite)
+         # Root files
+         restore_list = ["ioc-feed.txt", "ioc-feed-bpe.txt", "ioc-feed-test.txt", 
+                         "ioc-log.txt", "notif-log.json", "audit-log.jsonl", 
+                         "users.json", ".env", "ioc-meta.json"] 
+                         # Nota: ioc-meta.json suele estar en data/ en app original 
+                         # pero en el ZIP de backup flat se guarda en root? 
+                         # REVISAR _backup_critical_files: copia META_FILE (data/ioc-meta.json) a DEST.
+                         # DEST es root del zip. ASI QUE SÍ, está en root del zip.
+                         # AL RESTAURAR debemos ponerlo en data/ioc-meta.json.
+         
+         for fname in restore_list:
+              src = os.path.join(temp_dir, fname)
+              if fname == "ioc-meta.json":
+                   dst = META_FILE # rutas absolutas definidas arriba
+              elif fname == "ioc-feed-test.txt":
+                   dst = FEED_FILE_TEST
+              else:
+                   dst = os.path.join(BASE_DIR, fname)
+              
+              if os.path.exists(src):
+                  if os.path.exists(dst): os.remove(dst)
+                  shutil.move(src, dst)
+         
+         # Restore 'data' folder
+         src_data = os.path.join(temp_dir, "data")
+         if os.path.isdir(src_data):
+              dst_data = DATA_DIR
+              shutil.copytree(src_data, dst_data, dirs_exist_ok=True)
+         
+         # 5. Cleanup
+         try: shutil.rmtree(temp_dir)
+         except: pass
+
+         flash("Backup restaurado correctamente. Se creó copia de seguridad previa.", "success")
+         guardar_notif("warning", f"Backup restaurado por {current_username}")
+         _audit("restore_backup", f"web/{current_username}", {}, {"file": file.filename})
+
+    except Exception as e:
+         flash(f"Error al restaurar: {str(e)}", "danger")
+         print(f"Restore Error: {e}")
+    
+    return redirect(url_for("index"))
+
+
 @app.route("/backup/list")
 @login_required
 def backup_list():
@@ -3054,7 +3452,7 @@ def bloquear_ip_api():
                 item_result = {"count": 0, "ips": []}
                 
                 # Usar la función centralizada para garantizar consistencia y CONTADORES
-                add_ok, add_bad, added_lines_item, updated_item = add_ips_validated(
+                add_ok, add_bad, added_lines_item, updated_item, added_objs, updated_objs = add_ips_validated(
                     lines, existentes, targets,
                     ttl_val=ttl_days,  # Convertido arriba
                     origin="api",
@@ -3063,6 +3461,17 @@ def bloquear_ip_api():
                     alert_id=alert_id,
                     force=force
                 )
+                
+                # --- Notify Teams ---
+                # Use Token or API Actor as user
+                teams_aggregator.add_batch(
+                    added_objs, 
+                    updated_objs, 
+                    user=g.get("api_actor", "api"), 
+                    source="api",
+                    ticket=alert_id
+                )
+                # --------------------
 
                 # Re-cargar meta para obtener los detalles frescos
                 meta = load_meta()
@@ -3127,6 +3536,7 @@ def bloquear_ip_api():
             _remove_ip_from_feed(ip_txt, FEED_FILE_BPE)
             meta_del_ip(ip_txt)
             _audit("api_delete_global", g.get("api_actor","api"), ip_txt, {"detail": "no_meta_global"})
+            send_teams_alert(f"🗑️ IP Eliminada (API)", f"IP: **{ip_txt}**\nMotivo: Sin metadata/Global", color="DC3545", sections=[{"activityTitle": "User", "activitySubtitle": g.get("api_actor","api")}])
             return jsonify({"status": "deleted", "ip": ip_txt, "scope": "global"}), 200
         else:
             _audit("api_delete_not_found", g.get("api_actor","api"), ip_txt, {"tags": tags})
@@ -3140,6 +3550,7 @@ def bloquear_ip_api():
         _remove_ip_from_feed(ip_txt, FEED_FILE_BPE)
         meta_del_ip(ip_txt)
         _audit("api_delete_all_tags", g.get("api_actor","api"), ip_txt, {})
+        send_teams_alert(f"🗑️ IP Eliminada (API)", f"IP: **{ip_txt}**\nScope: Global (todos los tags)", color="DC3545", sections=[{"activityTitle": "User", "activitySubtitle": g.get("api_actor","api")}])
         return jsonify({"status": "deleted", "ip": ip_txt, "scope": "global"}), 200
     else:
         # borrar solo tags indicados
@@ -3168,10 +3579,12 @@ def bloquear_ip_api():
             meta_del_ip(ip_txt)
             save_meta(meta)
             _audit("api_delete_all_tags_cleanup", g.get("api_actor","api"), ip_txt, {})
+            send_teams_alert(f"🗑️ IP Eliminada (API)", f"IP: **{ip_txt}**\nScope: Cleanup (sin tags restantes)", color="DC3545", sections=[{"activityTitle": "User", "activitySubtitle": g.get("api_actor","api")}])
             return jsonify({"status": "deleted", "ip": ip_txt, "scope": "all_tags"}), 200
         else:
             save_meta(meta)
             _audit("api_delete_some_tags", g.get("api_actor","api"), ip_txt, {"remaining": remaining})
+            send_teams_alert(f"🔄 IP Actualizada (Tags)", f"IP: **{ip_txt}**\nQuitado: {tags}\nRestan: {remaining}", color="0076D7", sections=[{"activityTitle": "User", "activitySubtitle": g.get("api_actor","api")}])
             return jsonify({"status": "updated", "ip": ip_txt, "remaining_tags": remaining}), 200
 
 
@@ -3278,6 +3691,33 @@ def api_remove_tag():
         return json_response_ok([], {"message": f"Tag '{tag}' eliminado de {ip}"})
     except Exception as e:
         return json_response_error(f"Error interno: {str(e)}", 500)
+
+
+@app.route("/api/run-diagnostics", methods=["POST"])
+@login_required
+def api_run_diagnostics():
+    """
+    Ejecuta el script de pruebas unitarias (run_tests.py) y devuelve el resultado.
+    """
+    if session.get("role") not in ("admin", "editor"):
+        return json_response_error("No tienes permisos para ejecutar diagnósticos.", 403)
+
+    try:
+        # Ejecutar run_tests.py en un subproceso
+        cmd = [sys.executable, "run_tests.py"]
+        result = subprocess.run(cmd, cwd=BASE_DIR, capture_output=True, text=True)
+        
+        ok = (result.returncode == 0)
+        output = result.stderr + "\n" + result.stdout # unittest often writes to stderr
+        
+        # Guardar notificación
+        msg = "Autodiagnóstico: OK" if ok else "Autodiagnóstico: FALLO"
+        cat = "success" if ok else "danger"
+        guardar_notif(cat, msg)
+        
+        return json_response_ok(extra={"ok": ok, "output": output})
+    except Exception as e:
+        return json_response_error(f"Error ejecutando tests: {str(e)}", 500)
 
 
 if __name__ == "__main__":

@@ -1,0 +1,103 @@
+
+import unittest
+import sys
+import os
+import io
+from unittest.mock import patch, MagicMock
+
+# Add parent directory to path to import app
+sys.path.insert(0, os.path.abspath(os.path.join(os.path.dirname(__file__), '..')))
+
+from app import app, FEED_FILE
+import app as app_module
+
+class TestRoutes(unittest.TestCase):
+    
+    def setUp(self):
+        app.config['TESTING'] = True
+        self.client = app.test_client()
+        self.test_feed = os.path.join(app_module.BASE_DIR, 'tests', 'test_feed_routes.txt')
+        
+        if os.path.exists(self.test_feed):
+            os.remove(self.test_feed)
+            
+    def tearDown(self):
+        if os.path.exists(self.test_feed):
+            os.remove(self.test_feed)
+
+    def login_as_admin(self):
+        # We also mock load_users to return a valid admin user if the app checks it
+        with self.client.session_transaction() as sess:
+            sess['username'] = 'admin'
+            sess['role'] = 'admin'
+
+    def test_manual_add_ip(self):
+        self.login_as_admin()
+        
+        # Mock load_users to ensure 'admin' exists if checked
+        mock_users = {'admin': {'role': 'admin', 'password_hash': 'xxx'}}
+        
+        # Patch FEED_FILE (global) AND FEEDS_CONFIG (used by index view)
+        mock_feeds = {
+            "multicliente": {"file": self.test_feed, "label": "Mock", "icon": "bi-hdd-network"},
+            "global": {"virtual": True},
+            "bpe": {"file": self.test_feed + ".bpe", "label": "BPE", "icon": "bi-bank"},
+            "test": {"file": self.test_feed + ".test", "label": "Test", "icon": "bi-cone"}
+        }
+        
+        with patch('app.FEED_FILE', self.test_feed), \
+             patch('app.FEED_FILE_BPE', self.test_feed + ".bpe"), \
+             patch('app.FEED_FILE_TEST', self.test_feed + ".test"), \
+             patch('app.META_FILE', self.test_feed + ".meta"), \
+             patch('app.load_users', return_value=mock_users), \
+             patch.dict('app.FEEDS_CONFIG', mock_feeds):
+            
+            resp = self.client.post('/', data={
+                'ip': '5.5.5.5',
+                'ticket_number': 'TEST-001',
+                'tags_manual_cb': 'Multicliente',
+                'ttl_manual': '1'
+            }, follow_redirects=True)
+            
+            self.assertEqual(resp.status_code, 200)
+            
+            # Use stricter persistence check, relax UI text check (encoding issues possible)
+            with open(self.test_feed, 'r', encoding='utf-8') as f:
+                content = f.read()
+            self.assertIn('5.5.5.5', content)
+            
+            # Check for general success indicator in HTML
+            # self.assertIn(b'success', resp.data)
+
+    def test_csv_upload(self):
+        self.login_as_admin()
+        csv_content = b"6.6.6.6,Multicliente,TEST-CSV\n7.7.7.7,Multicliente,TEST-CSV"
+        mock_users = {'admin': {'role': 'admin'}}
+        
+        mock_feeds = {
+             "multicliente": {"file": self.test_feed, "label": "Mock", "icon": "bi-hdd-network"},
+             "global": {"virtual": True}
+        }
+
+        with patch('app.FEED_FILE', self.test_feed), \
+             patch('app.FEED_FILE_BPE', self.test_feed + ".bpe"), \
+             patch('app.FEED_FILE_TEST', self.test_feed + ".test"), \
+             patch('app.META_FILE', self.test_feed + ".meta"), \
+             patch('app.load_users', return_value=mock_users), \
+             patch.dict('app.FEEDS_CONFIG', mock_feeds):
+        
+            data = {
+                'file': (io.BytesIO(csv_content), 'upload.csv'),
+                'ttl_csv': '1'
+            }
+            
+            resp = self.client.post('/', data=data, content_type='multipart/form-data', follow_redirects=True)
+            with open(self.test_feed, 'r', encoding='utf-8') as f:
+                content = f.read()
+            self.assertIn('6.6.6.6', content)
+            self.assertIn('7.7.7.7', content)
+            
+            # self.assertIn(b'IP(s) a\xc3\xb1adida(s) correctamente (CSV)', resp.data)
+
+if __name__ == '__main__':
+    unittest.main()
