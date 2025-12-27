@@ -379,7 +379,7 @@ class TeamsAggregator:
     def add_batch(self, added_items, updated_items, user="system", source="web", ticket=None):
         if not added_items and not updated_items:
             return
-
+        
         with self.buffer_lock:
             # Add "Added" events
             for sw in added_items:
@@ -402,8 +402,10 @@ class TeamsAggregator:
                     "tags": sw.get("tags", []),
                     "old_ttl": sw.get("old_ttl"),
                     "new_ttl": sw.get("new_ttl"),
+                    "new_ttl": sw.get("new_ttl"),
                     "user": user,
                     "source": source,
+                    "ticket": ticket or sw.get("alert_id"),
                     "ts": time.time()
                 })
 
@@ -413,8 +415,10 @@ class TeamsAggregator:
             
             should_flush = False
             with self.buffer_lock:
-                if self.buffer and (time.time() - self.last_flush > 60):
-                    should_flush = True
+                if self.buffer:
+                   # print(f"[TeamsAggregator] Buffer size: {len(self.buffer)}, Last Flush: {time.time() - self.last_flush:.1f}s ago")
+                   if (time.time() - self.last_flush > 60):
+                       should_flush = True
             
             if should_flush:
                 self.flush()
@@ -429,7 +433,6 @@ class TeamsAggregator:
             self.buffer.clear()
             self.last_flush = time.time()
 
-        # Procesar eventos fuera del lock
         self._send_digest(events)
 
     def _send_digest(self, events):
@@ -468,7 +471,16 @@ class TeamsAggregator:
         if updates:
             detail_lines.append(f"**Actualizadas ({len(updates)}):**")
             for e in updates[:5]:
-                detail_lines.append(f"- {e['ip']} (TTL prolongado)")
+                ticket_info = f" (Ticket: {e.get('ticket')})" if e.get('ticket') else ""
+                tags_info = f" [{', '.join(e.get('tags', []))}]" if e.get('tags') else ""
+                
+                parts = []
+                if e.get("new_ttl") != e.get("old_ttl"):
+                    parts.append("TTL updated")
+                else:
+                    parts.append("Updated")
+                
+                detail_lines.append(f"- {e['ip']}{tags_info}{ticket_info} ({', '.join(parts)})")
             if len(updates) > 5:
                 detail_lines.append(f"- ... y {len(updates)-5} más.")
 
@@ -1049,30 +1061,7 @@ def _remove_tag_meta(ip, tag_to_remove):
             save_meta(meta)
 
 
-def _remove_tag_meta(ip, tag_to_remove):
-    """Elimina un tag de la lista de tags en META_FILE."""
-    meta = load_meta()
-    details = meta.get("ip_details", {})
-    entry = details.get(ip)
-    
-    if entry and "tags" in entry:
-        old_tags = entry["tags"]
-        if tag_to_remove in old_tags:
-            new_tags = [t for t in old_tags if t != tag_to_remove]
-            entry["tags"] = new_tags
-            entry["last_update"] = _iso(_now_utc())
-            
-            # Registrar en historial del objeto
-            entry.setdefault("history", []).append({
-                "ts": _iso(_now_utc()),
-                "action": "remove_tag",
-                "tag_removed": tag_to_remove,
-                "source": "web"
-            })
-            
-            details[ip] = entry
-            meta["ip_details"] = details
-            save_meta(meta)
+
 def _already_same(entry, tags, expires_at):
     """
     Comprueba si tags y expiración son iguales.
@@ -1121,12 +1110,16 @@ def add_ips_validated(lines, existentes, iterable_ips, ttl_val, origin=None, con
     allow_bpe = "BPE" in tags
     allow_test = "Test" in tags
 
+
     for ip_str in iterable_ips:
+        # print(f"[DEBUG VALIDATE] Checking {ip_str}. Tags={tags}")
         if not (allow_multi or allow_bpe or allow_test):
+            print(f"[DEBUG VALIDATE] REJECTED {ip_str}: No allowed tags (Test/BPE/Multi)")
             rechazadas += 1
             continue
 
         if not is_allowed_ip(ip_str):
+            print(f"[DEBUG VALIDATE] REJECTED {ip_str}: Not allowed (private/bogon?)")
             rechazadas += 1
             continue
         try:
@@ -1144,6 +1137,18 @@ def add_ips_validated(lines, existentes, iterable_ips, ttl_val, origin=None, con
             for t in tags:
                 _write_tag_line(t, ip_str, _now_utc(), ttl_seconds, expires_at_dt, origin or "manual", entry["tags"])
             
+            # --- NOTIFICACIÓN DE UPDATE (TAGS/MERGE) ---
+            # Si se ha modificado la entrada (verificamos si hubo cambios reales o asumimos update por merge)
+            # Para simplificar y garantizar notificación en API, lo marcamos como update.
+            updated_items.append({
+                "ip": ip_str,
+                "tags": entry.get("tags", tags),
+                "old_ttl": None, # No sabemos el previo fácilmente aquí sin leer líneas, pero es un update de tags seguro
+                "new_ttl": ttl_days,
+                "alert_id": alert_id
+            })
+            # -------------------------------------------
+                        
             # --- FIX: Actualizar línea en feed principal si el TTL se extiende O si es FORCE ---
             if allow_multi and (ttl_days > 0 or force):
                 # Buscar la línea existente
@@ -1206,20 +1211,54 @@ def add_ips_validated(lines, existentes, iterable_ips, ttl_val, origin=None, con
         # FEED Multicliente (principal) solo si tiene ese tag
         # FEED Multicliente (principal) solo si tiene ese tag
         if allow_multi:
+            # FEED Multicliente (principal)
             line_txt = f"{ip_str}|{fecha}|{ttl_val}"
             lines.append(line_txt)
             existentes.add(ip_str)
             added_lines.append(line_txt)
+            
+            # Solo si es multicliente guardamos origen en meta principal (aunque meta soporta todos)
+            # Actualmente meta_set_origin usa ip_str. 
             meta_set_origin(ip_str, origin or "manual")
             añadidas += 1
             
-            # Collect detail
-            added_items.append({
-                "ip": ip_str,
-                "tags": tags,
-                "ttl": ttl_days,
-                "alert_id": alert_id
-            })
+        # FEED BPE / Test (Adicionales o Exclusivos)
+        if allow_bpe:
+            _append_line_unique(FEED_FILE_BPE, f"{ip_str}|{fecha}|{ttl_val}")
+            # Si no era multi, igual cuenta como añadida al sistema?
+            if not allow_multi:
+                # Si es exclusiva BPE, la contamos? 
+                # El contador 'añadidas' suele referirse al feed principal.
+                # Pero para notificación Teams, queremos saberlo.
+                pass
+
+        if allow_test:
+            _append_line_unique(FEED_FILE_TEST, f"{ip_str}|{fecha}|{ttl_val}")
+
+        # Meta tags (importante: registrar tags en meta y archivos .tag)
+        # Aunque sea nueva, necesitamos crear la entrada en meta para los tags
+        # Si allow_multi ya lo hizo meta_set_origin? No, meta_set_origin solo pone el origen.
+        # Necesitamos _merge_meta_tags para crear el objeto con tags initiales.
+        # O _write_tag_line.
+        
+        # Crear entrada en meta (upsert)
+        entry = _merge_meta_tags(ip_str, tags, expires_at_dt, origin or "manual", note="web", alert_id=alert_id)
+        for t in tags:
+            _write_tag_line(t, ip_str, _now_utc(), ttl_seconds, expires_at_dt, origin or "manual", entry["tags"])
+
+        # Notificación para Teams (Siempre que se haya procesado)
+        added_items.append({
+            "ip": ip_str,
+            "tags": tags,
+            "ttl": ttl_days,
+            "alert_id": alert_id
+        })
+        
+        # Si NO era multi, debemos incrementar 'añadidas' para que la API responda > 0?
+        # La API usa 'add_ok' que viene de 'añadidas'.
+        # Si es solo Test, 'añadidas' era 0.
+        if not allow_multi:
+            añadidas += 1  # Consideramos éxito si se añadió a CUALQUIER feed permitido
     
 
 
@@ -3406,8 +3445,9 @@ def bloquear_ip_api():
         force = bool(payload.get("force", False))
 
         # Estado actual del feed principal
-        lines = load_lines(FEED_FILE)
-        existentes = {l.split("|", 1)[0] for l in lines}
+        # Estado actual de TODOS los feeds para detectar duplicados globales
+        lines = load_lines(FEED_FILE) # Necesitamos lines del main feed para pasarlo a add_ips_validated
+        existentes = _active_ip_union()
 
         processed, errors = [], []
 
@@ -3463,7 +3503,6 @@ def bloquear_ip_api():
                 )
                 
                 # --- Notify Teams ---
-                # Use Token or API Actor as user
                 teams_aggregator.add_batch(
                     added_objs, 
                     updated_objs, 
@@ -3471,6 +3510,9 @@ def bloquear_ip_api():
                     source="api",
                     ticket=alert_id
                 )
+                # Force flush for API to provide immediate feedback during tests
+                # In high-volume production, consider removing this or making it conditional
+                teams_aggregator.flush()
                 # --------------------
 
                 # Re-cargar meta para obtener los detalles frescos
@@ -3493,6 +3535,9 @@ def bloquear_ip_api():
                 item_result["count"] = add_ok + updated_item
                 processed.append(item_result)
             except Exception as e:
+                print(f"[API ERROR] Index {idx} failed: {e}", flush=True)
+                import traceback
+                traceback.print_exc()
                 errors.append({"index": idx, "error": str(e)})
 
         # Guardar feed si cambió
