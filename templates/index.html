@@ -154,15 +154,7 @@
     <!-- ======= RESUMEN AMPLIADO ======= -->
     <!-- NUEVAS TARJETAS DE RESUMEN -->
     <!-- Tabs de Feeds (Dinámico) -->
-    <ul class="nav nav-tabs mb-3">
-      {% for key, cfg in feeds_config.items() %}
-      <li class="nav-item">
-        <a class="nav-link {{ 'active' if current_feed == key else '' }}" href="{{ url_for('index', feed=key) }}">
-          <i class="{{ cfg.icon }} me-1"></i> {{ cfg.label }}
-        </a>
-      </li>
-      {% endfor %}
-    </ul>
+    <!-- Tabs de Feeds ELIMINADOS por redundancia (se usa filtro Tag) -->
 
     <!-- NUEVAS TARJETAS DE RESUMEN -->
     <div class="row g-3 mb-4">
@@ -563,9 +555,17 @@
           <label class="form-label small mb-1">Tag</label>
           <select id="tagSelect" class="form-select">
             <option value="all">Todos</option>
-            <option value="Multicliente">Multicliente</option>
-            <option value="BPE">BPE</option>
-            <option value="Test">Test</option>
+            {% set pinned = ['Multicliente', 'BPE', 'Test'] %}
+            <!-- Pinned tags first -->
+            {% for p in pinned %}
+            <option value="{{ p }}">{{ p }}</option>
+            {% endfor %}
+            <!-- Other tags dynamically -->
+            {% for t in known_tags %}
+            {% if t not in pinned %}
+            <option value="{{ t }}">{{ t }}</option>
+            {% endif %}
+            {% endfor %}
           </select>
         </div>
         <div class="d-flex gap-2">
@@ -627,11 +627,11 @@
         <table class="table table-sm table-striped table-hover align-middle" id="tablaIps" style="font-size: 0.9rem;">
           <thead>
             <tr>
-              <th style="width: 40px;" class="text-center">
-                <input type="checkbox" id="chkAll">
+              <th scope="col" style="width: 40px;">
+                <input type="checkbox" id="chkAll" title="Seleccionar todo">
               </th>
-              <th style="width: 15%; min-width: 150px !important;">IP</th>
-              <th style="width: 12%; min-width: 110px !important;">Fecha</th>
+              <th scope="col" style="width: 15%; min-width: 150px !important;">IP</th>
+              <th scope="col" style="width: 12%; min-width: 110px !important;">Fecha Alta</th>
               <th style="width: 80px; min-width: 80px !important;">TTL</th>
               <th style="width: 25%; min-width: 200px !important;">Tags</th>
               <th style="width: auto;">Alertas / Ticket</th>
@@ -821,7 +821,7 @@
     </div>
 
     <!-- Portal de toasts (Posicionado Arriba Derecha) -->
-    <div id="toast-portal" class="toast-container position-fixed top-0 end-0 p-3" style="z-index: 1090;"></div>
+    <div id="toast-portal" class="toast-container position-fixed top-0 end-0 p-3" style="z-index: 9999;"></div>
 
     <script>
 
@@ -1104,6 +1104,28 @@
          Estado de tabla (server-side)
          ======================================================== */
       const USER_ROLE = "{{ user_role }}"; // injected by server
+      const CURRENT_FEED_KEY = "{{ current_feed|default('global') }}".toLowerCase();
+
+      // Sincronizar Dropdown de Tags con la Pestaña (Feed) activa para mantener consistencia
+      (function syncFeedToTag() {
+        // Mapeo de claves de feed (app.py) a valores del select (HTML)
+        const map = {
+          'multicliente': 'Multicliente',
+          'bpe': 'BPE',
+          'test': 'Test',
+          'global': 'all'
+        };
+        const target = map[CURRENT_FEED_KEY] || 'all';
+        const sel = document.getElementById('tagSelect');
+        if (sel) {
+          // Solo forzamos si el select existe y tiene esa opción
+          if (sel.querySelector(`option[value="${target}"]`)) {
+            sel.value = target;
+          } else if (target === 'all') {
+            sel.value = 'all';
+          }
+        }
+      })();
 
       let serverMode = false;
       let tableState = {
@@ -1116,7 +1138,7 @@
         date_to: ''
       };
 
-      window.initInstantValidate = function () {// intentamos server JSON; si falla, fallback local
+      window.initNotificationsSystem = function () {// intentamos server JSON; si falla, fallback local
 
         /* ========================================================
            Buscador local (fallback)
@@ -1276,8 +1298,9 @@
           portal.appendChild(el);
           new bootstrap.Toast(el, { autohide: true, delay }).show();
         }
+        window.showInlineToast = showInlineToast;
 
-        document.getElementById('markReadBtn').addEventListener('click', async () => {
+        document.getElementById('markReadBtn')?.addEventListener('click', async () => {
           try { await fetch('/notifications/read-all', { method: 'POST' }); } catch (e) { }
           markAllReadUI();
           showInlineToast('success', 'Notificaciones marcadas como leídas');
@@ -1313,6 +1336,7 @@
           return bd - ad;
         });
 
+
         const listEl = document.getElementById('notifList');
         const pagEl = document.getElementById('notifPagination');
         const infoEl = document.getElementById('notifCountInfo');
@@ -1321,15 +1345,19 @@
         let filterDate = '';
         let currentPage = 1;
 
-        document.getElementById('applyFilters').addEventListener('click', () => {
-          filterType = document.getElementById('filterType').value;
-          filterDate = document.getElementById('filterDate').value;
+        document.getElementById('applyFilters')?.addEventListener('click', () => {
+          const ft = document.getElementById('filterType');
+          const fd = document.getElementById('filterDate');
+          if (ft) filterType = ft.value;
+          if (fd) filterDate = fd.value;
           currentPage = 1;
           renderList();
         });
-        document.getElementById('clearFilters').addEventListener('click', () => {
-          document.getElementById('filterType').value = '';
-          document.getElementById('filterDate').value = '';
+        document.getElementById('clearFilters')?.addEventListener('click', () => {
+          const ft = document.getElementById('filterType');
+          const fd = document.getElementById('filterDate');
+          if (ft) ft.value = '';
+          if (fd) fd.value = '';
           filterType = filterDate = '';
           currentPage = 1;
           renderList();
@@ -1362,29 +1390,34 @@
 
           listEl.innerHTML = '';
           if (data.length === 0) {
-            listEl.innerHTML = `<div class="p-2 text-danger small">
-            DEBUG: Count=0<br>
-            RawLen=${(window.serverMessages || []).length}<br>
-            Sample=${escapeHtml(JSON.stringify((window.serverMessages || []).slice(0, 1)))}
-        </div>`;
+            listEl.innerHTML = '<div class="p-2 text-muted small">No hay notificaciones recientes</div>';
           }
+
           pageItems.forEach(n => {
-            const cls = mapToastColor(n.category);
-            const pill = n.category === 'success' ? '✅' :
-              n.category === 'warning' ? '⚠️' :
-                (n.category === 'danger' || n.category === 'accion_no_permitida') ? '❌' : 'ℹ️';
-            const dtTxt = n.date ? n.date.toLocaleString() : '';
-            const item = document.createElement('div');
-            // FIX: Forzar text-dark porque bg-white no cambia el color de texto, y en modo oscuro el texto es blanco -> invisible
-            item.className = `border rounded p-2 bg-white text-dark mb-1`;
-            item.innerHTML = `
-        <div class="d-flex align-items-center justify-content-between">
-          <span class="badge text-bg-${cls}">${pill}</span>
-          <span class="small text-muted ms-2">${escapeHtml(dtTxt)}</span>
-        </div>
-        <div class="mt-1">${escapeHtml(n.message)}</div>
-      `;
-            listEl.appendChild(item);
+            try {
+              const cls = mapToastColor(n.category);
+              const pill = n.category === 'success' ? '✅' :
+                n.category === 'warning' ? '⚠️' :
+                  (n.category === 'danger' || n.category === 'accion_no_permitida') ? '❌' : 'ℹ️';
+
+              let dtTxt = '';
+              if (n.date && !isNaN(n.date.getTime())) {
+                try { dtTxt = n.date.toLocaleString(); } catch (e) { dtTxt = 'Fecha inválida'; }
+              }
+
+              const item = document.createElement('div');
+              item.className = `border rounded p-2 bg-white text-dark mb-1`;
+              item.innerHTML = `
+            <div class="d-flex align-items-center justify-content-between">
+              <span class="badge text-bg-${cls}">${pill}</span>
+              <span class="small text-muted ms-2">${escapeHtml(dtTxt)}</span>
+            </div>
+            <div class="mt-1">${escapeHtml(n.message)}</div>
+          `;
+              listEl.appendChild(item);
+            } catch (err) {
+              console.error("Error rendering item:", err);
+            }
           });
 
           pagEl.innerHTML = '';
@@ -1405,14 +1438,18 @@
             li.appendChild(a);
             return li;
           };
+
           const pages = Math.max(1, Math.ceil(data.length / PAGE_SIZE_NOTIF));
           pagEl.appendChild(mkPage(Math.max(1, currentPage - 1), '«', currentPage === 1, false));
           for (let p = 1; p <= pages; p++) pagEl.appendChild(mkPage(p, String(p), false, p === currentPage));
           pagEl.appendChild(mkPage(Math.min(pages, currentPage + 1), '»', currentPage >= pages, false));
         }
+        renderList();
 
-
-
+        // Exponer funciones cruciales
+        window.showInlineToast = showInlineToast;
+        window.renderList = renderList;
+        window.initNotificationsSystem = initNotificationsSystem;
       }
 
 
@@ -1603,11 +1640,13 @@
       };
 
       // Auto-run safely
+      // Init Validations
       if (typeof window.initInstantValidate === 'function') {
-        console.log("DEBUG: Auto-running initInstantValidate");
         window.initInstantValidate();
-      } else {
-        console.error("DEBUG: initInstantValidate is not a function");
+      }
+      // Init Notifications
+      if (typeof window.initNotificationsSystem === 'function') {
+        window.initNotificationsSystem();
       }
       function mapToastColor(cat) {
         if (cat === 'success') return 'success';
@@ -1644,30 +1683,40 @@
         if (btn) btn.disabled = (count === 0);
       }
 
+      /* ========================================================
+         Select All Logic
+         ======================================================== */
+      const selectAllCb = document.getElementById('chkAll');
+      if (selectAllCb) {
+        selectAllCb.checked = false; // Reset on load
+        selectAllCb.addEventListener('change', function () {
+          const isChecked = this.checked;
+          document.querySelectorAll('.row-chk').forEach(chk => {
+            chk.checked = isChecked;
+            const tr = chk.closest('tr');
+            if (tr) tr.classList.toggle('table-active-selected', isChecked);
+          });
+          updateBulkUI();
+        });
+      }
+
       function attachTableSelectionHandlers() {
         document.querySelectorAll('.row-chk').forEach(chk => {
-          chk.addEventListener('change', () => {
+          chk.addEventListener('change', function () {
+            const tr = this.closest('tr');
+            if (tr) tr.classList.toggle('table-active-selected', this.checked);
+
+            // Sync master
+            if (!this.checked && selectAllCb) selectAllCb.checked = false;
+            if (this.checked && selectAllCb) {
+              const all = document.querySelectorAll('.row-chk');
+              const allChecked = Array.from(all).every(c => c.checked);
+              selectAllCb.checked = allChecked;
+            }
+
             updateBulkUI();
-            const tr = chk.closest('tr');
-            if (tr) tr.classList.toggle('table-active-selected', !!chk.checked);
           });
         });
-
-        const master = document.getElementById('chkAll');
-        if (master) {
-          master.checked = false;
-          master.addEventListener('change', () => {
-            const rows = document.querySelectorAll('.row-chk');
-            rows.forEach(chk => {
-              chk.checked = master.checked;
-              const tr = chk.closest('tr');
-              if (tr) tr.classList.toggle('table-active-selected', !!chk.checked);
-            });
-            updateBulkUI();
-          });
-        }
-
-        updateBulkUI();
       }
 
       const tbody = document.querySelector('#tablaIps tbody');
@@ -1771,6 +1820,7 @@
       }
 
       function renderRows(items) {
+        if (selectAllCb) selectAllCb.checked = false; // Reset master on new page
         tbody.innerHTML = '';
         items.forEach((row) => {
           const tr = document.createElement('tr');

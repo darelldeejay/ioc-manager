@@ -2231,13 +2231,15 @@ def index():
 
     # 2) Historial persistente añadido al final (con fecha delante)
     messages = []
-    # messages.extend(request_actions)  <-- RIMOS DUPLICACIÓN
     try:
-        for n in get_notifs(limit=200):
-            cat = str(n.get("category", "secondary"))
-            msg = f"{n.get('time','')} {n.get('message','')}".strip()
-            messages.append({"category": cat, "message": msg})
-    except Exception:
+        data = get_notifs(limit=200)
+        if data:
+            for n in data:
+                cat = str(n.get("category", "secondary"))
+                msg = f"{n.get('time','')} {n.get('message','')}".strip()
+                messages.append({"category": cat, "message": msg})
+    except Exception as e:
+        print(f"Error reading notifications: {e}")
         pass
 
     # Unión para contadores / totales de cabecera
@@ -2304,9 +2306,14 @@ def index():
             if q:
                 if q not in r["ip"].lower() and q not in r.get("origen","").lower():
                     # check tags
-                    tgs = ip_tags_map.get(r["ip"], set())
-                    if not any(q in t.lower() for t in tgs):
+                    tgs_dbg = ip_tags_map.get(r["ip"], set())
+                    if not any(q in t.lower() for t in tgs_dbg):
                         continue
+            
+            # DEBUG TAG
+            if f_tag and f_tag != "all":
+                 if r["ip"] == "8.8.4.4": # IP conocida del BPE
+                      print(f"DEBUG: Checking 8.8.4.4 for tag={f_tag}. rec_bpe? {r['ip'] in rec_bpe}")
             
             # 2. Filtro Origin
             if f_origin and f_origin != "all":
@@ -2317,7 +2324,13 @@ def index():
 
             # 3. Filtro Tag
             if f_tag and f_tag != "all":
-                tgs = ip_tags_map.get(r["ip"], set())
+                tgs = ip_tags_map.get(r["ip"], set()).copy()
+                # Inyectar tags implícitos de feed
+                if r["ip"] in rec_bpe: tgs.add("BPE")
+                if r["ip"] in rec_test: tgs.add("Test")
+                # 'Multicliente' es el tag por defecto en Main si no es otra cosa, 
+                # pero simplificamos asumiendo que si está en Main y no en metadata explícita...
+                # Mejor check simple:
                 if f_tag not in tgs:
                     continue
 
