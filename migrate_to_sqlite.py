@@ -22,9 +22,9 @@ def migrate_users():
     c = conn.cursor()
     
     count = 0
-    for u in users:
+    for username, data in users.items():
         # Check if exists
-        c.execute("SELECT 1 FROM users WHERE username = ?", (u["username"],))
+        c.execute("SELECT 1 FROM users WHERE username = ?", (username,))
         if c.fetchone():
             continue
             
@@ -32,11 +32,11 @@ def migrate_users():
             INSERT INTO users (username, password_hash, role, created_at, allowed_feeds)
             VALUES (?, ?, ?, ?, ?)
         ''', (
-            u["username"],
-            u["password_hash"],
-            u.get("role", "editor"),
-            u.get("created_at"),
-            json.dumps(u.get("allowed_feeds", []))
+            username,
+            data.get("password_hash"),
+            data.get("role", "editor"),
+            data.get("created_at"),
+            json.dumps(data.get("allowed_feeds", []))
         ))
         count += 1
     

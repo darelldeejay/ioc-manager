@@ -109,6 +109,22 @@ CANONICAL_TAGS = {
     "test": "Test",
 }
 
+# Etiquetas Canónicas permitidas y su normalización
+CANONICAL_TAGS = {
+    "multicliente": "Multicliente",
+    "bpe": "BPE",
+    "test": "Test",
+    "phishing": "Phishing",
+    "malware": "Malware",
+    "ransomware": "Ransomware",
+    "botnet": "Botnet",
+    "apt": "APT",
+    "spam": "Spam",
+    "tor": "Tor",
+    "vpn": "VPN",
+    "proxy": "Proxy"
+}
+
 # Asegurar carpetas
 os.makedirs(DATA_DIR, exist_ok=True)
 os.makedirs(TAGS_DIR, exist_ok=True)
@@ -1291,8 +1307,37 @@ def add_ips_validated(lines, existentes, iterable_ips, ttl_val, origin=None, con
             except Exception:
                 pass
 
-        if ip_str not in existentes:
+        else:
+            # --- NUEVA IP ---
+            # Registrar en meta/tags
+            fecha_hoy = datetime.now().strftime("%Y-%m-%d")
+            entry = _merge_meta_tags(ip_str, tags, expires_at_dt, origin or "manual", note="web", alert_id=alert_id)
+            for t in tags:
+                _write_tag_line(t, ip_str, _now_utc(), ttl_seconds, expires_at_dt, origin or "manual", entry["tags"])
+            
+            # Handle Multicliente feed (main feed)
+            if allow_multi:
+                line_txt = f"{ip_str}|{fecha_hoy}|{ttl_days}"
+                lines.append(line_txt)
+                added_lines.append(line_txt)
+            
+            # Handle BPE feed
+            if allow_bpe:
+                _append_line_unique(FEED_FILE_BPE, f"{ip_str}|{fecha_hoy}|{ttl_days}")
+
+            # Handle Test feed
+            if allow_test:
+                 _append_line_unique(FEED_FILE_TEST, f"{ip_str}|{fecha_hoy}|{ttl_days}")
+
             añadidas += 1
+            
+            # Notificación
+            added_items.append({
+                "ip": ip_str,
+                "tags": tags,
+                "ttl": ttl_days,
+                "alert_id": alert_id
+            })
 
     return añadidas, rechazadas, added_lines, updated, added_items, updated_items
 
