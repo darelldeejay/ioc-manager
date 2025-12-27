@@ -2306,14 +2306,9 @@ def index():
             if q:
                 if q not in r["ip"].lower() and q not in r.get("origen","").lower():
                     # check tags
-                    tgs_dbg = ip_tags_map.get(r["ip"], set())
-                    if not any(q in t.lower() for t in tgs_dbg):
+                    tgs = ip_tags_map.get(r["ip"], set())
+                    if not any(q in t.lower() for t in tgs):
                         continue
-            
-            # DEBUG TAG
-            if f_tag and f_tag != "all":
-                 if r["ip"] == "8.8.4.4": # IP conocida del BPE
-                      print(f"DEBUG: Checking 8.8.4.4 for tag={f_tag}. rec_bpe? {r['ip'] in rec_bpe}")
             
             # 2. Filtro Origin
             if f_origin and f_origin != "all":
