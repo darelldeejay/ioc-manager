@@ -4,145 +4,199 @@
 <head>
     <meta charset="UTF-8">
     <title>Configuración Inicial - IOC Manager</title>
-    <link href="https://fonts.googleapis.com/css2?family=Inter:wght@400;500;600&display=swap" rel="stylesheet">
+    <meta name="viewport" content="width=device-width, initial-scale=1">
+
+    <!-- Bootstrap 3.4.1 matching login.html -->
+    <link rel="stylesheet" href="https://cdn.jsdelivr.net/npm/bootstrap@3.4.1/dist/css/bootstrap.min.css">
+
+    <!-- Use login.css for Body Background (stardust) and general fonts -->
+    <link rel="stylesheet" href="{{ url_for('static', filename='css/login.css') }}">
+
     <style>
-        :root {
-            --primary: #2563eb;
-            --primary-hover: #1d4ed8;
-            --bg: #f8fafc;
-            --card-bg: #ffffff;
-            --text: #1e293b;
-            --border: #e2e8f0;
-        }
+        /* Overrides/Extensions for Static Setup Layout */
 
-        body {
-            font-family: 'Inter', sans-serif;
-            background-color: var(--bg);
-            display: flex;
-            justify-content: center;
-            align-items: center;
+        /* Center similar to #wrapper but specific for vertical stack */
+        #setup-wrapper {
             min-height: 100vh;
+            display: flex;
+            flex-direction: column;
+            align-items: center;
+            justify-content: center;
+        }
+
+        .setup-container {
+            width: 32em;
+            /* Slightly wider than login's 31.5em */
+            max-width: 95%;
+        }
+
+        /* Header styling matching the clean vibe */
+        .setup-header {
+            text-align: center;
+            margin-bottom: 2em;
+            color: #333;
+            /* Dark gray like inputs */
+            text-shadow: 0 1px 0 rgba(255, 255, 255, 0.8);
+        }
+
+        .setup-header h1 {
             margin: 0;
-            color: var(--text);
+            font-weight: 200;
+            font-size: 2.5em;
+            color: #444;
+            /* Darker title */
         }
 
-        .setup-card {
-            background: var(--card-bg);
-            padding: 2.5rem;
-            border-radius: 12px;
-            box-shadow: 0 4px 6px -1px rgb(0 0 0 / 0.1);
-            width: 100%;
-            max-width: 400px;
+        .setup-header p {
+            color: #777;
+            margin-top: 5px;
         }
 
-        h1 {
-            font-size: 1.5rem;
-            font-weight: 600;
-            margin-bottom: 0.5rem;
-            text-align: center;
-        }
-
-        p.subtitle {
-            color: #64748b;
-            text-align: center;
-            margin-bottom: 2rem;
-            font-size: 0.95rem;
-        }
-
-        .form-group {
-            margin-bottom: 1.5rem;
-        }
-
-        label {
+        /* "Boxy" Row Style (Replicated from login.css .side) */
+        .setup-row {
+            position: relative;
             display: block;
-            font-weight: 500;
-            margin-bottom: 0.5rem;
-            font-size: 0.9rem;
-        }
-
-        input {
+            height: 4em;
             width: 100%;
-            padding: 0.75rem;
-            border: 1px solid var(--border);
-            border-radius: 6px;
-            font-size: 1rem;
-            box-sizing: border-box;
+            background: #F7F7F7;
+            border: 1px solid #eee;
+            border-radius: 2px;
+            margin-bottom: 15px;
+            /* Stack them */
+            box-shadow: 0 1px 3px rgba(0, 0, 0, 0.05);
             transition: border-color 0.2s;
         }
 
-        input:focus {
-            outline: none;
-            border-color: var(--primary);
-            box-shadow: 0 0 0 3px rgba(37, 99, 235, 0.1);
+        .setup-row:hover,
+        .setup-row:focus-within {
+            border-color: #2EBEA5;
+            /* Theme color */
         }
 
-        button {
+        /* Icons */
+        .setup-row .glyphicon {
+            position: absolute;
+            left: 0;
+            top: 0;
+            width: 4em;
+            height: 4em;
+            line-height: 4em;
+            text-align: center;
+            color: #999;
+            transition: color 250ms linear;
+            font-size: 1.2em;
+        }
+
+        .setup-row:hover .glyphicon,
+        .setup-row:focus-within .glyphicon {
+            color: #2EBEA5;
+        }
+
+        /* Inputs */
+        .setup-row input {
+            background: transparent;
+            border: none;
+            outline: none;
+            height: 100%;
             width: 100%;
-            padding: 0.75rem;
-            background-color: var(--primary);
+            padding-left: 4.5em;
+            padding-right: 1em;
+            color: #333;
+            font-weight: 700;
+            font-size: 1.2em;
+        }
+
+        /* Button */
+        .setup-btn {
+            width: 100%;
+            height: 3.5em;
+            background-color: #2EBEA5;
+            /* Theme Green/Teal */
             color: white;
             border: none;
-            border-radius: 6px;
-            font-weight: 500;
-            font-size: 1rem;
-            cursor: pointer;
-            transition: background-color 0.2s;
+            border-radius: 2px;
+            font-weight: 600;
+            text-transform: uppercase;
+            letter-spacing: 1px;
+            margin-top: 10px;
+            transition: background 0.2s;
+            box-shadow: 0 2px 5px rgba(0, 0, 0, 0.1);
         }
 
-        button:hover {
-            background-color: var(--primary-hover);
+        .setup-btn:hover {
+            background-color: #25a08b;
         }
 
-        .alert {
-            padding: 0.75rem;
-            border-radius: 6px;
-            margin-bottom: 1.5rem;
-            font-size: 0.9rem;
-        }
-
-        .alert-error {
-            background-color: #fef2f2;
-            color: #991b1b;
-            border: 1px solid #fecaca;
+        .alert-custom {
+            text-align: center;
+            box-shadow: 0 2px 5px rgba(0, 0, 0, 0.1);
+            border: none;
         }
     </style>
 </head>
 
 <body>
-    <div class="setup-card">
-        <h1>👋 Bienvenido</h1>
-        <p class="subtitle">Configura tu cuenta de administrador para empezar.</p>
 
-        {% with messages = get_flashed_messages(with_categories=true) %}
-        {% if messages %}
-        {% for category, message in messages %}
-        <div class="alert alert-{{ category }}">{{ message }}</div>
-        {% endfor %}
-        {% endif %}
-        {% endwith %}
+    <div id="setup-wrapper">
 
-        <form method="POST" action="/setup">
-            <div class="form-group">
-                <label for="username">Usuario Administrador</label>
-                <input type="text" id="username" name="username" placeholder="ej. admin" required autofocus
-                    autocomplete="username">
+        <div class="setup-container">
+
+            <div class="setup-header">
+                <h1><span class="glyphicon glyphicon-tasks"></span> Configuración</h1>
+                <p>Crea tu cuenta de <strong>Administrador</strong></p>
             </div>
 
-            <div class="form-group">
-                <label for="password">Contraseña</label>
-                <input type="password" id="password" name="password" placeholder="••••••••" required
-                    autocomplete="new-password">
+            <!-- Messages -->
+            {% with messages = get_flashed_messages(with_categories=true) %}
+            {% if messages %}
+            {% for category, message in messages %}
+            <!-- Map Flask categories to Bootstrap -->
+            <div
+                class="alert alert-{{ 'danger' if category=='error' else 'success' if category=='success' else 'info' }} alert-custom">
+                {{ message }}
             </div>
+            {% endfor %}
+            {% endif %}
+            {% endwith %}
 
-            <div class="form-group">
-                <label for="confirm_password">Confirmar Contraseña</label>
-                <input type="password" id="confirm_password" name="confirm_password" placeholder="••••••••" required
-                    autocomplete="new-password">
-            </div>
+            <form method="POST" action="/setup">
 
-            <button type="submit">Crear Cuenta y Empezar 🚀</button>
-        </form>
+                <!-- Username -->
+                <div class="setup-row" title="Usuario Administrador">
+                    <span class="glyphicon glyphicon-user"></span>
+                    <input type="text" name="username" placeholder="Usuario (ej. admin)" required autofocus
+                        autocomplete="username">
+                </div>
+
+                <!-- Password -->
+                <div class="setup-row" title="Contraseña">
+                    <span class="glyphicon glyphicon-lock"></span>
+                    <input type="password" name="password" placeholder="Contraseña" required
+                        autocomplete="new-password">
+                </div>
+
+                <!-- Confirm Password -->
+                <div class="setup-row" title="Confirmar Contraseña">
+                    <span class="glyphicon glyphicon-repeat"></span> <!-- Repeat Icon -->
+                    <input type="password" name="confirm_password" placeholder="Repetir Contraseña" required
+                        autocomplete="new-password">
+                </div>
+
+                <button type="submit" class="setup-btn">
+                    Crear Cuenta <span class="glyphicon glyphicon-chevron-right"></span>
+                </button>
+
+            </form>
+
+        </div>
     </div>
+
+    <img id="r8-logo-coin" src="{{ url_for('static', filename='img/logo-dpb.svg') }}" alt="Logo DPB">
+
+    <!-- JQuery + Bootstrap (Optional but included for consistency) -->
+    <script src="https://code.jquery.com/jquery-3.7.1.min.js"></script>
+    <script src="https://cdn.jsdelivr.net/npm/bootstrap@3.4.1/dist/js/bootstrap.min.js"></script>
+
 </body>
 
 </html>
