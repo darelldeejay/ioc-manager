@@ -70,6 +70,40 @@ def _iso(dt: datetime) -> str:
 
 # --- Helpers de acceso (CRUD basico) ---
 
+def get_user_count():
+    try:
+        conn = get_db()
+        row = conn.execute("SELECT COUNT(*) as count FROM users").fetchone()
+        conn.close()
+        return row['count']
+    except Exception:
+        return 0
+
+def get_user_by_username(username):
+    try:
+        conn = get_db()
+        row = conn.execute("SELECT * FROM users WHERE username = ?", (username,)).fetchone()
+        conn.close()
+        if row:
+            return dict(row)
+        return None
+    except Exception:
+        return None
+
+def create_user(username, password_hash, role="editor"):
+    try:
+        conn = get_db()
+        conn.execute(
+            "INSERT INTO users (username, password_hash, role, created_at) VALUES (?, ?, ?, ?)",
+            (username, password_hash, role, _iso(datetime.now(timezone.utc)))
+        )
+        conn.commit()
+        conn.close()
+        return True
+    except Exception as e:
+        print(f"DB Create User Error: {e}")
+        return False
+
 def db_audit(event, actor, scope, details=None):
     try:
         conn = get_db()

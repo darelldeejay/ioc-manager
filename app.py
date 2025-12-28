@@ -28,6 +28,9 @@ load_dotenv()
 import mimetypes
 mimetypes.add_type('application/javascript', '.js')
 
+import db # SQLite Interface
+
+
 
 app = Flask(__name__)
 # Clave secreta desde .env
@@ -128,6 +131,49 @@ CANONICAL_TAGS = {
 # Asegurar carpetas
 os.makedirs(DATA_DIR, exist_ok=True)
 os.makedirs(TAGS_DIR, exist_ok=True)
+
+# Inicializar DB (si no existe)
+db.init_db()
+
+# Middleware: Forzar Setup si no hay usuarios
+@app.before_request
+def check_setup_required():
+    if request.path.startswith('/static'):
+        return
+    if request.path == '/setup':
+        return
+    # Check Db
+    if db.get_user_count() == 0:
+        return redirect('/setup')
+
+@app.route('/setup', methods=['GET', 'POST'])
+def first_run_setup():
+    if db.get_user_count() > 0:
+        flash("La configuración inicial ya se ha completado.", "info")
+        return redirect(url_for('login'))
+
+    if request.method == 'POST':
+        user = request.form.get('username', '').strip()
+        pwd = request.form.get('password', '').strip()
+        pwd2 = request.form.get('confirm_password', '').strip()
+
+        if not user or not pwd:
+            flash("Usuario y contraseña son obligatorios.", "error")
+            return render_template('setup.html')
+        
+        if pwd != pwd2:
+            flash("Las contraseñas no coinciden.", "error")
+            return render_template('setup.html')
+
+        # Create Admin
+        hashed = generate_password_hash(pwd)
+        if db.create_user(user, hashed, role="admin"):
+            flash("¡Cuenta de administrador creada! Por favor inicia sesión.", "success")
+            return redirect(url_for('login'))
+        else:
+            flash("Error al crear usuario en base de datos.", "error")
+        
+    return render_template('setup.html')
 
 # =========================
 #  Decoradores/utilidades web
@@ -2081,22 +2127,31 @@ def debug_dashboard():
         current_feed="main" # Added for debug purposes
     )
 
-@app.route("/login", methods=["GET", "POST"])
+@app.route('/login', methods=['GET', 'POST'])
 def login():
-    if request.method == "POST":
-        username = request.form.get("username", "").strip()
-        password = request.form.get("password", "").strip()
+    if request.method == 'POST':
+        username = request.form.get('username')
+        password = request.form.get('password')
         
-        users = load_users()
-        user_data = users.get(username)
+        # SQLite Login
+        user_row = db.get_user_by_username(username)
+        # Fallback to JSON if migration not fully done? No, strictly DB now for Setup.
         
-        if user_data and check_password_hash(user_data.get("password_hash", ""), password):
-            session["username"] = username
-            session["role"] = user_data.get("role", "editor")
-            return redirect(url_for("index"))
+        if user_row and check_password_hash(user_row['password_hash'], password):
+            session['username'] = username
+            session['role'] = user_row['role'] or 'editor'
             
-        flash("Credenciales incorrectas", "danger")
-    return render_template("login.html")
+            # Log audit
+            # _audit("login", f"web/{username}", "auth", {"success": True})
+            # usamos nuevo db_audit si queremos
+            
+            flash('Has iniciado sesión correctamente.', 'success')
+            return redirect(url_for('index'))
+        else:
+            # _audit("login_failed", f"web/{username}", "auth", {"success": False})
+            flash('Usuario o contraseña incorrectos.', 'error')
+    
+    return render_template('login.html')
 
 @app.route("/logout")
 def logout():
