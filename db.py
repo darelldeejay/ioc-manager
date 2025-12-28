@@ -109,11 +109,93 @@ def db_audit(event, actor, scope, details=None):
         conn = get_db()
         conn.execute(
             "INSERT INTO audit_log (ts, event, actor, scope, details) VALUES (?, ?, ?, ?, ?)",
-            (_iso(datetime.now(timezone.utc)), event, actor, scope, json.dumps(details or {}, ensure_ascii=False))
+            (
+                _iso(datetime.now(timezone.utc)), 
+                str(event), 
+                str(actor), 
+                str(scope), # Ensure scope is string, even if dict passed by mistake
+                json.dumps(details or {}, ensure_ascii=False)
+            )
         )
         conn.commit()
         conn.close()
     except Exception as e:
         print(f"DB Log Error: {e}")
 
-# ... (Más helpers se añadirán según se necesiten en app.py)
+# --- Helpers de acceso (CRUD basico) ---
+
+# ... User Helpers ...
+
+# --- IP Metadata Helpers ---
+
+def get_ip(ip):
+    try:
+        conn = get_db()
+        row = conn.execute("SELECT * FROM ip_metadata WHERE ip = ?", (ip,)).fetchone()
+        conn.close()
+        return dict(row) if row else None
+    except Exception:
+        return None
+
+def get_all_ips():
+    try:
+        conn = get_db()
+        rows = conn.execute("SELECT * FROM ip_metadata").fetchall()
+        conn.close()
+        return [dict(r) for r in rows]
+    except Exception:
+        return []
+
+def upsert_ip(ip, source, tags, ttl, expiration_date, alert_ids, history):
+    """
+    Inserta o actualiza una IP completa.
+    tags, alert_ids, history deben ser listas/dicts pasados como objetos Python (se convierten a JSON aquí).
+    """
+    try:
+        conn = get_db()
+        conn.execute("""
+            INSERT INTO ip_metadata (ip, source, tags, added_at, ttl, expiration_date, alert_ids, history)
+            VALUES (?, ?, ?, ?, ?, ?, ?, ?)
+            ON CONFLICT(ip) DO UPDATE SET
+                source=excluded.source,
+                tags=excluded.tags,
+                ttl=excluded.ttl,
+                expiration_date=excluded.expiration_date,
+                alert_ids=excluded.alert_ids,
+                history=excluded.history
+        """, (
+            ip, 
+            source, 
+            json.dumps(tags, ensure_ascii=False), 
+            _iso(datetime.now(timezone.utc)), # updated/added at
+            str(ttl), 
+            _iso(expiration_date) if isinstance(expiration_date, datetime) else expiration_date,
+            json.dumps(alert_ids or [], ensure_ascii=False),
+            json.dumps(history or [], ensure_ascii=False)
+        ))
+        conn.commit()
+        conn.close()
+        return True
+    except Exception as e:
+        print(f"DB Upsert IP Error: {e}")
+        return False
+
+def delete_ip(ip):
+    try:
+        conn = get_db()
+        conn.execute("DELETE FROM ip_metadata WHERE ip = ?", (ip,))
+        conn.commit()
+        conn.close()
+        return True
+    except Exception:
+        return False
+
+def delete_all_ips():
+    try:
+        conn = get_db()
+        conn.execute("DELETE FROM ip_metadata")
+        conn.commit()
+        conn.close()
+        return True
+    except Exception:
+        return False
