@@ -1,7 +1,7 @@
 from flask import (
     Flask, render_template, render_template_string, request, redirect, url_for,
     session, flash, make_response, jsonify, get_flashed_messages,
-    send_file, abort, Blueprint, g
+    send_file, abort, Blueprint, g, Response
 )
 from datetime import datetime, timedelta, timezone
 import ipaddress
@@ -2754,60 +2754,80 @@ def index():
                            maintenance_mode=g.get("maintenance_mode", False))
 
 
+def _create_feed_response(ips_list):
+    """
+    Genera una respuesta Flask con ETag (MD5) para la lista de IPs.
+    Si el cliente ya tiene esa versión (If-None-Match), devuelve 304.
+    """
+    body = "\n".join(ips_list) + "\n"
+    # Calcular ETag
+    content_hash = hashlib.md5(body.encode("utf-8")).hexdigest()
+    
+    # Check conditional request
+    if request.if_none_match and request.if_none_match.contains(content_hash):
+        return Response(status=304)
+        
+    resp = make_response(body, 200)
+    resp.headers["Content-Type"] = "text/plain"
+    resp.headers["ETag"] = content_hash
+    resp.headers["Cache-Control"] = "public, max-age=300" # Cacheable for 5 min
+    return resp
+
+
 @app.route("/feed/ioc-feed.txt")
 def feed():
     ips = []
     if os.path.exists(FEED_FILE):
-        with open(FEED_FILE, encoding="utf-8") as f:
-            for line in f:
-                ip = line.split("|", 1)[0].strip()
-                if ip and is_allowed_ip(ip):
-                    try:
-                        if isinstance(ipaddress.ip_address(ip), ipaddress.IPv4Address):
-                            ips.append(ip)
-                    except Exception:
-                        continue
-    body = "\n".join(ips) + "\n"
-    resp = make_response(body, 200)
-    resp.headers["Content-Type"] = "text/plain"
-    return resp
+        try:
+            with open(FEED_FILE, encoding="utf-8") as f:
+                for line in f:
+                    ip = line.split("|", 1)[0].strip()
+                    if ip and is_allowed_ip(ip):
+                        try:
+                            if isinstance(ipaddress.ip_address(ip), ipaddress.IPv4Address):
+                                ips.append(ip)
+                        except Exception:
+                            continue
+        except Exception:
+            pass
+    return _create_feed_response(ips)
 
 # === NUEVO: feed BPE separado ===
 @app.route("/feed/ioc-feed-bpe.txt")
 def feed_bpe():
     ips = []
     if os.path.exists(FEED_FILE_BPE):
-        with open(FEED_FILE_BPE, encoding="utf-8") as f:
-            for line in f:
-                ip = line.split("|", 1)[0].strip()
-                if ip and is_allowed_ip(ip):
-                    try:
-                        if isinstance(ipaddress.ip_address(ip), ipaddress.IPv4Address):
-                            ips.append(ip)
-                    except Exception:
-                        continue
-    body = "\n".join(ips) + "\n"
-    resp = make_response(body, 200)
-    resp.headers["Content-Type"] = "text/plain"
-    return resp
+        try:
+            with open(FEED_FILE_BPE, encoding="utf-8") as f:
+                for line in f:
+                    ip = line.split("|", 1)[0].strip()
+                    if ip and is_allowed_ip(ip):
+                        try:
+                            if isinstance(ipaddress.ip_address(ip), ipaddress.IPv4Address):
+                                ips.append(ip)
+                        except Exception:
+                            continue
+        except Exception:
+            pass
+    return _create_feed_response(ips)
 
 @app.route("/feed/ioc-feed-test.txt")
 def feed_test():
     ips = []
     if os.path.exists(FEED_FILE_TEST):
-        with open(FEED_FILE_TEST, encoding="utf-8") as f:
-            for line in f:
-                ip = line.split("|", 1)[0].strip()
-                if ip and is_allowed_ip(ip):
-                    try:
-                        if isinstance(ipaddress.ip_address(ip), ipaddress.IPv4Address):
-                            ips.append(ip)
-                    except Exception:
-                        continue
-    body = "\n".join(ips) + "\n"
-    resp = make_response(body, 200)
-    resp.headers["Content-Type"] = "text/plain"
-    return resp
+        try:
+            with open(FEED_FILE_TEST, encoding="utf-8") as f:
+                for line in f:
+                    ip = line.split("|", 1)[0].strip()
+                    if ip and is_allowed_ip(ip):
+                        try:
+                            if isinstance(ipaddress.ip_address(ip), ipaddress.IPv4Address):
+                                ips.append(ip)
+                        except Exception:
+                            continue
+        except Exception:
+            pass
+    return _create_feed_response(ips)
 
 
 @app.route("/preview-delete")

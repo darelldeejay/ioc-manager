@@ -124,5 +124,32 @@ class TestRoutes(unittest.TestCase):
             
             # self.assertIn(b'IP(s) a\xc3\xb1adida(s) correctamente (CSV)', resp.data)
 
+    def test_feed_etag(self):
+        """Test ETag caching behavior for feeds."""
+        # 1. Setup mock content
+        with open(self.test_feed, 'w', encoding='utf-8') as f:
+            f.write("1.1.1.1|2023-01-01|0\n")
+        
+        with patch('app.FEED_FILE', self.test_feed):
+            # 2. First Request (No ETag) -> 200 OK
+            resp = self.client.get('/feed/ioc-feed.txt')
+            self.assertEqual(resp.status_code, 200)
+            self.assertIn('ETag', resp.headers)
+            etag = resp.headers['ETag']
+            self.assertTrue(etag) # Ensure it's not empty
+            
+            # 3. Second Request (Match) -> 304 Not Modified
+            resp2 = self.client.get('/feed/ioc-feed.txt', headers={'If-None-Match': etag})
+            self.assertEqual(resp2.status_code, 304)
+            
+            # 4. Modify content
+            with open(self.test_feed, 'w', encoding='utf-8') as f:
+                f.write("2.2.2.2|2023-01-01|0\n")
+                
+            # 5. Third Request (Mismatch) -> 200 OK with new ETag
+            resp3 = self.client.get('/feed/ioc-feed.txt', headers={'If-None-Match': etag})
+            self.assertEqual(resp3.status_code, 200)
+            self.assertNotEqual(resp3.headers['ETag'], etag)
+
 if __name__ == '__main__':
     unittest.main()
