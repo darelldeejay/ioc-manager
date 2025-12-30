@@ -494,3 +494,24 @@ def get_test_history(limit=10):
     except Exception as e:
         print(f"⚠️ Error fetching test history: {e}")
         return []
+
+# --- Config Helpers ---
+def get_config(key, default=None):
+    try:
+        conn = get_db()
+        row = conn.execute("SELECT value FROM config WHERE key = ?", (key,)).fetchone()
+        conn.close()
+        return row['value'] if row else default
+    except Exception:
+        return default
+
+def set_config(key, value):
+    try:
+        conn = get_db()
+        conn.execute("INSERT INTO config (key, value) VALUES (?, ?) ON CONFLICT(key) DO UPDATE SET value=excluded.value", (key, str(value)))
+        conn.commit()
+        conn.close()
+        return True
+    except Exception as e:
+        print(f"Error setting config {key}: {e}")
+        return False

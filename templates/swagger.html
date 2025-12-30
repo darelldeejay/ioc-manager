@@ -1,0 +1,113 @@
+<!DOCTYPE html>
+<html lang="en">
+
+<head>
+    <meta charset="UTF-8">
+    <title>IOC Manager API Docs</title>
+    <link rel="stylesheet" href="{{ url_for('static', filename='swagger-ui/swagger-ui.css') }}" />
+    <link rel="icon" type="image/png" href="{{ url_for('static', filename='favicon.ico') }}" sizes="32x32" />
+    <style>
+        @import url('https://fonts.googleapis.com/css2?family=Inter:wght@400;600;700&display=swap');
+
+        html {
+            box-sizing: border-box;
+            overflow: -moz-scrollbars-vertical;
+            overflow-y: scroll;
+        }
+
+        *,
+        *:before,
+        *:after {
+            box-sizing: inherit;
+        }
+
+        body {
+            margin: 0;
+            background: #fafafa;
+            font-family: 'Inter', sans-serif;
+        }
+
+        /* Custom Theme for IOC Manager */
+        .swagger-ui .topbar {
+            background-color: #0f172a;
+            border-bottom: 2px solid #22d3ee;
+        }
+
+        .swagger-ui .info .title {
+            color: #0f172a;
+            font-family: 'Inter', sans-serif;
+        }
+
+        .swagger-ui .btn.authorize {
+            color: #22d3ee;
+            border-color: #22d3ee;
+        }
+
+        .swagger-ui .btn.authorize svg {
+            fill: #22d3ee;
+        }
+
+        .swagger-ui .opblock.opblock-post .opblock-summary-method {
+            background: #0d6efd;
+        }
+
+        .swagger-ui .opblock.opblock-delete .opblock-summary-method {
+            background: #dc3545;
+        }
+
+        /* Logo Adjustment */
+        .swagger-ui img.custom-logo {
+            height: 40px;
+            margin-right: 15px;
+        }
+    </style>
+</head>
+
+<body>
+    <div id="swagger-ui"></div>
+
+    <script src="{{ url_for('static', filename='swagger-ui/swagger-ui-bundle.js') }}"></script>
+    <script src="{{ url_for('static', filename='swagger-ui/swagger-ui-standalone-preset.js') }}"></script>
+
+    <script>
+        window.onload = function () {
+            // Begin Swagger UI call region
+            const ui = SwaggerUIBundle({
+                url: "{{ url_for('api_openapi_json') }}",
+                dom_id: '#swagger-ui',
+                deepLinking: true,
+                presets: [
+                    SwaggerUIBundle.presets.apis,
+                    SwaggerUIStandalonePreset
+                ],
+                plugins: [
+                    SwaggerUIBundle.plugins.DownloadUrl
+                ],
+                layout: "StandaloneLayout",
+                onComplete: function () {
+                    // Custom Logo Injection
+                    var logoImg = document.createElement("img");
+                    logoImg.src = "{{ url_for('static', filename='img/logo-dpb.svg') }}";
+                    logoImg.className = "custom-logo";
+                    logoImg.alt = "IOC Manager Logo";
+
+                    var link = document.querySelector(".swagger-ui .topbar-wrapper .link");
+                    if (link) {
+                        link.innerHTML = ""; // Clear default swagger logo
+                        link.appendChild(logoImg);
+                        var title = document.createElement("span");
+                        title.innerText = "IOC API Reference";
+                        title.style.color = "#fff";
+                        title.style.fontWeight = "bold";
+                        title.style.fontSize = "1.2rem";
+                        link.appendChild(title);
+                    }
+                }
+            });
+            // End Swagger UI call region
+            window.ui = ui;
+        };
+    </script>
+</body>
+
+</html>

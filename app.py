@@ -930,10 +930,47 @@ def _expire_ips_from_db():
                 
     except Exception as e:
         print(f"[EXPIRATION ERROR] {e}")
-        
+
     return expired
 
 # Legacy cleanup wrappers removed
+
+# Validar modo mantenimiento antes de cada request
+@app.before_request
+def check_maintenance_mode():
+    # Rutas permitidas siempre
+    allowed_prefixes = ["/static", "/login", "/logout", "/maintenance/toggle", "/feed", "/api/summary", "/api/estado", "/api/lista"]
+    
+    # 1. Check if Maintenance is Active
+    is_maint = (db.get_config("MAINTENANCE_MODE", "0") == "1")
+    g.maintenance_mode = is_maint # Para usar en templates
+    
+    # Si no está activo, salir
+    if not is_maint:
+        return
+
+    # Si es GET (lectura), permitir
+    if request.method in ["GET", "HEAD", "OPTIONS"]:
+        return
+
+    # Si es ruta permitida explícita (aunque sea POST, ej. login)
+    if any(request.path.startswith(p) for p in allowed_prefixes):
+        return
+
+    # Si es ADMIN, permitir (Opcional: Si queremos que Admin pueda trabajar en mantenimiento)
+    # UI dice "Solo lectura", pero el Admin necesita poder APAGARlo.
+    # El endpoint /maintenance/toggle ya está en allowed_prefixes.
+    # ¿Permitimos otras acciones al admin?
+    # Por seguridad/coherencia "Modo Mantenimiento" suele bloquear todo cambio de datos.
+    # Si el user quiere editar, que lo desactive primero.
+    
+    # Bloquear todo lo demás (POST/DELETE/PUT fuera de las excepciones)
+    if "api" in request.path:
+        return jsonify({"error": "Modo Mantenimiento Activo. Solo lectura."}), 503
+        
+    flash("Modo Mantenimiento Activo. Las modificaciones están deshabilitadas.", "warning")
+    return redirect(url_for('index'))
+
 
 def load_lines(feed_path=FEED_FILE):
     if not os.path.exists(feed_path):
@@ -1945,26 +1982,6 @@ def check_maintenance():
         flash(msg, "warning")
         return redirect(url_for('index'))
 
-@app.route("/maintenance/toggle", methods=["POST"])
-@login_required
-def maintenance_toggle():
-    global MAINTENANCE_MODE
-    # Verificar Rol Admin (simple check de sesión o user_data)
-    # user = load_users().get(session.get("username"))
-    # if user.get("role") != "admin": ... (simplificado: confiamos en @login_required + check interno si hiciera falta)
-    # Por ahora permitimos toggle a cualquier usuario logueado o restringimos?
-    # Mejor restringir a admin si existe ese concepto estricto, pero user_role se carga dentro de view.
-    # Haremos un check rápido:
-    current_username = session.get("username")
-    all_users = load_users()
-    user_data = all_users.get(current_username, {})
-    if user_data.get("role") != "admin":
-         return jsonify({"ok": False, "error": "Solo admin puede activar mantenimiento"}), 403
-         
-    target = request.json.get("active", False)
-    MAINTENANCE_MODE = target
-    log("Mantenimiento", f"Cambiado a {MAINTENANCE_MODE} por {current_username}")
-    return jsonify({"ok": True, "active": MAINTENANCE_MODE})
 
 FEEDS_CONFIG = {
     "global":       {"label": "Global / Todos", "icon": "bi-globe", "virtual": True},
@@ -2733,7 +2750,8 @@ def index():
                            ip_alerts=ip_alerts,
                            ip_ticket_ids=ip_alert_ids,
                            known_tags=known_tags,
-                           days_remaining=days_remaining)
+                           days_remaining=days_remaining,
+                           maintenance_mode=g.get("maintenance_mode", False))
 
 
 @app.route("/feed/ioc-feed.txt")
@@ -3754,6 +3772,20 @@ def api_counters_history_endpoint():
     except Exception as e:
         return jsonify({"error": str(e)}), 500
 
+
+# Open API Docs
+@app.route("/api/openapi.json")
+def api_openapi_json():
+    # Servir el estático que hemos creado
+    return app.send_static_file("openapi.json")
+
+@app.route("/api/docs")
+@login_required
+def api_docs():
+    # Swagger UI
+    return render_template("swagger.html")
+
+
 # Registrar blueprint
 app.register_blueprint(api)
 
@@ -3889,6 +3921,25 @@ def daily_snapshot_check():
         pass
 
 
+
+
+# --- Maintenance Toggle Endpoint ---
+@app.route("/maintenance/toggle", methods=["POST"])
+@login_required
+def maintenance_toggle():
+    if session.get("role") != "admin":
+        return jsonify({"error": "Solo admin"}), 403
+    
+    data = request.get_json(silent=True) or {}
+    active = bool(data.get("active", False))
+    
+    if db.set_config("MAINTENANCE_MODE", "1" if active else "0"):
+        state_str = "ACTIVADO" if active else "DESACTIVADO"
+        _audit("maintenance_toggle", f"web/{session.get('username')}", state_str, {})
+        flash(f"Modo Mantenimiento {state_str}", "warning" if active else "success")
+        return jsonify({"ok": True, "active": active})
+    else:
+        return jsonify({"error": "Error guardando configuración"}), 500
 
 
 if __name__ == "__main__":

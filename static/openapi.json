@@ -1,0 +1,235 @@
+{
+    "openapi": "3.0.0",
+    "info": {
+        "title": "IOC Manager API",
+        "description": "API para gestión automatizada de Indicadores de Compromiso (IPs).",
+        "version": "1.0.0"
+    },
+    "servers": [
+        {
+            "url": "/",
+            "description": "Servidor Actual"
+        }
+    ],
+    "components": {
+        "securitySchemes": {
+            "ApiKeyAuth": {
+                "type": "apiKey",
+                "in": "header",
+                "name": "X-API-Key"
+            },
+            "BearerAuth": {
+                "type": "http",
+                "scheme": "bearer"
+            }
+        },
+        "schemas": {
+            "IPItem": {
+                "type": "object",
+                "properties": {
+                    "ip": {
+                        "type": "string",
+                        "example": "1.2.3.4"
+                    },
+                    "cidr": {
+                        "type": "string",
+                        "example": "10.0.0.0/24"
+                    },
+                    "range": {
+                        "type": "string",
+                        "example": "192.168.1.10-192.168.1.20"
+                    },
+                    "tags": {
+                        "type": "array",
+                        "items": {
+                            "type": "string"
+                        },
+                        "example": [
+                            "BPE",
+                            "Malware"
+                        ]
+                    },
+                    "ttl": {
+                        "type": "integer",
+                        "description": "Segundos de vida (0=permanente)",
+                        "example": 86400
+                    },
+                    "note": {
+                        "type": "string",
+                        "example": "Detección automática"
+                    },
+                    "alert_id": {
+                        "type": "string",
+                        "description": "Ticket ID opcional",
+                        "example": "TIK-999"
+                    }
+                }
+            },
+            "Error": {
+                "type": "object",
+                "properties": {
+                    "error": {
+                        "type": "string"
+                    }
+                }
+            }
+        }
+    },
+    "security": [
+        {
+            "ApiKeyAuth": []
+        },
+        {
+            "BearerAuth": []
+        }
+    ],
+    "paths": {
+        "/api/bloquear-ip": {
+            "post": {
+                "summary": "Bloquear IPs (Añadir/Actualizar)",
+                "description": "Añade una o más IPs a la lista de bloqueo.",
+                "requestBody": {
+                    "required": true,
+                    "content": {
+                        "application/json": {
+                            "schema": {
+                                "type": "object",
+                                "properties": {
+                                    "items": {
+                                        "type": "array",
+                                        "items": {
+                                            "$ref": "#/components/schemas/IPItem"
+                                        }
+                                    },
+                                    "force": {
+                                        "type": "boolean",
+                                        "default": false
+                                    }
+                                }
+                            }
+                        }
+                    }
+                },
+                "responses": {
+                    "200": {
+                        "description": "Procesado correctamente"
+                    },
+                    "207": {
+                        "description": "Procesado parcialmente (algunos errores)"
+                    },
+                    "400": {
+                        "description": "Error de validación"
+                    },
+                    "401": {
+                        "description": "No autorizado"
+                    }
+                }
+            },
+            "delete": {
+                "summary": "Desbloquear IPs",
+                "description": "Elimina una IP globalmente o quita tags específicos.",
+                "requestBody": {
+                    "required": true,
+                    "content": {
+                        "application/json": {
+                            "schema": {
+                                "type": "object",
+                                "required": [
+                                    "ip"
+                                ],
+                                "properties": {
+                                    "ip": {
+                                        "type": "string",
+                                        "example": "1.2.3.4"
+                                    },
+                                    "tags": {
+                                        "type": "array",
+                                        "items": {
+                                            "type": "string"
+                                        },
+                                        "description": "Si se omite, borra GLOBALMENTE."
+                                    }
+                                }
+                            }
+                        }
+                    }
+                },
+                "responses": {
+                    "200": {
+                        "description": "Eliminado/Actualizado"
+                    },
+                    "404": {
+                        "description": "IP no encontrada"
+                    }
+                }
+            }
+        },
+        "/api/estado/{ip}": {
+            "get": {
+                "summary": "Consultar Estado IP",
+                "parameters": [
+                    {
+                        "name": "ip",
+                        "in": "path",
+                        "required": true,
+                        "schema": {
+                            "type": "string"
+                        }
+                    }
+                ],
+                "responses": {
+                    "200": {
+                        "description": "Detalles de la IP",
+                        "content": {
+                            "application/json": {
+                                "schema": {
+                                    "type": "object",
+                                    "properties": {
+                                        "status": {
+                                            "type": "string",
+                                            "example": "ok"
+                                        },
+                                        "data": {
+                                            "$ref": "#/components/schemas/IPItem"
+                                        }
+                                    }
+                                }
+                            }
+                        }
+                    },
+                    "404": {
+                        "description": "No encontrada"
+                    }
+                }
+            }
+        },
+        "/api/summary": {
+            "get": {
+                "summary": "Resumen de Métricas",
+                "responses": {
+                    "200": {
+                        "description": "Contadores actuales",
+                        "content": {
+                            "application/json": {
+                                "schema": {
+                                    "type": "object",
+                                    "properties": {
+                                        "total": {
+                                            "type": "integer"
+                                        },
+                                        "by_source": {
+                                            "type": "object"
+                                        },
+                                        "by_tag": {
+                                            "type": "object"
+                                        }
+                                    }
+                                }
+                            }
+                        }
+                    }
+                }
+            }
+        }
+    }
+}
