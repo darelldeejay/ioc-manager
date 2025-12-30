@@ -31,7 +31,6 @@ mimetypes.add_type('application/javascript', '.js')
 import db # SQLite Interface
 
 
-
 app = Flask(__name__)
 # Clave secreta desde .env
 app.secret_key = os.getenv('FLASK_SECRET_KEY', 'dev-key-insegura-si-falta-env')
@@ -140,6 +139,8 @@ db.init_db()
 def check_setup_required():
     if request.path.startswith('/static'):
         return
+    if request.path.startswith('/api'):
+        return
     if request.path == '/setup':
         return
     # Check Db
@@ -203,14 +204,74 @@ def json_response_error(message, code=400, notices=None, extra=None):
 
 from functools import wraps
 
-def require_api_token(f):
-    @wraps(f)
-    def decorated_function(*args, **kwargs):
-        token = request.headers.get("X-API-Key") or request.args.get("token")
-        if not token or token != TOKEN_API:
-            return jsonify({"ok": False, "error": "Unauthorized"}), 401
-        return f(*args, **kwargs)
-    return decorated_function
+def require_api_token(required_scope=None):
+    """
+    Decorator that checks X-API-Key against legacy env var OR database keys.
+    If required_scope is provided (e.g. 'WRITE'), validates that the key has permission.
+    Legacy Token always has 'ALL' permission.
+    """
+    def decorator(f):
+        @wraps(f)
+        def decorated_function(*args, **kwargs):
+            # 0. Check if already authenticated (Blueprint guard OR Session)
+            if g.get("api_user"):
+                user_record = g.api_user
+            elif "username" in session:
+                # User is logged in via Web UI
+                role = session.get("role", "view_only")
+                # Map roles to scopes
+                scopes = "ALL" if role in ("admin", "editor") else "READ"
+                user_record = {"name": f"web/{session['username']}", "scopes": scopes}
+                g.api_user = user_record
+            else:
+                # 1. Extract Token (Bearer, Header, Query)
+                token = None
+                auth = request.headers.get("Authorization", "")
+                if auth.startswith("Bearer "):
+                    token = auth.split(" ", 1)[1].strip()
+                
+                if not token:
+                    token = request.headers.get("X-API-Key") or request.args.get("token")
+                
+                if not token:
+                    return jsonify({"ok": False, "error": "Missing API Token"}), 401
+
+                # 2. Validation
+                if token == TOKEN_API:
+                    user_record = {"name": "system (legacy)", "scopes": "ALL"}
+                else:
+                    user_record = db.get_api_key(token)
+                    if not user_record:
+                        return jsonify({"ok": False, "error": "Invalid API Token"}), 401
+                
+                # Store for downstream use
+                g.api_user = user_record
+
+            # 3. Check Scope
+            # Scopes: READ, WRITE, ALL
+            # user_record['scopes'] might be None or string
+            user_scopes = (user_record.get('scopes') or "").upper().split(',')
+            
+            if 'ALL' in user_scopes:
+                return f(*args, **kwargs)
+                
+            if required_scope:
+                if required_scope not in user_scopes:
+                     return jsonify({"ok": False, "error": f"Insufficient Permission. Required: {required_scope}"}), 403
+
+            return f(*args, **kwargs)
+        return decorated_function
+    
+    # Allow using @require_api_token without parens if no scope needed? 
+    # Standard python decorator trickiness. 
+    # Easier to force @require_api_token() or @require_api_token(scope='READ')
+    if callable(required_scope):
+        # Was called as @require_api_token without args
+        f = required_scope
+        required_scope = None
+        return decorator(f)
+        
+    return decorator
 
 # =========================
 #  Utilidades auxiliares
@@ -271,14 +332,7 @@ def load_users():
         return {}
     return users
 
-def save_users(users):
-    users_lock = FileLock(USERS_FILE + ".lock")
-    try:
-        with users_lock:
-            with open(USERS_FILE, "w", encoding="utf-8") as f:
-                json.dump(users, f, ensure_ascii=False, indent=2)
-    except Exception:
-        pass
+# save_users REMOVED (Usage migrated to DB)
 
 
 # -------- Auditoría (nuevo) --------
@@ -292,86 +346,7 @@ def _audit(event, actor, scope, details=None):
 
 
 # -------- Meta lateral (origen por IP + detalles por IP) --------
-def _empty_meta():
-    return {"by_ip": {}, "ip_details": {}}
-
-def load_meta():
-    if not os.path.exists(META_FILE):
-        return _empty_meta()
-    try:
-        with open(META_FILE, "r", encoding="utf-8") as f:
-            data = json.load(f)
-            if not isinstance(data, dict):
-                return _empty_meta()
-            # Compat: siempre devolver claves esperadas
-            if "by_ip" not in data or not isinstance(data["by_ip"], dict):
-                data["by_ip"] = {}
-            if "ip_details" not in data or not isinstance(data["ip_details"], dict):
-                data["ip_details"] = {}
-            return data
-    except Exception:
-        return _empty_meta()
-
-
-def save_meta(meta):
-    try:
-        with META_LOCK:
-            # Atomic write pattern: write to tmp -> fsync -> replace
-            tmp_file = META_FILE + ".tmp"
-            with open(tmp_file, "w", encoding="utf-8") as f:
-                json.dump(meta, f, ensure_ascii=False, indent=2)
-                f.flush()
-                os.fsync(f.fileno())
-            os.replace(tmp_file, META_FILE)
-    except Exception:
-        pass
-
-
-def meta_set_origin(ip_str, origin):
-    meta = load_meta()
-    meta["by_ip"][ip_str] = origin  # 'manual' | 'csv' | 'api'
-    save_meta(meta)
-
-
-def meta_del_ip(ip_str):
-    meta = load_meta()
-    changed = False
-    # borrar origen clásico
-    if ip_str in meta.get("by_ip", {}):
-        del meta["by_ip"][ip_str]
-        changed = True
-    # borrar detalles (tags/exp)
-    ipd = meta.get("ip_details", {})
-    entry = ipd.pop(ip_str, None)
-    if entry:
-        changed = True
-        # eliminar también sus líneas de ficheros por tag
-        try:
-            tags = entry.get("tags", [])
-            for t in tags:
-                _remove_ip_from_tag_file(t, ip_str)
-        except Exception:
-            pass
-    if changed:
-        save_meta(meta)
-
-def repair_meta_sources():
-    """
-    Rellena meta['by_ip'] con el 'source' que ya exista en meta['ip_details'].
-    Sirve para que el contador de API/CSV/Manual cuadre aunque la IP venga solo con tag BPE.
-    """
-    meta = load_meta()
-    by_ip = meta.get("by_ip", {})
-    details = meta.get("ip_details", {})
-    changed = False
-    for ip, e in (details or {}).items():
-        src = (e.get("source") or "").lower()
-        if src in ("manual", "csv", "api") and by_ip.get(ip) != src:
-            by_ip[ip] = src
-            changed = True
-    if changed:
-        meta["by_ip"] = by_ip
-        save_meta(meta)
+# Meta Helpers REMOVED (Migrated to DB)(meta)
 
 # -------- TEAMS NOTIFICATION HELPER (Async) --------
 def send_teams_alert(title, text, color="0076D7", sections=None):
@@ -382,7 +357,8 @@ def send_teams_alert(title, text, color="0076D7", sections=None):
     color: Hex string sin # (ej: '0076D7' azul, '28A745' verde, 'DC3545' rojo)
     sections: Lista de dicts para secciones extra (ej: [{"activityTitle": "User:", "activitySubtitle": "admin"}])
     """
-    if not TEAMS_WEBHOOK_URL:
+    webhook_url = db.get_config("TEAMS_WEBHOOK_URL", TEAMS_WEBHOOK_URL)
+    if not webhook_url:
         # Si no hay URL configurada, ignoramos silenciosamente
         return
 
@@ -458,10 +434,10 @@ class TeamsAggregator:
                     "tags": sw.get("tags", []),
                     "old_ttl": sw.get("old_ttl"),
                     "new_ttl": sw.get("new_ttl"),
-                    "new_ttl": sw.get("new_ttl"),
                     "user": user,
                     "source": source,
                     "ticket": ticket or sw.get("alert_id"),
+                    "note": sw.get("note"),
                     "ts": time.time()
                 })
 
@@ -528,6 +504,7 @@ class TeamsAggregator:
             detail_lines.append(f"**Actualizadas ({len(updates)}):**")
             for e in updates[:5]:
                 ticket_info = f" (Ticket: {e.get('ticket')})" if e.get('ticket') else ""
+                note_info = f" [Note: {e.get('note')}]" if e.get('note') else ""
                 tags_info = f" [{', '.join(e.get('tags', []))}]" if e.get('tags') else ""
                 
                 parts = []
@@ -536,7 +513,7 @@ class TeamsAggregator:
                 else:
                     parts.append("Updated")
                 
-                detail_lines.append(f"- {e['ip']}{tags_info}{ticket_info} ({', '.join(parts)})")
+                detail_lines.append(f"- {e['ip']}{tags_info}{ticket_info}{note_info} ({', '.join(parts)})")
             if len(updates) > 5:
                 detail_lines.append(f"- ... y {len(updates)-5} más.")
 
@@ -557,41 +534,10 @@ teams_aggregator = TeamsAggregator()
 
 
 
-def meta_bulk_del(ips):
-    if not ips:
-        return
-    meta = load_meta()
-    changed = False
-    for ip in ips:
-        if ip in meta.get("by_ip", {}):
-            del meta["by_ip"][ip]
-            changed = True
-        entry = meta.get("ip_details", {}).pop(ip, None)
-        if entry:
-            changed = True
-            try:
-                for t in entry.get("tags", []):
-                    _remove_ip_from_tag_file(t, ip)
-            except Exception:
-                pass
-    if changed:
-        save_meta(meta)
+# meta_bulk_del REMOVED
 
 
-def compute_live_counters(active_lines):
-    """Cuenta por origen (manual/csv/api) sólo sobre el feed principal."""
-    meta = load_meta().get("by_ip", {})
-    manual = csv = api = 0
-    for line in active_lines:
-        ip_txt = line.split("|", 1)[0].strip()
-        origin = meta.get(ip_txt)
-        if origin == "manual":
-            manual += 1
-        elif origin == "csv":
-            csv += 1
-        elif origin == "api":
-            api += 1
-    return manual, csv, api
+# compute_live_counters REMOVED
 
 
 def regenerate_feeds_from_db():
@@ -679,58 +625,51 @@ def compute_tag_totals():
 
 # === NUEVOS: unión feeds y matriz fuente×tag (DB Version) ===
 def _active_ip_union():
-    # Deprecated: use db.get_all_ips()
-    return set()
+    """
+    Retorna el set de todas las IPs activas en Base de Datos.
+    Usado para detectar duplicados/updates.
+    """
+    try:
+        rows = db.get_all_ips()
+        return {r['ip'] for r in rows}
+    except:
+        return set()
 
 def compute_source_and_tag_counters_union():
     """
-    Contadores en vivo sobre la base de datos (SQLite):
-      - por fuente (manual/csv/api) usando campo 'source'
-      - por tag (Multicliente/BPE/Test) usando campo 'tags'
+    Contadores en vivo sobre la base de datos (SQLite).
+    Retorna: (src_counts, tag_counts, src_tag_counts, total_union)
     """
-    try:
-        all_ips = db.get_all_ips()
-    except Exception:
-        all_ips = []
-
-    counters_by_source = {"manual": 0, "csv": 0, "api": 0}
-    counters_by_tag = {"Multicliente": 0, "BPE": 0, "Test": 0}
-    counters_by_source_tag = {
-        "manual": {"Multicliente": 0, "BPE": 0, "Test": 0},
-        "csv": {"Multicliente": 0, "BPE": 0, "Test": 0},
-        "api": {"Multicliente": 0, "BPE": 0, "Test": 0},
+    rows = db.get_all_ips()
+    total_union = len(rows)
+    
+    src_counts = {"manual": 0, "csv": 0, "api": 0}
+    tag_counts = {"Multicliente": 0, "BPE": 0, "Test": 0} 
+    
+    src_tag_counts = {
+        "manual": {}, "csv": {}, "api": {}
     }
-
-    for row in all_ips:
-        # Fuente
-        src = (row.get('source') or "").strip().lower()
-        if src not in ("manual", "csv", "api"):
-            src = None
-
-        # Tags
-        try:
-            tags = set(json.loads(row.get('tags') or '[]'))
-        except:
-            tags = set()
-
-        if "Multicliente" in tags:
-            counters_by_tag["Multicliente"] += 1
-        if "BPE" in tags:
-            counters_by_tag["BPE"] += 1
-        if "Test" in tags:
-            counters_by_tag["Test"] += 1
-
-        if src:
-            counters_by_source[src] += 1
-            if "Multicliente" in tags:
-                counters_by_source_tag[src]["Multicliente"] += 1
-            if "BPE" in tags:
-                counters_by_source_tag[src]["BPE"] += 1
-            if "Test" in tags:
-                counters_by_source_tag[src]["Test"] += 1
-
-    total_union = len(all_ips)
-    return counters_by_source, counters_by_tag, counters_by_source_tag, total_union
+    
+    for r in rows:
+        src = (r.get("source") or "manual").lower()
+        if src not in src_counts:
+            src_counts[src] = 0
+            src_tag_counts[src] = {}
+        src_counts[src] += 1
+        
+        tags = []
+        try: 
+            tags = json.loads(r.get("tags") or '[]')
+        except: 
+            tags = []
+            
+        for t in tags:
+            tag_counts[t] = tag_counts.get(t, 0) + 1
+            
+            st_map = src_tag_counts[src]
+            st_map[t] = st_map.get(t, 0) + 1
+            
+    return src_counts, tag_counts, src_tag_counts, total_union
 
 # =========================
 #  Utilidades de red
@@ -932,12 +871,7 @@ def _append_line_unique(feed_path, line_txt):
 def _ensure_dir(p):
     os.makedirs(p, exist_ok=True)
 
-def eliminar_ips_vencidas_en_feed(feed_path):
-    """
-    DEPRECATED implementation: Now redirects to DB-based expiration (checking all IPs).
-    Ignores feed_path.
-    """
-    return _expire_ips_from_db()
+# Legacy expiration helper removed (eliminar_ips_vencidas_en_feed)
 
 def _expire_ips_from_db():
     """
@@ -999,16 +933,7 @@ def _expire_ips_from_db():
         
     return expired
 
-def eliminar_ips_vencidas():
-    """Compat histórica: llama a la expiración global DB."""
-    return _expire_ips_from_db()
-
-def eliminar_ips_vencidas_bpe():
-    """Compat histórica: llama a la expiración global DB."""
-    # Como _expire_ips_from_db borra TODO lo vencido, retornamos empty para no duplicar logs
-    # o podríamos retornar lo mismo, pero depende de quién llame.
-    # Asumiremos que si se llama a una ya se limpió todo.
-    return []
+# Legacy cleanup wrappers removed
 
 def load_lines(feed_path=FEED_FILE):
     if not os.path.exists(feed_path):
@@ -1087,40 +1012,7 @@ def _parse_tags_field(val: str):
     items = re.split(r"[,\s]+", val.strip())
     return _norm_tags([x for x in items if x])
 
-def _write_tag_line(tag, ip, created_at, ttl_s, expires_at, source, tags):
-    os.makedirs(TAGS_DIR, exist_ok=True)
-    path = os.path.join(TAGS_DIR, f"{tag}.txt")
-    tag_lock = FileLock(path + ".lock")
-    line = f"{ip}|{_iso(created_at)}|{ttl_s}|{_iso(expires_at)}|{source}|{','.join(tags)}"
-    with tag_lock:
-        with open(path, "a", encoding="utf-8") as f:
-            f.write(line + "\n")
-
-def _remove_ip_from_tag_file(tag, ip):
-    path = os.path.join(TAGS_DIR, f"{tag}.txt")
-    if not os.path.exists(path):
-        return
-    tag_lock = FileLock(path + ".lock")
-    with tag_lock:
-        new_lines = []
-        with open(path, "r", encoding="utf-8") as f:
-            for line in f:
-                if not line.strip():
-                    continue
-                ip_line = line.split("|", 1)[0].strip()
-                if ip_line != ip:
-                    new_lines.append(line.rstrip("\n"))
-        with open(path, "w", encoding="utf-8") as f:
-            for l in new_lines:
-                f.write(l + "\n")
-
-def _remove_ip_from_feed(ip, feed_path=FEED_FILE):
-    # DEPRECATED: Handled by DB
-    pass
-
-def _remove_bulk_from_feed(ips, feed_path):
-    # DEPRECATED: Handled by DB
-    pass
+# Legacy tag helpers removed
 
 def _remove_ip_from_all_feeds(ip):
     """Elimina una IP de la BD y regenera feeds."""
@@ -1128,65 +1020,7 @@ def _remove_ip_from_all_feeds(ip):
     regenerate_feeds_from_db()
 
 
-def _merge_meta_tags(ip, new_tags, expires_at, source, note, alert_id=None):
-    # DEPRECATED: Logic moved to add_ips_validated (DB upsert)
-    # Kept as stub if needed, but returning dict to avoid breakage if called.
-    return {"tags": new_tags} 
-    
-    # NOTE: If _merge_meta_tags is called by other legacy parts, they might break if 
-    # we don't implement full DB logic here.
-    # But add_ips_validated was the main caller.
-    # If I removed the call in add_ips_validated, then this is dead code.
-    # I did remove it in the replacement.
-    pass
-
-
-def _remove_tag_meta(ip, tag_to_remove):
-    """Elimina un tag de una IP en la BD."""
-    try:
-        row = db.get_ip(ip)
-    except:
-        return
-
-    if row:
-        try:
-            tags = json.loads(row['tags'] or '[]')
-        except:
-            tags = []
-            
-        if tag_to_remove in tags:
-            tags = [t for t in tags if t != tag_to_remove]
-            
-            # Prepare update
-            # Parse history/alert_ids to pass back as list (upsert_ip dumps them)
-            try:
-                alert_ids = json.loads(row['alert_ids'] or '[]')
-            except:
-                alert_ids = []
-            
-            try:
-                hist = json.loads(row['history'] or '[]')
-            except:
-                hist = []
-                
-            # Add removal history
-            hist.append({
-                "ts": _iso(_now_utc()),
-                "action": "remove_tag",
-                "tag_removed": tag_to_remove,
-                "source": "web"
-            })
-            
-            db.upsert_ip(
-                ip=ip,
-                source=row['source'],
-                tags=tags,
-                ttl=row['ttl'],
-                expiration_date=row['expiration_date'],
-                alert_ids=alert_ids,
-                history=hist
-            )
-            regenerate_feeds_from_db()
+# Legacy meta helpers removed
 
 
 
@@ -1208,7 +1042,7 @@ def _already_same(entry, tags, expires_at):
 # =========================
 #  Alta de IPs (helper)  >>> actualizado para TAGS y feeds separados
 # =========================
-def add_ips_validated(lines, existentes, iterable_ips, ttl_val, origin=None, contador_ruta=None, tags=None, alert_id=None, force=False):
+def add_ips_validated(lines, existentes, iterable_ips, ttl_val, origin=None, contador_ruta=None, tags=None, alert_id=None, force=False, note=None):
     """
     Refactored for SQLite (Phase 2).
     - lines: Ignored (legacy param).
@@ -1327,25 +1161,65 @@ def add_ips_validated(lines, existentes, iterable_ips, ttl_val, origin=None, con
         # Por ahora, bulk overwrite de history es un trade-off aceptable o 
         # debemos confiar en que el usuario sabe lo que hace.
         
+        
+        final_alert_ids = []
+        if alert_id:
+            if is_update:
+                try:
+                    existing_row = db.get_ip(ip_str)
+                    if existing_row:
+                        final_alert_ids = json.loads(existing_row.get("alert_ids") or '[]')
+                except:
+                    final_alert_ids = []
+            
+            if alert_id not in final_alert_ids:
+                final_alert_ids.append(alert_id)
+        
+        # History Append Logic
+        final_history = []
+        if is_update:
+             try:
+                # We reused existing_row if fetched above, or fetch now
+                if not 'existing_row' in locals() or not existing_row:
+                     existing_row = db.get_ip(ip_str)
+                if existing_row:
+                    final_history = json.loads(existing_row.get("history") or '[]')
+             except:
+                final_history = []
+        
+        # Add current action
+        final_history.append(history_entry)
+        
         db.upsert_ip(
             ip=ip_str,
             source=origin or "manual",
             tags=tags,
             ttl=ttl_days,
             expiration_date=expires_at_dt,
-            alert_ids=[alert_id] if alert_id else [],
-            history=current_hist # This resets history. TODO: Merge history in DB helper.
+            alert_ids=final_alert_ids,
+            history=final_history
         )
 
-        # Notificación
-        added_items.append({
-            "ip": ip_str,
-            "tags": tags,
-            "ttl": ttl_days,
-            "alert_id": alert_id
-        })
-
-        añadidas += 1
+        # Notificación / Contadores
+        if is_update:
+            updated += 1
+            updated_items.append({
+                "ip": ip_str,
+                "tags": tags,
+                "ttl": ttl_days,
+                "alert_id": alert_id,
+                "note": note,
+                # "old_ttl": ... (would require read)
+            })
+        else:
+            añadidas += 1
+            added_items.append({
+                "ip": ip_str,
+                "tags": tags,
+                "ttl": ttl_days,
+                "alert_id": alert_id,
+                "note": note
+            })
             
     # --- END LOOP ---
     
@@ -1576,99 +1450,6 @@ def perform_manual_backup():
         guardar_notif("danger", f"Error en backup manual: {str(e)}")
         return False
 
-
-# === HELPER FOR METRICS ===
-def compute_source_and_tag_counters_union():
-    """
-    Calcula contadores unificados (Main + BPE + Test) deduplicando IPs.
-    Retorna: (src_counts, tag_counts, src_tag_counts, total_unique_ips)
-    """
-    # 1. Cargar todas las líneas
-    lines_main = load_lines(FEED_FILE)
-    lines_bpe  = load_lines(FEED_FILE_BPE)
-    lines_test = load_lines(FEED_FILE_TEST)
-    
-    # 2. Unificar IPs (set) para deduplicar
-    # Formato feed: IP|DATE|TTL
-    all_ips = set()
-    for l in lines_main: all_ips.add(l.split("|")[0].strip())
-    for l in lines_bpe:  all_ips.add(l.split("|")[0].strip())
-    for l in lines_test: all_ips.add(l.split("|")[0].strip())
-    
-    total = len(all_ips)
-    
-    # 3. Cargar metadatos para Origen y Tags
-    meta = load_meta()
-    by_ip = meta.get("by_ip", {})
-    ip_details = meta.get("ip_details", {})
-    
-    # Inicializar contadores
-    src_counts = {"manual": 0, "csv": 0, "api": 0}
-    tag_counts = {}
-    src_tag_counts = {}  # "manual:BPE": 10
-    
-    for ip in all_ips:
-        # --- Origen ---
-        origin = by_ip.get(ip, "manual") # Default to manual if unknown? Or 'unknown'?
-        # Normalizar claves de origen (legacy vs new)
-        if origin not in src_counts:
-            # Si hay nuevos orígenes, añádelos dinámicamente o agrúpalos
-            src_counts[origin] = src_counts.get(origin, 0) + 1
-        else:
-            src_counts[origin] += 1
-            
-        # --- Tags ---
-        # Tags vienen de ip_details[ip]["tags"] (list)
-        
-        final_tags = set(ip_details.get(ip, {}).get("tags", []))
-        
-        for t in final_tags:
-            tag_counts[t] = tag_counts.get(t, 0) + 1
-            
-            # --- Source x Tag ---
-            st_key = f"{origin}:{t}"
-            src_tag_counts[st_key] = src_tag_counts.get(st_key, 0) + 1
-            
-    return src_counts, tag_counts, src_tag_counts, total
-
-
-
-# =========================
-#  Helpers de listado/paginación/ordenación
-# =========================
-def _feed_to_records(lines):
-    """Convierte lines ['IP|YYYY-MM-DD|TTL'] en lista de dicts con campos derivados."""
-    meta_by_ip = load_meta().get("by_ip", {})
-    records = []
-    for l in lines:
-        parts = l.split("|")
-        if len(parts) != 3:
-            continue
-        ip_txt = parts[0].strip()
-        fecha_txt = parts[1].strip()
-        ttl_txt = parts[2].strip()
-        try:
-            fecha_dt = datetime.strptime(fecha_txt, "%Y-%m-%d")
-        except Exception:
-            fecha_dt = None
-        try:
-            ttl_int = int(ttl_txt)
-        except Exception:
-            ttl_int = 0
-        exp_dt = None if ttl_int == 0 or fecha_dt is None else (fecha_dt + timedelta(days=ttl_int))
-        try:
-            ip_num = int(ipaddress.ip_address(ip_txt))
-        except Exception:
-            ip_num = 0
-        records.append({
-            "ip": ip_txt,
-            "fecha": fecha_txt,
-            "fecha_dt": fecha_dt,
-            "ttl": ttl_int,
-            "expira_dt": exp_dt,
-            "origen": meta_by_ip.get(ip_txt)
-        })
-    return records
 
 
 def _apply_filters(records, q=None, date_param=None):
@@ -1997,12 +1778,9 @@ def perform_daily_expiry_once():
         return  # ya hecho hoy
 
     # Expirar y sincronizar meta (principal y BPE)
-    vencidas_main = eliminar_ips_vencidas()
-    vencidas_bpe  = eliminar_ips_vencidas_bpe()
-    vencidas_test = eliminar_ips_vencidas_en_feed(FEED_FILE_TEST)  # ← AÑADE
-    vencidas = list(set((vencidas_main or []) + (vencidas_bpe or []) + (vencidas_test or [])))  # ← AÑADE
+    # Expirar DB directly
+    vencidas = _expire_ips_from_db()
     if vencidas:
-        meta_bulk_del(vencidas)
         _audit("expire_ttl", "system", {"count": len(vencidas)}, {"ips": vencidas})
 
     try:
@@ -2204,7 +1982,7 @@ def index():
     # Expiración diaria (una vez/día)
     perform_daily_expiry_once()
     perform_daily_expiry_once()
-    repair_meta_sources()
+    # repair_meta_sources() REMOVED (Legacy JSON Sync)
     try:
         take_daily_snapshot()  # Metrics Snapshot (Punto 2 Mejoras)
     except Exception as e:
@@ -2219,7 +1997,7 @@ def index():
     user_data = all_users.get(current_username, {})
     
     # Por defecto, ver todo ("*") si no se especifica
-    allowed_feeds = user_data.get("allowed_feeds", ["*"])
+    allowed_feeds = user_data.get("allowed_feeds") or ["*"]
     
     # Filtrar configuración de feeds
     visible_feeds = {}
@@ -2285,15 +2063,58 @@ def index():
             
         if ip in seen_ips:
             continue
-        seen_ips.add(ip)
         
-        # Format for template: IP|DATE|TTL
-        # Recovers added_at from DB
+        # --- FILTERS (Restored) ---
+        # 1. Search Query
+        q = request.args.get("q", "").strip().lower()
+        if q and q not in ip.lower():
+            # print(f"DEBUG FILTER: q='{q}' not in ip='{ip}'")
+            continue
+            
+        # 2. Tag Filter
+        tag_filter = request.args.get("tag", "all")
+        if tag_filter != "all":
+            # Normalizar
+            if tag_filter not in row_tags:
+                # print(f"DEBUG FILTER: tag='{tag_filter}' not in row_tags={row_tags}")
+                continue
+
+        # 3. Source Filter
+        source_filter = request.args.get("source", "all")
+        if source_filter != "all":
+            if (row.get('source') or 'manual') != source_filter:
+                # print(f"DEBUG FILTER: source='{source_filter}' != row_source='{row.get('source')}'")
+                continue
+
+        # 4. Date Filter
         try:
             added_dt = datetime.fromisoformat(row['added_at'].replace("Z", ""))
             added_str = added_dt.strftime("%Y-%m-%d")
         except:
-            added_str = datetime.now().strftime("%Y-%m-%d")
+            added_dt = datetime.now()
+            added_str = added_dt.strftime("%Y-%m-%d")
+
+        date_from = request.args.get("dateFrom")
+        date_to = request.args.get("dateTo")
+        
+        if date_from:
+            if added_str < date_from:
+                continue
+        if date_to:
+            if added_str > date_to:
+                continue
+        # --------------------------
+
+        seen_ips.add(ip)
+        
+        # Format for template: IP|DATE|TTL
+        # Recovers added_at from DB
+        # This block was moved inside the date filter section above.
+        # try:
+        #     added_dt = datetime.fromisoformat(row['added_at'].replace("Z", ""))
+        #     added_str = added_dt.strftime("%Y-%m-%d")
+        # except:
+        #     added_str = datetime.now().strftime("%Y-%m-%d")
             
         line = f"{ip}|{added_str}|{row['ttl']}"
         lines.append(line)
@@ -2356,7 +2177,7 @@ def index():
             # regenerate_feeds_from_db handles txt files. tags files?
             # We implemented tag logic in DB tags column. 
             # We should probably clear tag files too just in case.
-            meta_del_ip(ip_to_delete) # Keeps legacy clean
+            # meta_del_ip(ip_to_delete) # REMOVED: Legacy helper, DB handles this.
 
             # Notifs + UNDO
             guardar_notif("warning", f"IP eliminada: {ip_to_delete}")
@@ -2406,6 +2227,8 @@ def index():
             except Exception as e:
                 flash(str(e), "danger")
             return redirect(url_for("index"))
+
+
 
         # -------------------- Subida CSV/TXT --------------------
         file = request.files.get("file")
@@ -2687,150 +2510,194 @@ def index():
         print(f"Error reading notifications: {e}")
         pass
 
-    # Unión para contadores / totales de cabecera
-    lines_main = load_lines(FEED_FILE)
-    lines_bpe  = load_lines(FEED_FILE_BPE)
-    lines_test = load_lines(FEED_FILE_TEST)
-    rec_main   = {r["ip"]: r for r in _feed_to_records(lines_main)}
-    rec_bpe    = {r["ip"]: r for r in _feed_to_records(lines_bpe)}
-    rec_test   = {r["ip"]: r for r in _feed_to_records(lines_test)}
+    # --- DB BASED INDEX LOGIC ---
+    all_ips_rows = db.get_all_ips()
     
-    merged_records = list(rec_main.values())
-    for ip, r in rec_bpe.items():
-        if ip not in rec_main:
-            merged_records.append(r)
-    for ip, r in rec_test.items():
-        if ip not in rec_main and ip not in rec_bpe:
-            merged_records.append(r)
-    
-    active_union_ips = {r["ip"] for r in merged_records}
-    meta_by_ip = load_meta().get("by_ip", {})
-    live_manual = sum(1 for ip in active_union_ips if meta_by_ip.get(ip) == "manual")
-    live_csv    = sum(1 for ip in active_union_ips if meta_by_ip.get(ip) == "csv")
-    live_api    = sum(1 for ip in active_union_ips if meta_by_ip.get(ip) == "api")
-    
-    tag_totals = compute_tag_totals()  # ya calcula Multicliente/BPE en la unión
-    
-    
-    # CORRECCIÓN: (Eliminado overwrite global)
-    # lines = ... (ya cargado por feed al inicio)
-
-
-    # Resumen unión feeds (fuente, tag y fuente×tag)
+    # Pre-calcular contadores totales
+    # (Ya se calculan en compute_source_and_tag_counters_union, pero aquí validamos si se usa para algo más)
     src_union, tag_union, src_tag_union, total_union = compute_source_and_tag_counters_union()
-
-
-    # Construir mapa de tags para filtrado
-    meta = load_meta()
-    ip_details = meta.get("ip_details", {})
+    
+    # Filtrar por feed solicitado
+    # Si feed=='global', mostrar todo (sujeto a RBAC y search)
+    # Si feed=='multicliente', 'bpe', 'test', filtrar por tags
+    
+    filtered_rows = []
+    
+    # Preparar estructuras auxiliares para la vista
+    live_manual = src_union.get("manual", 0)
+    live_csv = src_union.get("csv", 0)
+    live_api = src_union.get("api", 0)
+    tag_totals = tag_union
+    
+    # Mapa ip -> details
+    ip_details = {}
     ip_tags_map = {}
-    for ip, details in ip_details.items():
-        if "tags" in details and details["tags"]:
-            ip_tags_map[ip] = set(details["tags"])
+    
+    for r in all_ips_rows:
+        ip = r["ip"]
+        tags = []
+        try:
+            tags = json.loads(r["tags"] or '[]')
+        except:
+            tags = []
+        
+        alerts = []
+        try:
+            alerts = json.loads(r["alert_ids"] or '[]')
+        except:
+            alerts = []
+            
+        ip_details[ip] = {
+            "source": r.get("source"),
+            "tags": tags,
+            "ttl": r.get("ttl"),
+            "added_at": r.get("added_at"),
+            "alert_ids": alerts
+        }
+        ip_tags_map[ip] = tags
+
+    # Determine visible items based on feed_param
+    target_tags = []
+    if feed_param == "multicliente":
+        target_tags = ["Multicliente"]
+    elif feed_param == "bpe":
+        target_tags = ["BPE"]
+    elif feed_param == "test":
+        target_tags = ["Test"]
+    
+    filtered = [] # Unified list of dicts
+    
+    # print(f"DEBUG: all_ips_rows count: {len(all_ips_rows)}")
+    
+    for r in all_ips_rows:
+        # Filter Logic
+        ip = r["ip"]
+        tags = ip_tags_map.get(ip, [])
+        
+        # 1. Feed Filter (Context)
+        if feed_param != "global":
+             if not any(t in target_tags for t in tags):
+                continue
+                
+        # 2. Search Filter (Query)
+        q = request.args.get("q", "").strip().lower()
+        if q:
+             if q not in ip.lower() and q not in str(tags).lower() and q not in str(r.get("source","")).lower():
+                 continue
+
+        # 3. Source/Origin Filter
+        source_param = request.args.get("origin") or request.args.get("source") or "all"
+        if source_param != "all":
+            row_src = r.get("source") or "manual"
+            if row_src != source_param:
+                continue
+
+        # 4. Tag Filter (Specific)
+        tag_param = request.args.get("tag", "all")
+        if tag_param != "all":
+            # Si el tag solicitado no está en la lista de tags de la IP
+            if tag_param not in tags:
+                continue
+
+        # 5. Date Filter (Range)
+        date_param = request.args.get("date", "") # fmt: YYYY-MM-DD,YYYY-MM-DD
+        date_from = request.args.get("dateFrom", "")
+        date_to = request.args.get("dateTo", "")
+
+        # Fallback date param extraction
+        if not date_from and not date_to and "," in date_param:
+            parts = date_param.split(",", 1)
+            date_from = parts[0]
+            date_to = parts[1]
+
+        if date_from or date_to:
+            d_str_iso = (r.get("added_at") or "").split("T")[0]
+            if date_from and d_str_iso < date_from:
+                continue
+            if date_to and d_str_iso > date_to:
+                continue
+                 
+        # Add to list
+        # Format: IP|DATE|TTL (Legacy expectations? Or object?)
+        # Template loop: {% for line in ips %}
+        # and inside: ip = line.split("|")[0] ...
+        # So we MUST provide strings "IP|DATE|TTL".
+        
+        # Format date YYYY-MM-DD
+        d_str = ""
+        try:
+            d_qt = datetime.fromisoformat(r["added_at"].replace("Z", "+00:00"))
+            d_str = d_qt.strftime("%Y-%m-%d")
+        except:
+             d_str = r["added_at"] or ""
+             
+        # Build JSON Object
+        ttl_str = str(r["ttl"])
+        
+        # Calculate days remaining for UI
+        left_days = days_remaining(d_str, r.get("ttl", 0))
+
+        item_obj = {
+            "ip": ip,
+            "date": d_str,
+            "fecha_alta": d_str, # Frontend expects this key
+            "ttl": ttl_str,
+            "days_remaining": left_days,
+            "tags": list(tags),
+            "source": r.get("source"),
+            "alert_ids": (ip_details.get(ip) or {}).get("alert_ids", []), # Send LIST, not string
+            # "alert_id": ... # legacy field name for template?
+        }
+        
+        # Get alert_id (ticket)
+        # We need to map from ip_details or just use what we have.
+        # Check ip_details[ip]
+        if ip in ip_details:
+             item_obj["alert_id"] = (ip_details[ip].get("alert_ids") or [None])[0]
+        else:
+             item_obj["alert_id"] = None
+             
+        filtered.append(item_obj)
 
     # ------------------
-    # Filtrado y Paginación SERVER-SIDE
+    # Paginación (Unified)
     # ------------------
+    total = len(filtered)
+    try:
+        page = int(request.args.get("page", 1))
+        page_size = int(request.args.get("page_size", DEFAULT_PAGE_SIZE))
+    except:
+        page, page_size = 1, DEFAULT_PAGE_SIZE
+    
+    # Generic paginate
+    start = (page - 1) * page_size
+    end = start + page_size
+    paged_items = filtered[start:end]
+    
+    # Generate 'lines' for Template (Legacy string format)
+    lines = []
+    for it in paged_items:
+        # IP|DATE|TTL
+        lines.append(f"{it['ip']}|{it['date']}|{it['ttl']}")
+
+    # JSON Return
     fmt = request.args.get("format", "").lower()
     if fmt == "json":
-        q = request.args.get("q", "").strip().lower()
-        f_origin = request.args.get("origin", "").strip().lower()
-        f_tag = request.args.get("tag", "").strip()
-        f_date = request.args.get("date", "").strip()
-        sort_field = request.args.get("sort", "fecha")
-        order = request.args.get("order", "desc")
-        try:
-            page = int(request.args.get("page", 1))
-            page_size = int(request.args.get("page_size", 50))
-        except:
-            page, page_size = 1, 50
-
-        filtered = []
-        for r in merged_records:
-            # 1. Filtro Texto (q)
-            if q:
-                if q not in r["ip"].lower() and q not in r.get("origen","").lower():
-                    # check tags
-                    tgs = ip_tags_map.get(r["ip"], set())
-                    if not any(q in t.lower() for t in tgs):
-                        continue
-            
-            # 2. Filtro Origin
-            if f_origin and f_origin != "all":
-                # r["origen"] puede ser None -> "manual"
-                orig = (r.get("origen") or "manual").lower()
-                if orig != f_origin:
-                    continue
-
-            # 3. Filtro Tag
-            if f_tag and f_tag != "all":
-                tgs = ip_tags_map.get(r["ip"], set()).copy()
-                # Inyectar tags implícitos de feed
-                if r["ip"] in rec_bpe: tgs.add("BPE")
-                if r["ip"] in rec_test: tgs.add("Test")
-                # 'Multicliente' es el tag por defecto en Main si no es otra cosa, 
-                # pero simplificamos asumiendo que si está en Main y no en metadata explícita...
-                # Mejor check simple:
-                if f_tag not in tgs:
-                    continue
-
-            # 4. Filtro Date (rango)
-            # IMPLEMENTACIÓN SIMPLE: "YYYY-MM-DD" o "YYYY-MM-DD,YYYY-MM-DD"
-            if f_date:
-                # Omitimos para no complicar el snippet ahora, el usuario pide origen/tag principalmente
-                pass
-
-            filtered.append(r)
-
-        # Ordenar
-        reverse = (order == "desc")
-        if sort_field == "ip":
-            # Orden numérico ya se pre-calculó o se hace al vuelo
-            filtered.sort(key=lambda x: x.get("ip_num", 0) if "ip_num" in x else (int(ipaddress.ip_address(x["ip"])) if is_allowed_ip(x["ip"]) else 0), reverse=reverse)
-        elif sort_field == "ttl":
-             filtered.sort(key=lambda x: x["ttl"], reverse=reverse)
-        else:
-             # fecha default
-             filtered.sort(key=lambda x: x.get("fecha",""), reverse=reverse)
-
-        total = len(filtered)
-        start = (page - 1) * page_size
-        end = start + page_size
-        paged_items = filtered[start:end]
-
-        # Enriquecer items para JSON
-        json_items = []
-        for r in paged_items:
-            ip = r["ip"]
-            # recuperar tags / alerts
-            these_tags = list(ip_tags_map.get(ip, []))
-            these_alerts = ip_details.get(ip, {}).get("alert_ids", [])
-            
-            # calcular dias restantes
-            left_days = days_remaining(r.get("fecha",""), r.get("ttl",0))
-            
-            json_items.append({
-                "ip": ip,
-                "fecha_alta": r.get("fecha"),
-                "ttl": r.get("ttl"),
-                "days_remaining": left_days,
-                "tags": these_tags,
-                "alert_ids": these_alerts
-            })
-            
+        # Return same structure as Expected by frontend:
+        # { items: [...], counters: {...}, page:..., total:... }
         return jsonify({
-            "items": json_items,
-            "total": total,
+            "items": paged_items,
+            "counters": { "total": total }, # simplified
             "page": page,
             "page_size": page_size,
-            "counters": {
-                "total": total_union,
-                "manual": live_manual,
-                "csv": live_csv,
-                "api": live_api,
-                "tags": tag_totals
-            }
+            "total": total
         })
+        
+    # HTML Return continues below...
+    # (Update lines variable for pagination check later if any)
+    # Actually _paginate was called before, we replaced it.
+    # We need to ensure existing variables for template are set.
+
 
     # Render HTML normal (initial state)
     
@@ -2980,13 +2847,9 @@ def list_users():
 @app.route("/admin/users/add", methods=["POST"])
 @login_required
 def add_user():
-    # Solo admin puede crear (además de estar logueado, chequeamos rol si hubiera roles)
     current_user = session.get("username")
-    users = load_users()
     
-    # Simple control de roles (si el usuario actual no es admin en el JSON, rechazar?
-    # Por ahora asumimos que quien entra al dashboard es admin confiable)
-    
+    # Validation logic remains... (check if exists done by DB unique constraint or pre-check)
     data = request.get_json(silent=True) or {}
     username = data.get("username", "").strip()
     password = data.get("password", "").strip()
@@ -2996,25 +2859,22 @@ def add_user():
     if not username or not password:
         return jsonify({"error": "Faltan datos"}), 400
         
-    if username in users:
+    # Check existence
+    if db.get_user_by_username(username):
         return jsonify({"error": "El usuario ya existe"}), 400
         
-    users[username] = {
-        "password_hash": generate_password_hash(password),
-        "role": role,
-        "allowed_feeds": allowed_feeds,
-        "created_at": _iso(_now_utc()),
-        "created_by": current_user
-    }
-    save_users(users)
-    _audit("user_created", f"web/{current_user}", username, {"role": role, "feeds": allowed_feeds})
-    return jsonify({"success": True})
+    pwd_hash = generate_password_hash(password)
+    
+    if db.create_user(username, pwd_hash, role, allowed_feeds):
+        _audit("user_created", f"web/{current_user}", username, {"role": role, "feeds": allowed_feeds})
+        return jsonify({"success": True})
+    else:
+        return jsonify({"error": "Error creando usuario"}), 500
 
 @app.route("/admin/users/edit", methods=["POST"])
 @login_required
 def edit_user():
     current_user = session.get("username")
-    users = load_users()
     
     data = request.get_json(silent=True) or {}
     username = data.get("username", "").strip()
@@ -3025,20 +2885,16 @@ def edit_user():
     if not username:
         return jsonify({"error": "Faltan datos"}), 400
         
-    if username not in users:
+    if not db.get_user_by_username(username):
         return jsonify({"error": "El usuario no existe"}), 404
         
-    # Actualizar datos
-    users[username]["role"] = role
-    users[username]["allowed_feeds"] = allowed_feeds
+    new_hash = generate_password_hash(password) if password else None
     
-    # Solo actualizar contraseña si se envía una nueva
-    if password:
-        users[username]["password_hash"] = generate_password_hash(password)
-    
-    save_users(users)
-    _audit("user_updated", f"web/{current_user}", username, {"role": role, "feeds": allowed_feeds, "pw_changed": bool(password)})
-    return jsonify({"success": True})
+    if db.update_user(username, role=role, allowed_feeds=allowed_feeds, password_hash=new_hash):
+        _audit("user_updated", f"web/{current_user}", username, {"role": role, "feeds": allowed_feeds, "pw_changed": bool(password)})
+        return jsonify({"success": True})
+    else:
+        return jsonify({"error": "Error actualizando"}), 500
 
 @app.route("/admin/users/delete", methods=["POST"])
 @login_required
@@ -3050,14 +2906,14 @@ def delete_user():
     if target == current:
         return jsonify({"error": "No puedes borrarte a ti mismo"}), 400
         
-    users = load_users()
-    if target not in users:
-        return jsonify({"error": "Usuario no encontrado"}), 404
-        
-    del users[target]
-    save_users(users)
-    _audit("user_deleted", f"web/{current}", target, {})
-    return jsonify({"success": True})
+    if not db.get_user_by_username(target):
+         return jsonify({"error": "Usuario no encontrado"}), 404
+         
+    if db.delete_user(target):
+        _audit("user_deleted", f"web/{current}", target, {})
+        return jsonify({"success": True})
+    else:
+        return jsonify({"error": "Error borrando usuario"}), 500
 
 @app.route("/admin/users/password", methods=["POST"])
 @login_required
@@ -3269,6 +3125,101 @@ def metrics():
     })
 
 
+# --- Settings Routes ---
+
+@app.route('/admin/settings')
+@login_required
+def admin_settings_ui():
+    if session.get('role') != 'admin':
+        return redirect(url_for('index'))
+    
+    # --- Config & API Keys ---
+    api_keys = db.list_api_keys()
+    webhook_url = db.get_config("TEAMS_WEBHOOK_URL", "")
+
+    # --- Audit Log Logic (Migrated) ---
+    requested_file = request.args.get("log_file", "").strip()
+    target_file = AUDIT_LOG_FILE
+    is_historical = False
+    
+    if requested_file:
+        safe_name = os.path.basename(requested_file)
+        full_path = os.path.join(os.path.dirname(AUDIT_LOG_FILE) or ".", safe_name)
+        if os.path.exists(full_path) and safe_name.startswith("audit-log.") and safe_name.endswith(".jsonl"):
+            target_file = full_path
+            if safe_name != os.path.basename(AUDIT_LOG_FILE):
+                is_historical = True
+
+    audit_logs = []
+    try:
+        if is_historical:
+            # Historical files
+            if os.path.exists(target_file):
+                with open(target_file, "r", encoding="utf-8") as f:
+                    lines = f.readlines()
+                    for line in reversed(lines[-500:]):
+                        try:
+                            audit_logs.append(json.loads(line))
+                        except:
+                            pass
+        else:
+            # Active log from DB
+            audit_logs = db.get_audit_log(500)
+    except Exception as e:
+        print(f"Error loading audit logs: {e}")
+
+    available_files = get_audit_log_files()
+
+    return render_template('settings.html', 
+                           api_keys=api_keys, 
+                           webhook_url=webhook_url,
+                           audit_logs=audit_logs,
+                           current_file=os.path.basename(target_file),
+                           is_historical=is_historical,
+                           available_files=available_files)
+
+@app.route('/admin/api-keys', methods=['POST'])
+@login_required
+def admin_api_keys():
+    if session.get('role') != 'admin':
+        return jsonify({"ok": False, "error": "Unauthorized"}), 403
+        
+    action = request.form.get('action')
+    if action == 'create':
+        name = request.form.get('name')
+        scopes = request.form.get('scopes') # "READ,WRITE"
+        # Generate secure token
+        import secrets
+        token = "dk_" + secrets.token_urlsafe(16)
+        
+        if db.create_api_key(name, token, scopes):
+             flash(f"API Key creada: {token}", "success")
+        else:
+             flash("Error al crear API Key", "danger")
+             
+    elif action == 'delete':
+        key_id = request.form.get('id')
+        if db.delete_api_key(key_id):
+            flash("API Key eliminada", "success")
+        else:
+            flash("Error al eliminar", "danger")
+            
+    return redirect(url_for('admin_settings_ui'))
+
+@app.route('/admin/config', methods=['POST'])
+@login_required
+def admin_config():
+    if session.get('role') != 'admin':
+        return jsonify({"ok": False, "error": "Unauthorized"}), 403
+        
+    webhook = request.form.get('teams_webhook_url')
+    if webhook is not None:
+        db.set_config("TEAMS_WEBHOOK_URL", webhook.strip())
+        flash("Configuración actualizada", "success")
+        
+    return redirect(url_for('admin_settings_ui'))
+
+
 @app.route("/notifications/read-all", methods=["POST"])
 @login_required
 def notifications_read_all():
@@ -3323,52 +3274,7 @@ def get_audit_log_files():
     return files
 
 
-@app.route("/audit")
-@login_required
-def audit_view():
-    if session.get("role") == "view_only":
-        pass
 
-    # Parámetro opcional ?log_file=...
-    requested_file = request.args.get("log_file", "").strip()
-    
-    target_file = AUDIT_LOG_FILE
-    is_historical = False
-    
-    # Validación segura: solo permitimos nombres que coincidan con patrón de rotación
-    if requested_file:
-        # Debe estar en el mismo directorio y empezar por el prefijo
-        safe_name = os.path.basename(requested_file)
-        full_path = os.path.join(os.path.dirname(AUDIT_LOG_FILE) or ".", safe_name)
-        if os.path.exists(full_path) and safe_name.startswith("audit-log.") and safe_name.endswith(".jsonl"):
-            target_file = full_path
-            if safe_name != os.path.basename(AUDIT_LOG_FILE):
-                is_historical = True
-
-    logs = []
-    try:
-        if os.path.exists(target_file):
-            with open(target_file, "r", encoding="utf-8") as f:
-                # Leer todo (para histórico/actual) y coger últimas 500 lineas
-                # Si es un fichero historico MUY grande, esto podría optimizarse, pero 5MB es manejable.
-                lines = f.readlines()
-                # Mostramos los últimos 500
-                for line in reversed(lines[-500:]):
-                    try:
-                        logs.append(json.loads(line))
-                    except:
-                        pass
-    except Exception:
-        pass
-
-    # Obtener lista de ficheros disponibles para el selector
-    available_files = get_audit_log_files()
-
-    return render_template("audit.html", 
-                           logs=logs, 
-                           current_file=os.path.basename(target_file), 
-                           is_historical=is_historical,
-                           available_files=available_files)
 
 
 # =========================
@@ -3394,18 +3300,37 @@ def _api_guard():
 def _auth_ok():
     if not TOKEN_API:
         return False
+    
+    token_found = None
+    
     # 1. Try Bearer
     auth = request.headers.get("Authorization", "")
     if auth.startswith("Bearer "):
-        return auth.split(" ", 1)[1].strip() == TOKEN_API
+        token_found = auth.split(" ", 1)[1].strip()
+    
     # 2. Try X-API-Key
-    x_key = request.headers.get("X-API-Key", "")
-    if x_key == TOKEN_API:
-        return True
+    if not token_found:
+        token_found = request.headers.get("X-API-Key", "")
+        
     # 3. Try query param
-    q_token = request.args.get("token", "")
-    if q_token == TOKEN_API:
+    if not token_found:
+        token_found = request.args.get("token", "")
+
+    if not token_found:
+        return False
+
+    # Validation
+    # A) Legacy
+    if token_found == TOKEN_API:
+        g.api_user = {"name": "system (legacy)", "scopes": "ALL"}
         return True
+        
+    # B) DB
+    key_record = db.get_api_key(token_found)
+    if key_record:
+        g.api_user = key_record
+        return True
+        
     return False
 
 def _client_ip():
@@ -3498,7 +3423,7 @@ def _parse_ttl_seconds(obj) -> int:
     return 86400
 
 @app.route("/api/summary", methods=["GET"])
-@require_api_token
+@require_api_token("READ")
 def api_summary():
     """
     Endpoint ligero para monitorización externa (Zabbix/Grafana).
@@ -3519,6 +3444,7 @@ def api_summary():
 
 
 @api.route("/bloquear-ip", methods=["POST", "DELETE"])
+@require_api_token("WRITE")
 def bloquear_ip_api():
     # Idempotencia para POST
     if request.method == "POST":
@@ -3598,7 +3524,8 @@ def bloquear_ip_api():
                     contador_ruta=COUNTER_API,
                     tags=tags,
                     alert_id=alert_id,
-                    force=force
+                    force=force,
+                    note=note
                 )
                 
                 # --- Notify Teams ---
@@ -3609,24 +3536,31 @@ def bloquear_ip_api():
                     source="api",
                     ticket=alert_id
                 )
-                # Force flush for API to provide immediate feedback during tests
-                # In high-volume production, consider removing this or making it conditional
-                teams_aggregator.flush()
                 # --------------------
 
                 # Re-cargar meta para obtener los detalles frescos
-                meta = load_meta()
-                meta_details = meta.get("ip_details", {})
-
+                # Get fresh details from DB
                 for ip_str in targets:
-                    entry = meta_details.get(ip_str)
-                    if entry:
+                    row = db.get_ip(ip_str)
+                    if row:
+                        tags_db = []
+                        try: 
+                            tags_db = json.loads(row["tags"] or '[]')
+                        except: 
+                            tags_db = []
+                        
+                        alerts_db = []
+                        try: 
+                            alerts_db = json.loads(row["alert_ids"] or '[]')
+                        except: 
+                            alerts_db = []
+                        
                         item_result["ips"].append({
                             "ip": ip_str,
                             "status": "ok",
-                            "tags": entry["tags"],
-                            "expires_at": entry["expires_at"],
-                            "alert_ids": entry.get("alert_ids", [])
+                            "tags": tags_db,
+                            "expires_at": row["expiration_date"],
+                            "alert_ids": alerts_db
                         })
                     else:
                          item_result["ips"].append({"ip": ip_str, "status": "not_processed"})
@@ -3641,6 +3575,9 @@ def bloquear_ip_api():
 
         # Guardar feed si cambió
         # save_lines(lines, FEED_FILE) # Handled by DB Regenerate
+
+        # Force flush ONCE at the end of the batch
+        teams_aggregator.flush()
 
         resp = {
             "status": "partial_ok" if errors and processed else ("error" if errors and not processed else "ok"),
@@ -3670,82 +3607,96 @@ def bloquear_ip_api():
         return jsonify({"error": "IP inválida"}), 400
 
     tags = _filter_allowed_tags(body.get("tags", []))
-
-    meta = load_meta()
-    entry = meta.get("ip_details", {}).get(ip_txt)
-    if not entry:
-        # No hay detalles: si no hay tags => quitar del feed(s) por compat
-        if not tags:
-            _remove_ip_from_feed(ip_txt, FEED_FILE)
-            _remove_ip_from_feed(ip_txt, FEED_FILE_BPE)
-            meta_del_ip(ip_txt)
-            _audit("api_delete_global", g.get("api_actor","api"), ip_txt, {"detail": "no_meta_global"})
-            send_teams_alert(f"🗑️ IP Eliminada (API)", f"IP: **{ip_txt}**\nMotivo: Sin metadata/Global", color="DC3545", sections=[{"activityTitle": "User", "activitySubtitle": g.get("api_actor","api")}])
-            return jsonify({"status": "deleted", "ip": ip_txt, "scope": "global"}), 200
-        else:
-            _audit("api_delete_not_found", g.get("api_actor","api"), ip_txt, {"tags": tags})
-            return jsonify({"status": "not_found", "ip": ip_txt}), 404
+    
+    # Check existence
+    row = db.get_ip(ip_txt)
+    if not row:
+         # No existe: si no hay tags => devolver Deleted (idempotencia) o Not Found?
+         # Legacy logic returns Deleted if global delete (no tags)
+         if not tags:
+             return jsonify({"status": "deleted", "ip": ip_txt, "scope": "global"}), 200
+         else:
+             _audit("api_delete_not_found", g.get("api_actor","api"), ip_txt, {"tags": tags})
+             return jsonify({"status": "not_found", "ip": ip_txt}), 404
 
     if not tags:
-        # borrar de todos los tags + feeds + meta
-        for t in entry.get("tags", []):
-            _remove_ip_from_tag_file(t, ip_txt)
-        _remove_ip_from_feed(ip_txt, FEED_FILE)
-        _remove_ip_from_feed(ip_txt, FEED_FILE_BPE)
-        meta_del_ip(ip_txt)
+        # borrar de todos los tags + feeds + meta (Global Delete)
+        db.delete_ip(ip_txt)
+        regenerate_feeds_from_db()
+        
         _audit("api_delete_all_tags", g.get("api_actor","api"), ip_txt, {})
         send_teams_alert(f"🗑️ IP Eliminada (API)", f"IP: **{ip_txt}**\nScope: Global (todos los tags)", color="DC3545", sections=[{"activityTitle": "User", "activitySubtitle": g.get("api_actor","api")}])
         return jsonify({"status": "deleted", "ip": ip_txt, "scope": "global"}), 200
     else:
-        # borrar solo tags indicados
-        remaining = [t for t in entry.get("tags", []) if t not in set(tags)]
+        # borrar solo tags indicados (Untag)
+        current_tags = []
+        try: current_tags = json.loads(row["tags"] or '[]')
+        except: pass
+        
+        remaining = [t for t in current_tags if t not in set(tags)]
+        
+        # Update via upsert
+        # Preserve other fields
+        # Note: db.upsert_ip requires all fields.
+        # Shortcuts via db?
+        # db.remove_tag handles single tag.
+        # But here we might have multiple tags.
+        # Let's iterate db.remove_tag for simplicity or upsert once.
+        # Upsert once is better for atomic-ish update, but manual construction needed.
+        # Or loop remove_tag (less code here).
+        
+        updated_any = False
         for t in tags:
-            _remove_ip_from_tag_file(t, ip_txt)
+            # Only if present
+            if t in current_tags:
+                # remove_tag calls upsert internally per tag.
+                # A bit inefficient if many tags, but safe.
+                db.remove_tag(ip_txt, t)
+                updated_any = True
+                
+        if updated_any:
+            regenerate_feeds_from_db()
+            
+        current_tags = [t for t in current_tags if t not in tags]
 
-        # actualizar meta (alert_ids se conservan)
-        meta["ip_details"][ip_txt]["tags"] = remaining
-        meta["ip_details"][ip_txt]["history"].append({
-            "ts": _iso(_now_utc()),
-            "action": "untag",
-            "tags_removed": tags
-        })
-        # Si se ha quitado BPE de los tags y ya no queda, retirar del feed BPE
-        if "BPE" in tags and "BPE" not in remaining:
-            _remove_ip_from_feed(ip_txt, FEED_FILE_BPE)
-        # Si se quitó Multicliente y ya no queda ningun tag, también del principal
-        if "Multicliente" in tags and "Multicliente" not in remaining:
-            _remove_ip_from_feed(ip_txt, FEED_FILE)
-
-        if not remaining:
-            # si ya no quedan tags, limpiar de ambos feeds + meta
-            _remove_ip_from_feed(ip_txt, FEED_FILE)
-            _remove_ip_from_feed(ip_txt, FEED_FILE_BPE)
-            meta_del_ip(ip_txt)
-            save_meta(meta)
-            _audit("api_delete_all_tags_cleanup", g.get("api_actor","api"), ip_txt, {})
-            send_teams_alert(f"🗑️ IP Eliminada (API)", f"IP: **{ip_txt}**\nScope: Cleanup (sin tags restantes)", color="DC3545", sections=[{"activityTitle": "User", "activitySubtitle": g.get("api_actor","api")}])
-            return jsonify({"status": "deleted", "ip": ip_txt, "scope": "all_tags"}), 200
-        else:
-            save_meta(meta)
-            _audit("api_delete_some_tags", g.get("api_actor","api"), ip_txt, {"remaining": remaining})
-            send_teams_alert(f"🔄 IP Actualizada (Tags)", f"IP: **{ip_txt}**\nQuitado: {tags}\nRestan: {remaining}", color="0076D7", sections=[{"activityTitle": "User", "activitySubtitle": g.get("api_actor","api")}])
-            return jsonify({"status": "updated", "ip": ip_txt, "remaining_tags": remaining}), 200
+        _audit("api_untag", g.get("api_actor","api"), ip_txt, {"tags_removed": tags, "remaining": current_tags})
+        send_teams_alert(f"label IP Untag (API)", f"IP: **{ip_txt}**\nTags quitados: {', '.join(tags)}", color="FFC107", sections=[{"activityTitle": "User", "activitySubtitle": g.get("api_actor","api")}])
+        
+        return jsonify({"status": "updated", "ip": ip_txt, "scope": "partial", "remaining_tags": current_tags}), 200
+        return jsonify({"status": "updated", "ip": ip_txt, "scope": "partial", "remaining_tags": current_tags}), 200
 
 
 @api.route("/estado/<ip_str>", methods=["GET"])
+@require_api_token("READ")
 def estado_api(ip_str):
     try:
         ipaddress.ip_address(ip_str)
     except Exception:
         _audit("api_estado_invalid_ip", g.get("api_actor","api"), ip_str, {})
         return jsonify({"error": "IP inválida"}), 400
-    meta = load_meta()
-    entry = meta.get("ip_details", {}).get(ip_str)
-    if not entry:
+    row = db.get_ip(ip_str)
+    if not row:
         _audit("api_estado_not_found", g.get("api_actor","api"), ip_str, {})
         return jsonify({"status": "not_found", "ip": ip_str}), 404
+    
     _audit("api_estado_ok", g.get("api_actor","api"), ip_str, {})
-    # entry ya incluye alert_ids si existen
+    
+    tags = []
+    try: tags = json.loads(row["tags"] or '[]')
+    except: pass
+    
+    alert_ids = []
+    try: alert_ids = json.loads(row["alert_ids"] or '[]')
+    except: pass
+    
+    entry = {
+        "tags": tags,
+        "expires_at": row["expiration_date"],
+        "alert_ids": alert_ids,
+        "source": row["source"],
+        "ttl": row["ttl"],
+        "added_at": row["added_at"]
+    }
     return jsonify({"status": "ok", "data": entry}), 200
 
 
@@ -3793,15 +3744,21 @@ def api_root():
     }), 200
 
 
+@app.route('/api/counters/history', methods=['GET'])
+@require_api_token(required_scope='READ')
+def api_counters_history_endpoint():
+    try:
+        limit = int(request.args.get('limit', 30))
+        history = db.get_metrics_history(limit)
+        return jsonify(history)
+    except Exception as e:
+        return jsonify({"error": str(e)}), 500
+
 # Registrar blueprint
 app.register_blueprint(api)
 
 
-@app.route("/api/counters/history", methods=["GET"])
-@login_required
-def api_counters_history():
-    """Devuelve el histórico de contadores (JSON)."""
-    return jsonify(load_history())
+
 
 
 @app.route("/api/remove-tag", methods=["POST"])
@@ -3823,16 +3780,17 @@ def api_remove_tag():
         return json_response_error("Faltan datos (ip, tag).")
 
     try:
-        # 1. Quitar del fichero de metadatos
-        _remove_tag_meta(ip, tag)
-        
-        # 2. Quitar del fichero del tag específico
-        _remove_ip_from_tag_file(tag, ip) 
-        
-        # Auditoría
-        _audit("remove_tag", f"web/{session.get('username','admin')}", ip, {"tag": tag})
-        
-        return json_response_ok([], {"message": f"Tag '{tag}' eliminado de {ip}"})
+        # 1. Quitar de BD uses db.remove_tag
+        if db.remove_tag(ip, tag):
+            # 2. Regenerate feeds
+            regenerate_feeds_from_db()
+            
+            # Auditoría
+            _audit("remove_tag", f"web/{session.get('username','admin')}", ip, {"tag": tag})
+            
+            return json_response_ok([], {"message": f"Tag '{tag}' eliminado de {ip}"})
+        else:
+            return json_response_error(f"Error o Tag no encontrado para {ip}", 404)
     except Exception as e:
         return json_response_error(f"Error interno: {str(e)}", 500)
 
@@ -3854,15 +3812,86 @@ def api_run_diagnostics():
         ok = (result.returncode == 0)
         output = result.stderr + "\n" + result.stdout # unittest often writes to stderr
         
+        # Guardar en BD
+        db.save_test_run(ok, output, actor=f"web/{session.get('username','admin')}")
+
         # Guardar notificación
-        msg = "Autodiagnóstico: OK" if ok else "Autodiagnóstico: FALLO"
-        cat = "success" if ok else "danger"
-        guardar_notif(cat, msg)
+        status_msg = "Pruebas pasadas OK" if ok else "ERROR en pruebas unitarias"
+        guardar_notif("success" if ok else "error", f"{status_msg}. Consulta historial de salud para detalles.")
         
         return json_response_ok(extra={"ok": ok, "output": output})
     except Exception as e:
-        return json_response_error(f"Error ejecutando tests: {str(e)}", 500)
+        return json_response_error(f"Error al ejecutar diagnósticos: {str(e)}", 500)
+
+
+@app.route("/api/test-history", methods=["GET"])
+@login_required
+def api_test_history():
+    """
+    Devuelve los últimos 10 resultados de las pruebas de salud.
+    """
+    limit = int(request.args.get("limit", 10))
+    history = db.get_test_history(limit)
+    return jsonify({"ok": True, "history": history})
+
+
+@app.route("/admin/history/<path:ip>", methods=["GET"])
+@login_required
+def admin_get_history(ip):
+    row = db.get_ip(ip)
+    if not row:
+        return jsonify({"error": "IP not found"}), 404
+        
+    try:
+        history = json.loads(row["history"] or '[]')
+        # Sort by timestamp desc
+        history.sort(key=lambda x: x.get("ts", ""), reverse=True)
+    except:
+        history = []
+        
+    return jsonify({"ip": ip, "history": history})
+
+
+
+
+# --- Hook para Snapshot Diario ---
+# Variable global para rate-limit del snapshot (1 hora)
+_last_global_snapshot = 0
+
+@app.before_request
+def daily_snapshot_check():
+    global _last_global_snapshot
+    try:
+        now = time.time()
+        # Solo escribir si pasaron > 60 min (3600s) desde el último intento en este worker
+        if now - _last_global_snapshot > 3600:
+            _last_global_snapshot = now
+            
+            # Calcular contadores actuales usando la lógica de Unión de Feeds
+            # Devuelve: src_counts, tag_counts, src_tag_counts, total_union
+            if 'compute_source_and_tag_counters_union' in globals():
+                src_counts, tag_counts, _, total = compute_source_and_tag_counters_union()
+                
+                # Formato esperado por db.save_daily_snapshot:
+                # {total, manual, csv, api, tags: ...}
+                snapshot_data = {
+                    'total': total,
+                    'manual': src_counts.get('manual', 0),
+                    'csv': src_counts.get('csv', 0),
+                    'api': src_counts.get('api', 0),
+                    'tags': tag_counts
+                }
+                
+                db.save_daily_snapshot(snapshot_data)
+            
+    except Exception:
+        # No bloquear request por error de métricas
+        pass
+
+
 
 
 if __name__ == "__main__":
+    # Ensure DB tables exist
+    db.init_db()
     app.run(debug=False, host="0.0.0.0", port=5000)

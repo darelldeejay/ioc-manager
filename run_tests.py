@@ -1,15 +1,11 @@
 
-import unittest
+import pytest
 import sys
 import os
 
 if __name__ == '__main__':
-    # Discover and run tests
-    start_dir = os.path.join(os.path.dirname(__file__), 'tests')
-    loader = unittest.TestLoader()
-    suite = loader.discover(start_dir)
-    
-    runner = unittest.TextTestRunner(verbosity=2)
-    result = runner.run(suite)
-    
-    sys.exit(not result.wasSuccessful())
+    # Ejecuta pytest sobre la carpeta tests
+    # Devolvemos el código de salida de pytest directamente
+    # -v: verbose, -c /dev/null: evita cargar configuraciones externas si las hubiera
+    args = ["tests", "-v"]
+    sys.exit(pytest.main(args))

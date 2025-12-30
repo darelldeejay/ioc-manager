@@ -1,0 +1,707 @@
+<!DOCTYPE html>
+<html lang="es" data-theme="light">
+
+<head>
+    <meta charset="UTF-8">
+    <title>Configuración - IOC Manager</title>
+    <meta name="viewport" content="width=device-width, initial-scale=1">
+    <link href="https://cdn.jsdelivr.net/npm/bootstrap@5.3.0/dist/css/bootstrap.min.css" rel="stylesheet">
+    <link rel="stylesheet" href="https://cdn.jsdelivr.net/npm/bootstrap-icons@1.10.5/font/bootstrap-icons.css">
+
+    <!-- Estilos base -->
+    <style>
+        :root {
+            --bg-body: #f8f9fa;
+            --bg-card: #ffffff;
+            --text-main: #212529;
+            --text-muted: #6c757d;
+            --border-color: #dee2e6;
+            --primary-rgb: 13, 110, 253;
+            --card-shadow: 0 0.125rem 0.25rem rgba(0, 0, 0, 0.075);
+        }
+
+        [data-theme="dark"] {
+            --bg-body: #121212;
+            --bg-card: #1e1e1e;
+            --text-main: #e0e0e0;
+            --text-muted: #a0a0a0;
+            --border-color: #333333;
+            --card-shadow: 0 0.125rem 0.25rem rgba(0, 0, 0, 0.5);
+        }
+
+        body {
+            background-color: var(--bg-body);
+            color: var(--text-main);
+            font-family: 'Segoe UI', system-ui, -apple-system, sans-serif;
+            transition: background-color 0.3s ease, color 0.3s ease;
+        }
+
+        .card {
+            background-color: var(--bg-card);
+            border: 1px solid var(--border-color);
+            box-shadow: var(--card-shadow);
+            transition: background-color 0.3s ease, border-color 0.3s ease;
+        }
+
+        .card-header {
+            background-color: rgba(var(--primary-rgb), 0.1);
+            color: var(--text-main);
+            border-bottom: 1px solid var(--border-color);
+            font-weight: 600;
+        }
+
+        .card-header.bg-primary {
+            background-color: #0d6efd !important;
+            /* Keep primary for key headers */
+            color: white !important;
+        }
+
+        .table {
+            --bs-table-bg: var(--bg-card);
+            --bs-table-color: var(--text-main);
+            --bs-table-border-color: var(--border-color);
+        }
+
+        .nav-tabs .nav-link {
+            color: var(--text-muted);
+            border: 1px solid transparent;
+            transition: all 0.2s ease;
+        }
+
+        .nav-tabs .nav-link:hover {
+            color: var(--text-main);
+            border-color: transparent;
+            background-color: rgba(var(--primary-rgb), 0.05);
+        }
+
+        .nav-tabs .nav-link.active {
+            color: #0d6efd;
+            background-color: var(--bg-body);
+            border-color: var(--border-color) var(--border-color) var(--bg-body);
+            font-weight: 600;
+        }
+
+        /* Utility for input backgrounds in dark mode if Bootstrap JS fails */
+        [data-theme="dark"] .form-control,
+        [data-theme="dark"] .form-select {
+            background-color: #2c2c2c;
+            border-color: #444;
+            color: #fff;
+        }
+
+        [data-theme="dark"] .form-control:focus,
+        [data-theme="dark"] .form-select:focus {
+            background-color: #333;
+            color: #fff;
+            border-color: #0d6efd;
+        }
+
+        /* Fix Table Stripes in Dark Mode */
+        [data-theme="dark"] .table-striped>tbody>tr:nth-of-type(odd)>* {
+            --bs-table-accent-bg: rgba(255, 255, 255, 0.03);
+            color: var(--text-main);
+        }
+
+        [data-theme="dark"] .table-hover>tbody>tr:hover>* {
+            --bs-table-accent-bg: rgba(255, 255, 255, 0.05);
+        }
+    </style>
+</head>
+
+<body>
+
+    <div class="container py-4">
+        <div class="d-flex justify-content-between align-items-center mb-4">
+            <h2 class="fw-bold m-0"><i class="bi bi-sliders2 me-2"></i>Administración</h2>
+            <div>
+                <a href="{{ url_for('index') }}" class="btn btn-outline-secondary">
+                    <i class="bi bi-arrow-left me-1"></i> Volver al Dashboard
+                </a>
+            </div>
+        </div>
+
+        {% with messages = get_flashed_messages(with_categories=true) %}
+        {% if messages %}
+        {% for category, message in messages %}
+        <div class="alert alert-{{ category }} alert-dismissible fade show" role="alert">
+            {{ message }}
+            <button type="button" class="btn-close" data-bs-dismiss="alert" aria-label="Close"></button>
+        </div>
+        {% endfor %}
+        {% endif %}
+        {% endwith %}
+
+        <!-- Navigation Tabs -->
+        <ul class="nav nav-tabs mb-4" id="configTabs" role="tablist">
+            <li class="nav-item" role="presentation">
+                <button class="nav-link active" id="system-tab" data-bs-toggle="tab" data-bs-target="#system-pane"
+                    type="button" role="tab" aria-controls="system-pane" aria-selected="true">
+                    <i class="bi bi-hdd-rack me-2"></i>Sistema y API
+                </button>
+            </li>
+            <li class="nav-item" role="presentation">
+                <button class="nav-link" id="users-tab" data-bs-toggle="tab" data-bs-target="#users-pane" type="button"
+                    role="tab" aria-controls="users-pane" aria-selected="false">
+                    <i class="bi bi-person-vcard me-2"></i>Usuarios
+                </button>
+            </li>
+            <li class="nav-item" role="presentation">
+                <button class="nav-link" id="audit-tab" data-bs-toggle="tab" data-bs-target="#audit-pane" type="button"
+                    role="tab" aria-controls="audit-pane" aria-selected="false">
+                    <i class="bi bi-activity me-2"></i>Auditoría
+                </button>
+            </li>
+        </ul>
+
+        <div class="tab-content" id="configTabsContent">
+
+            <!-- SYSTEM TAB (API Keys + Config) -->
+            <div class="tab-pane fade show active" id="system-pane" role="tabpanel" aria-labelledby="system-tab">
+                <div class="row">
+                    <!-- Left Column: API Keys -->
+                    <div class="col-lg-8">
+                        <div class="card shadow-sm mb-4">
+                            <div class="card-header bg-primary text-white">
+                                <h5 class="mb-0"><i class="bi bi-key-fill me-2"></i>Gestión de API Keys</h5>
+                            </div>
+                            <div class="card-body">
+                                <p class="text-muted small">Genera llaves de acceso para sistemas externos (SIEM,
+                                    Scripts, Dashboards).</p>
+
+                                <div class="table-responsive">
+                                    <table class="table table-hover align-middle">
+                                        <thead class="table-light">
+                                            <tr>
+                                                <th>Nombre</th>
+                                                <th>Token</th>
+                                                <th>Permisos (Scopes)</th>
+                                                <th>Creada</th>
+                                                <th>Acción</th>
+                                            </tr>
+                                        </thead>
+                                        <tbody>
+                                            {% for key in api_keys %}
+                                            <tr>
+                                                <td class="fw-bold">{{ key.name }}</td>
+                                                <td>
+                                                    <code class="user-select-all">{{ key.token }}</code>
+                                                </td>
+                                                <td>
+                                                <td>
+                                                <td>
+                                                    {% for scope in key.scopes.split(',') %}
+                                                    {% if scope == 'ALL' %}
+                                                    <span class="badge rounded-pill text-bg-danger"><i
+                                                            class="bi bi-asterisk me-1"></i>ALL</span>
+                                                    {% elif scope == 'WRITE' %}
+                                                    <span class="badge rounded-pill text-bg-warning"><i
+                                                            class="bi bi-terminal me-1"></i>WRITE</span>
+                                                    {% else %}
+                                                    <span class="badge rounded-pill text-bg-info"><i
+                                                            class="bi bi-search me-1"></i>READ</span>
+                                                    {% endif %}
+                                                    {% endfor %}
+                                                </td>
+                                                <td class="small text-muted">{{ key.created_at[:10] }}</td>
+                                                <td>
+                                                    <form action="{{ url_for('admin_api_keys') }}" method="POST"
+                                                        onsubmit="return confirm('¿Borrar esta llave?');">
+                                                        <input type="hidden" name="action" value="delete">
+                                                        <input type="hidden" name="id" value="{{ key.id }}">
+                                                        <button type="submit" class="btn btn-sm btn-outline-danger"
+                                                            title="Eliminar"><i class="bi bi-trash"></i></button>
+                                                    </form>
+                                                </td>
+                                            </tr>
+                                            {% else %}
+                                            <tr>
+                                                <td colspan="5" class="text-center text-muted py-3">No hay llaves
+                                                    creadas.</td>
+                                            </tr>
+                                            {% endfor %}
+                                        </tbody>
+                                    </table>
+                                </div>
+
+                                <hr>
+
+                                <h6 class="fw-bold">Generar Nueva Key</h6>
+                                <form action="{{ url_for('admin_api_keys') }}" method="POST"
+                                    class="row g-3 align-items-end">
+                                    <input type="hidden" name="action" value="create">
+
+                                    <div class="col-md-4">
+                                        <label class="form-label small">Nombre / Descripción</label>
+                                        <input type="text" name="name" class="form-control"
+                                            placeholder="Ej: SIEM, Zabbix..." required>
+                                    </div>
+
+                                    <div class="col-md-4">
+                                        <label class="form-label small">Permisos</label>
+                                        <select name="scopes" class="form-select" required>
+                                            <option value="READ">[RO] Solo Lectura (READ)</option>
+                                            <option value="WRITE">[W] Escritura (WRITE)</option>
+                                            <option value="READ,WRITE">[RW] Lectura + Escritura</option>
+                                        </select>
+                                    </div>
+
+                                    <div class="col-md-4">
+                                        <button type="submit" class="btn btn-success w-100"><i
+                                                class="bi bi-plus-lg me-1"></i>Generar Key</button>
+                                    </div>
+                                </form>
+                            </div>
+                        </div>
+                    </div>
+
+                    <!-- Right Column: System Config -->
+                    <div class="col-lg-4">
+                        <div class="card shadow-sm mb-3">
+                            <div class="card-header bg-info text-dark">
+                                <h5 class="mb-0"><i class="bi bi-megaphone-fill me-2"></i>Integraciones</h5>
+                            </div>
+                            <div class="card-body">
+                                <form action="{{ url_for('admin_config') }}" method="POST">
+                                    <div class="mb-3">
+                                        <label class="form-label fw-bold">Microsoft Teams Webhook URL</label>
+                                        <input type="url" name="teams_webhook_url" class="form-control"
+                                            value="{{ webhook_url }}"
+                                            placeholder="https://outlook.office.com/webhook/..." required>
+                                        <div class="form-text small">URL para recibir notificaciones en Teams cuando se
+                                            bloquea una IP.</div>
+                                    </div>
+                                    <button type="submit" class="btn btn-primary w-100">Guardar URL</button>
+                                </form>
+                            </div>
+                        </div>
+
+                        <div class="card shadow-sm mt-3">
+                            <div class="card-header bg-light">
+                                <h5 class="mb-0 fs-6">ℹ️ Información</h5>
+                            </div>
+                            <div class="card-body small">
+                                <p>Las <strong>API Keys</strong> permiten conectar herramientas externas.</p>
+                                <ul class="ps-3">
+                                    <li class="mb-1"><strong>READ:</strong> Consulta de estado y feeds.</li>
+                                    <li><strong>WRITE:</strong> Bloqueo y desbloqueo de IPs.</li>
+                                </ul>
+                                <p class="mb-0 text-muted mt-2 border-top pt-2">
+                                    <i class="bi bi-info-circle me-1"></i>La llave maestra configurada en
+                                    <code>.env</code> sigue teniendo acceso total siempre.
+                                </p>
+                            </div>
+                        </div>
+                    </div>
+                </div>
+            </div>
+
+            <!-- USERS TAB -->
+            <div class="tab-pane fade" id="users-pane" role="tabpanel" aria-labelledby="users-tab">
+                <div class="card shadow-sm">
+                    <div class="card-header d-flex justify-content-between align-items-center">
+                        <h5 class="mb-0"><i class="bi bi-people me-2"></i>Usuarios Registrados</h5>
+                        <button class="btn btn-primary btn-sm" data-bs-toggle="modal" data-bs-target="#userModal"
+                            onclick="resetUserForm()">
+                            <i class="bi bi-person-plus-fill me-1"></i> Nuevo Usuario
+                        </button>
+                    </div>
+                    <div class="card-body p-0">
+                        <div class="table-responsive">
+                            <table class="table table-hover align-middle mb-0" id="usersTable">
+                                <thead class="table-light">
+                                    <tr>
+                                        <th>Usuario / Feeds</th>
+                                        <th>Rol</th>
+                                        <th>Creado</th>
+                                        <th class="text-end">Acciones</th>
+                                    </tr>
+                                </thead>
+                                <tbody>
+                                    <!-- JS Populated -->
+                                    <tr>
+                                        <td colspan="4" class="text-center py-4"><span
+                                                class="spinner-border spinner-border-sm text-primary"></span>
+                                            Cargando...</td>
+                                    </tr>
+                                </tbody>
+                            </table>
+                        </div>
+                    </div>
+                    <div class="card-footer small text-muted">
+                        Gestión de accesos y permisos por usuario.
+                    </div>
+                </div>
+            </div>
+
+            <!-- AUDIT TAB (New) -->
+            <div class="tab-pane fade" id="audit-pane" role="tabpanel" aria-labelledby="audit-tab">
+                <div class="card shadow-sm">
+                    <div class="card-header d-flex justify-content-between align-items-center">
+                        <div class="d-flex align-items-center gap-3">
+                            <h5 class="mb-0"><i class="bi bi-journal-text me-2"></i>Auditoría</h5>
+
+                            <!-- Selector de Histórico -->
+                            <form method="GET" action="{{ url_for('admin_settings_ui') }}"
+                                class="d-flex align-items-center" id="auditFileForm">
+                                <!-- Force Tab selection via Hash hack on reload? Or let JS handle. 
+                                     The GET reload will lose tab state without JS logic. We added JS logic below. -->
+                                <select name="log_file" class="form-select form-select-sm"
+                                    style="width: auto; max-width: 250px;" onchange="this.form.submit()">
+                                    <option value="" {% if not is_historical %}selected{% endif %}>🟢 Log Activo
+                                    </option>
+                                    {% for f in available_files %}
+                                    <option value="{{ f }}" {% if current_file==f %}selected{% endif %}>📂 {{
+                                        f.replace('audit-log.', '').replace('.jsonl', '') }}</option>
+                                    {% endfor %}
+                                </select>
+                            </form>
+                        </div>
+
+                        <!-- Filtro Rápido JS -->
+                        <input type="text" id="filterInputAudit" class="form-control form-control-sm"
+                            style="width: 200px;" placeholder="Filtrar tabla...">
+                    </div>
+                    <div class="card-body p-0">
+                        <div class="table-responsive">
+                            <table class="table table-hover table-striped mb-0 align-middle">
+                                <thead class="table-light">
+                                    <tr>
+                                        <th style="width: 180px;">Fecha (UTC)</th>
+                                        <th style="width: 150px;">Actor</th>
+                                        <th style="width: 200px;">Evento</th>
+                                        <th>Detalles</th>
+                                    </tr>
+                                </thead>
+                                <tbody id="auditTableBody">
+                                    {% for row in audit_logs %}
+                                    <tr>
+                                        <td class="small text-muted">{{ row.ts }}</td>
+                                        <td>
+                                            {% if 'web/' in row.actor %}
+                                            <span class="badge bg-info text-dark">{{ row.actor.replace('web/', '🙍‍♂️ ')
+                                                }}</span>
+                                            {% elif 'api/' in row.actor %}
+                                            <span class="badge bg-warning text-dark">{{ row.actor.replace('api/', '🤖 ')
+                                                }}</span>
+                                            {% else %}
+                                            <span class="badge bg-secondary">{{ row.actor }}</span>
+                                            {% endif %}
+                                        </td>
+                                        <td class="fw-bold">{{ row.event }}</td>
+                                        <td class="small">
+                                            {% if row.details %}
+                                            <code class="text-wrap"
+                                                style="color: var(--text-main);">{{ row.details | tojson }}</code>
+                                            {% else %}
+                                            <span class="text-muted">-</span>
+                                            {% endif %}
+                                        </td>
+                                    </tr>
+                                    {% else %}
+                                    <tr>
+                                        <td colspan="4" class="text-center py-4 text-muted">No hay registros de
+                                            auditoría disponibles.</td>
+                                    </tr>
+                                    {% endfor %}
+                                </tbody>
+                            </table>
+                        </div>
+                    </div>
+                    <div class="card-footer text-muted small">
+                        Mostrando los últimos {{ audit_logs|length }} eventos.
+                    </div>
+                </div>
+            </div>
+
+        </div>
+
+    </div>
+
+    <!-- User Modal -->
+    <div class="modal fade" id="userModal" tabindex="-1" aria-hidden="true">
+        <div class="modal-dialog">
+            <div class="modal-content">
+                <div class="modal-header bg-primary text-white">
+                    <h5 class="modal-title" id="userModalLabel">Nuevo Usuario</h5>
+                    <button type="button" class="btn-close btn-close-white" data-bs-dismiss="modal"
+                        aria-label="Close"></button>
+                </div>
+                <div class="modal-body">
+                    <form id="formUser">
+                        <div class="mb-3">
+                            <label class="form-label">Nombre de Usuario</label>
+                            <input type="text" name="username" class="form-control" required>
+                        </div>
+                        <div class="mb-3">
+                            <label class="form-label">Contraseña</label>
+                            <input type="password" name="password" class="form-control"
+                                placeholder="Mínimo 6 caracteres" required>
+                            <div class="form-text d-none" id="passHint">Dejar en blanco para no cambiarla.</div>
+                        </div>
+                        <div class="mb-3">
+                            <label class="form-label">Rol</label>
+                            <select name="role" class="form-select">
+                                <option value="admin">Administrador (Todo)</option>
+                                <option value="editor" selected>Editor (Gestionar IPs)</option>
+                                <option value="view_only">Solo Lectura</option>
+                            </select>
+                        </div>
+                        <div class="mb-3">
+                            <label class="form-label d-block">Feeds Permitidos (Edición)</label>
+                            <div class="form-check form-check-inline">
+                                <input class="form-check-input" type="checkbox" id="feed_all" value="*">
+                                <label class="form-check-label fw-bold" for="feed_all">Todo (*)</label>
+                            </div>
+                            <div class="mt-2" id="feedListCheckboxes">
+                                <div class="form-check form-check-inline">
+                                    <input class="form-check-input" type="checkbox" name="allowed_feeds" value="manual"
+                                        id="chk_manual">
+                                    <label class="form-check-label" for="chk_manual">Manual</label>
+                                </div>
+                                <div class="form-check form-check-inline">
+                                    <input class="form-check-input" type="checkbox" name="allowed_feeds" value="csv"
+                                        id="chk_csv">
+                                    <label class="form-check-label" for="chk_csv">CSV</label>
+                                </div>
+                                <div class="form-check form-check-inline">
+                                    <input class="form-check-input" type="checkbox" name="allowed_feeds" value="api"
+                                        id="chk_api">
+                                    <label class="form-check-label" for="chk_api">API</label>
+                                </div>
+                                <div class="form-check form-check-inline">
+                                    <input class="form-check-input" type="checkbox" name="allowed_feeds" value="bpe"
+                                        id="chk_bpe">
+                                    <label class="form-check-label" for="chk_bpe">BPE</label>
+                                </div>
+                            </div>
+                        </div>
+                        <div class="d-grid">
+                            <button type="submit" class="btn btn-primary" id="btnSaveUser">Guardar Usuario</button>
+                        </div>
+                    </form>
+                </div>
+            </div>
+        </div>
+    </div>
+
+    <script src="https://cdn.jsdelivr.net/npm/bootstrap@5.3.0/dist/js/bootstrap.bundle.min.js"></script>
+    <script>
+        // Theme init
+        function applyTheme(theme) {
+            document.documentElement.setAttribute('data-theme', theme);
+            document.documentElement.setAttribute('data-bs-theme', theme); // Native Bootstrap 5 Dark Mode
+        }
+
+        try {
+            const savedTheme = localStorage.getItem('theme') || 'light';
+            applyTheme(savedTheme);
+        } catch (e) { }
+
+        // Init
+        document.addEventListener('DOMContentLoaded', () => {
+            // Restore tab state from localstorage or hash
+            const activeTabId = localStorage.getItem('activeConfigTab') || 'system-tab';
+
+            // Check params first for Audit reload (log_file param implies audit tab)
+            const urlParams = new URLSearchParams(window.location.search);
+            if (urlParams.has('log_file')) {
+                const trigger = new bootstrap.Tab(document.querySelector('#audit-tab'));
+                trigger.show();
+            } else if (activeTabId) {
+                // Restore logic
+                const triggerEl = document.getElementById(activeTabId);
+                if (triggerEl) {
+                    const trigger = new bootstrap.Tab(triggerEl);
+                    trigger.show();
+                }
+            }
+
+            // Save tab state on change
+            const tabEls = document.querySelectorAll('button[data-bs-toggle="tab"]');
+            tabEls.forEach(tabEl => {
+                tabEl.addEventListener('shown.bs.tab', event => {
+                    localStorage.setItem('activeConfigTab', event.target.id);
+                    if (event.target.id === 'users-tab') loadUsers();
+                });
+            });
+
+            // If Users tab is active initially (e.g. from restore), load users
+            if (document.getElementById('users-tab').classList.contains('active')) {
+                loadUsers();
+            }
+
+            // --- Audit Filter Logic ---
+            const auditFilter = document.getElementById('filterInputAudit');
+            if (auditFilter) {
+                auditFilter.addEventListener('keyup', function () {
+                    var val = this.value.toLowerCase();
+                    var rows = document.querySelectorAll('#auditTableBody tr');
+                    rows.forEach(function (row) {
+                        var text = row.textContent.toLowerCase();
+                        row.style.display = text.indexOf(val) > -1 ? '' : 'none';
+                    });
+                });
+            }
+
+            // --- User Feed Logic ---
+            const chkAll = document.getElementById('feed_all');
+            const otherChks = document.querySelectorAll('input[name="allowed_feeds"]');
+            chkAll.addEventListener('change', () => {
+                if (chkAll.checked) {
+                    otherChks.forEach(c => { c.checked = true; c.disabled = true; });
+                } else {
+                    otherChks.forEach(c => { c.checked = false; c.disabled = false; });
+                }
+            });
+        });
+
+        // --- User API Logic (Same as before) ---
+        let isEditing = false;
+        const form = document.getElementById('formUser');
+        const modalEl = document.getElementById('userModal');
+        let userModal;
+
+        async function loadUsers() {
+            const tbody = document.querySelector('#usersTable tbody');
+            try {
+                const res = await fetch('/admin/users');
+                if (!res.ok) throw new Error("Error cargando usuarios");
+                const data = await res.json();
+                renderUsers(data.users, tbody);
+            } catch (e) {
+                tbody.innerHTML = `<tr><td colspan="4" class="text-danger text-center">Error: ${e.message}</td></tr>`;
+            }
+        }
+
+        function renderUsers(users, tbody) {
+            if (!users || users.length === 0) {
+                tbody.innerHTML = '<tr><td colspan="4" class="text-center text-muted">No hay usuarios registrados.</td></tr>';
+                return;
+            }
+
+            tbody.innerHTML = users.map(u => {
+                let feeds = u.allowed_feeds.includes('*')
+                    ? '<span class="badge bg-secondary">Todo (*)</span>'
+                    : u.allowed_feeds.map(f => `<span class="badge bg-info text-dark bg-opacity-10 border">${f}</span>`).join(' ');
+
+                return `
+                <tr>
+                    <td>
+                        <div class="fw-bold">${u.username}</div>
+                        <small>${feeds}</small>
+                    </td>
+                    <td><span class="badge bg-light text-dark border">${u.role}</span></td>
+                    <td class="small text-muted">${u.created_at || '-'}</td>
+                    <td class="text-end">
+                        <button class="btn btn-sm btn-outline-primary me-1" onclick='editUser(${JSON.stringify(u)})' title="Editar"><i class="bi bi-pencil"></i></button>
+                        ${u.username === '{{ session.get("username") }}'
+                        ? '<span class="text-muted small ms-1">(Tú)</span>'
+                        : `<button class="btn btn-sm btn-outline-danger" onclick="deleteUser('${u.username}')" title="Eliminar"><i class="bi bi-trash"></i></button>`
+                    }
+                    </td>
+                </tr>
+                `;
+            }).join('');
+        }
+
+        function resetUserForm() {
+            isEditing = false;
+            form.reset();
+            form.username.readOnly = false;
+            form.password.required = true;
+            document.getElementById('passHint').classList.add('d-none');
+            document.getElementById('userModalLabel').textContent = "Nuevo Usuario";
+            document.getElementById('btnSaveUser').textContent = "Guardar Usuario";
+
+            document.querySelectorAll('input[name="allowed_feeds"]').forEach(c => { c.checked = false; c.disabled = false; });
+            document.getElementById('feed_all').checked = false;
+        }
+
+        window.editUser = function (u) {
+            isEditing = true;
+            if (!userModal) userModal = new bootstrap.Modal(modalEl);
+
+            form.username.value = u.username;
+            form.username.readOnly = true;
+
+            form.password.value = "";
+            form.password.required = false;
+            document.getElementById('passHint').classList.remove('d-none');
+            form.role.value = u.role;
+
+            const chkAll = document.getElementById('feed_all');
+            const chks = document.querySelectorAll('input[name="allowed_feeds"]');
+
+            chkAll.checked = false;
+            chks.forEach(c => { c.checked = false; c.disabled = false; });
+
+            if (u.allowed_feeds.includes('*')) {
+                chkAll.checked = true;
+                chks.forEach(c => { c.checked = true; c.disabled = true; });
+            } else {
+                u.allowed_feeds.forEach(f => {
+                    const el = document.querySelector(`input[name="allowed_feeds"][value="${f}"]`);
+                    if (el) el.checked = true;
+                });
+            }
+
+            document.getElementById('userModalLabel').textContent = "Editar Usuario: " + u.username;
+            document.getElementById('btnSaveUser').textContent = "Actualizar";
+            userModal.show();
+        }
+
+        form.addEventListener('submit', async (e) => {
+            e.preventDefault();
+            const formData = new FormData(form);
+            const data = Object.fromEntries(formData.entries());
+            data.allowed_feeds = formData.getAll('allowed_feeds');
+
+            if (document.getElementById('feed_all').checked) {
+                data.allowed_feeds = ['*'];
+            }
+
+            const url = isEditing ? '/admin/users/edit' : '/admin/users/add';
+
+            try {
+                const res = await fetch(url, {
+                    method: 'POST',
+                    headers: { 'Content-Type': 'application/json' },
+                    body: JSON.stringify(data)
+                });
+                const result = await res.json();
+
+                if (result.success) {
+                    if (!userModal) userModal = bootstrap.Modal.getInstance(modalEl);
+                    userModal.hide();
+                    loadUsers();
+                    alert("Operación exitosa");
+                } else {
+                    alert("Error: " + result.error);
+                }
+            } catch (err) {
+                alert("Error de red: " + err.message);
+            }
+        });
+
+        window.deleteUser = async function (username) {
+            if (!confirm(`¿Eliminar usuario ${username}? Esta acción no se puede deshacer.`)) return;
+            try {
+                const res = await fetch('/admin/users/delete', {
+                    method: 'POST',
+                    headers: { 'Content-Type': 'application/json' },
+                    body: JSON.stringify({ username })
+                });
+                const result = await res.json();
+                if (result.success) {
+                    loadUsers();
+                } else {
+                    alert("Error: " + result.error);
+                }
+            } catch (err) {
+                alert("Error: " + err.message);
+            }
+        }
+    </script>
+</body>
+
+</html>

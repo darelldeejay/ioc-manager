@@ -1,0 +1,39 @@
+--- Debug Probe (File Mode v2) ---
+GET /setup: 302
+   -> Redirects to: /login
+GET /test-ping: 200
+   -> PING SUCCESS: PONG
+
+--- API Probe ---
+GET /api/counters/history: 200
+   -> OK!
+[
+  {
+    "date": "2025-12-29",
+    "sources": {
+      "api": 4,
+      "csv": 10,
+      "manual": 4
+    },
+    "tags": {
+      "BPE": 5,
+      "Multicliente": 12,
+      "Test": 9
+    },
+    "total": 18
+  },
+  {
+    "date": "2025-12-30",
+    "sources": {
+      "api": 4,
+      "csv": 10,
+      "manual": 4
+    },
+    "tags": {
+      "BPE": 5,
+      "Multicliente": 12,
+      "Test": 9
+    },
+    "total": 18
+  }
+]

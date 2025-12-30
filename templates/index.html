@@ -82,11 +82,15 @@
           <!-- BOTÓN TEMA -->
           <!-- BOTÓN USUARIOS -->
           {% if session.get('role', 'editor') == 'admin' or session.get('username') == 'admin' %}
-          <button class="btn btn-outline-light btn-sm rounded-pill d-flex align-items-center gap-1 me-2" type="button"
-            id="btnUsers">
-            <i class="bi bi-people-fill"></i>
-            <span>Usuarios</span>
-          </button>
+
+          {% endif %}
+
+          {% if session.get('role', 'editor') == 'admin' or session.get('username') == 'admin' %}
+          <a href="{{ url_for('admin_settings_ui') }}"
+            class="btn btn-outline-light btn-sm rounded-pill d-flex align-items-center gap-1 me-2">
+            <i class="bi bi-gear-fill"></i>
+            <span>Config</span>
+          </a>
           {% endif %}
 
           <button class="btn btn-outline-light btn-sm rounded-pill d-flex align-items-center gap-1" type="button"
@@ -114,21 +118,24 @@
 
 
 
-          <!-- DIAGNOSTICS (Moved here) -->
+          <!-- DIAGNOSTICS (Salud) -->
           {% if session.get('role') in ['admin', 'editor'] %}
-          <button class="btn btn-outline-warning btn-sm rounded-pill d-flex align-items-center gap-1" type="button"
-            id="runDiagnosticsBtn" onclick="runDiagnostics()" title="Autodiagnóstico">
-            <i class="bi bi-heart-pulse"></i>
-            <span class="d-none d-lg-inline">Salud</span>
-          </button>
+          <div class="btn-group gap-1">
+            <!-- (Resumen removed) -->
+            <button class="btn btn-outline-warning btn-sm rounded-pill d-flex align-items-center gap-1" type="button"
+              id="runDiagnosticsBtn" onclick="runDiagnostics()" title="Autodiagnóstico">
+              <i class="bi bi-heart-pulse"></i>
+              <span class="d-none d-lg-inline">Salud</span>
+            </button>
+            <button
+              class="btn btn-outline-secondary btn-sm rounded-pill d-flex align-items-center justify-content-center"
+              type="button" onclick="showTestHistory()" title="Ver Historial de Pruebas">
+              <i class="bi bi-journal-text"></i>
+            </button>
+          </div>
           {% endif %}
 
-          <!-- AUDIT LOG (Nuevo) -->
-          <a href="{{ url_for('audit_view') }}"
-            class="btn btn-outline-info btn-sm rounded-pill d-flex align-items-center gap-1" title="Ver Historial">
-            <i class="bi bi-journal-text"></i>
-            <span class="d-none d-lg-inline">Auditoría</span>
-          </a>
+
 
           <!-- LOGOUT -->
           <a href="/logout" class="btn btn-outline-light btn-sm rounded-pill d-flex align-items-center gap-1">
@@ -603,6 +610,46 @@
       </div>
     </div>
 
+    <!-- Modal Visualizar Historial -->
+    <div class="modal fade" id="modalHistory" tabindex="-1" aria-hidden="true">
+      <div class="modal-dialog modal-lg">
+        <div class="modal-content">
+          <div class="modal-header">
+            <h5 class="modal-title">Historial: <span id="histIpLabel" class="text-monospace text-primary"></span></h5>
+            <button type="button" class="btn-close" data-bs-dismiss="modal" aria-label="Cerrar"></button>
+          </div>
+          <div class="modal-body p-0">
+            <div class="table-responsive">
+              <table class="table table-striped table-hover mb-0" style="font-size: 0.9rem;">
+                <thead class="table-light">
+                  <tr>
+                    <th>Fecha</th>
+                    <th>Usuario</th>
+                    <th>Acción</th>
+                    <th>Fuente</th>
+                    <th>Tags</th>
+                    <th>Nota</th>
+                  </tr>
+                </thead>
+                <tbody id="histTableBody">
+                  <!-- JS Populate -->
+                </tbody>
+              </table>
+            </div>
+            <div id="histLoading" class="text-center p-4">
+              <div class="spinner-border text-primary" role="status"></div>
+            </div>
+            <div id="histEmpty" class="text-center p-4 d-none text-muted">
+              Sin historial registrado.
+            </div>
+          </div>
+          <div class="modal-footer">
+            <button type="button" class="btn btn-secondary" data-bs-dismiss="modal">Cerrar</button>
+          </div>
+        </div>
+      </div>
+    </div>
+
     <hr>
 
     <div class="constrained-section">
@@ -782,8 +829,17 @@
               </td>
               <td style="text-align: right;">
                 {% if user_role != 'view_only' %}
-                <button class="btn btn-sm btn-outline-danger" data-bs-toggle="modal"
-                  data-bs-target="#confirmDelete{{ loop.index }}">Eliminar</button>
+                <div class="btn-group">
+                  <button class="btn btn-sm btn-outline-info" onclick="showHistory('{{ ip_txt }}')"
+                    title="Ver Historial">
+                    <i class="bi bi-clock-history"></i>
+                  </button>
+                  <button class="btn btn-sm btn-outline-danger" data-bs-toggle="modal"
+                    data-bs-target="#confirmDelete{{ loop.index }}" title="Eliminar">
+                    <i class="bi bi-trash"></i>
+                  </button>
+                </div>
+                <!-- Modal Delete specific -->
                 <div class="modal fade" id="confirmDelete{{ loop.index }}" tabindex="-1" aria-hidden="true">
                   <div class="modal-dialog modal-dialog-centered">
                     <div class="modal-content">
@@ -1791,52 +1847,88 @@
         });
       }
 
-      const tbody = document.querySelector('#tablaIps tbody');
-      const pageInfo = document.getElementById('pageInfo');
-      const prevBtn = document.getElementById('prevPage');
-      const nextBtn = document.getElementById('nextPage');
+      // Global UI Variables (so reloadTable can access them)
+      let tbody, pageInfo, prevBtn, nextBtn;
+      let qInput, originSelect, tagSelect, dateFrom, dateTo;
+      let sortSelect, orderDesc, orderAsc, pageSizeSel;
+      let applyBtn, clearBtn;
 
-      const qInput = document.getElementById('qInput');
-      const originSelect = document.getElementById('originSelect'); // NUEVO
-      const tagSelect = document.getElementById('tagSelect');       // NUEVO
-      const dateFrom = document.getElementById('dateFrom');
-      const dateTo = document.getElementById('dateTo');
-      const sortSelect = document.getElementById('sortSelect');
-      const orderDesc = document.getElementById('orderDesc');
-      const orderAsc = document.getElementById('orderAsc');
-      const pageSizeSel = document.getElementById('pageSize');
-      const applyBtn = document.getElementById('applyTableFilters');
-      const clearBtn = document.getElementById('clearTableFilters');
+      // Utility: Debounce (Global or Local is fine, but Global allows reuse if needed)
+      function debounce(func, wait) {
+        let timeout;
+        return function (...args) {
+          clearTimeout(timeout);
+          timeout = setTimeout(() => func.apply(this, args), wait);
+        };
+      }
 
-      orderDesc.addEventListener('click', () => { tableState.order = 'desc'; orderDesc.classList.add('active'); orderAsc.classList.remove('active'); reloadTable(true); });
-      orderAsc.addEventListener('click', () => { tableState.order = 'asc'; orderAsc.classList.add('active'); orderDesc.classList.remove('active'); reloadTable(true); });
-      sortSelect.addEventListener('change', () => { tableState.sort = sortSelect.value; reloadTable(true); });
-      pageSizeSel.addEventListener('change', () => { tableState.page_size = parseInt(pageSizeSel.value, 10) || 50; tableState.page = 1; reloadTable(true); });
+      document.addEventListener('DOMContentLoaded', function () {
+        console.log("DEBUG: Script Initializing...");
 
-      // Listeners directos para filtros
-      if (originSelect) originSelect.addEventListener('change', () => { tableState.page = 1; reloadTable(true); });
-      if (tagSelect) tagSelect.addEventListener('change', () => { tableState.page = 1; reloadTable(true); });
+        // Assign Globals
+        tbody = document.querySelector('#tablaIps tbody');
+        pageInfo = document.getElementById('pageInfo');
+        prevBtn = document.getElementById('prevPage');
+        nextBtn = document.getElementById('nextPage');
+        qInput = document.getElementById('qInput');
+        originSelect = document.getElementById('originSelect');
+        tagSelect = document.getElementById('tagSelect');
+        dateFrom = document.getElementById('dateFrom');
+        dateTo = document.getElementById('dateTo');
+        sortSelect = document.getElementById('sortSelect');
+        orderDesc = document.getElementById('orderDesc');
+        orderAsc = document.getElementById('orderAsc');
+        pageSizeSel = document.getElementById('pageSize');
+        applyBtn = document.getElementById('applyTableFilters');
+        clearBtn = document.getElementById('clearTableFilters');
 
-      applyBtn.addEventListener('click', () => {
-        tableState.q = qInput.value.trim();
-        tableState.date_from = dateFrom.value || '';
-        tableState.date_to = dateTo.value || '';
-        tableState.page = 1;
-        reloadTable(true);
-      });
+        // Attach Listeners
+        if (orderDesc) orderDesc.addEventListener('click', () => { tableState.order = 'desc'; orderDesc.classList.add('active'); orderAsc.classList.remove('active'); reloadTable(true); });
+        if (orderAsc) orderAsc.addEventListener('click', () => { tableState.order = 'asc'; orderAsc.classList.add('active'); orderDesc.classList.remove('active'); reloadTable(true); });
+        if (sortSelect) sortSelect.addEventListener('change', () => { tableState.sort = sortSelect.value; reloadTable(true); });
+        if (pageSizeSel) pageSizeSel.addEventListener('change', () => { tableState.page_size = parseInt(pageSizeSel.value, 10) || 50; tableState.page = 1; reloadTable(true); });
 
-      clearBtn.addEventListener('click', () => {
-        qInput.value = ''; dateFrom.value = ''; dateTo.value = '';
-        if (originSelect) originSelect.value = 'all';
-        if (tagSelect) tagSelect.value = 'all';
-        sortSelect.value = 'fecha'; tableState.sort = 'fecha';
-        tableState.order = 'desc'; orderDesc.classList.add('active'); orderAsc.classList.remove('active');
-        pageSizeSel.value = '50'; tableState.page_size = 50; tableState.page = 1;
-        reloadTable(true);
-      });
+        if (tagSelect) tagSelect.addEventListener('change', () => { tableState.page = 1; reloadTable(true); });
+        if (originSelect) originSelect.addEventListener('change', () => { tableState.page = 1; reloadTable(true); });
 
-      prevBtn.addEventListener('click', () => { if (tableState.page > 1) { tableState.page--; reloadTable(false); } });
-      nextBtn.addEventListener('click', () => { tableState.page++; reloadTable(false); });
+        // Real-time search Listener
+        if (qInput) {
+          qInput.addEventListener('input', debounce(() => {
+            tableState.q = qInput.value.trim();
+            tableState.page = 1;
+            reloadTable(true);
+          }, 300));
+        }
+
+        if (applyBtn) applyBtn.addEventListener('click', () => {
+          tableState.q = qInput ? qInput.value.trim() : '';
+          tableState.date_from = dateFrom ? (dateFrom.value || '') : '';
+          tableState.date_to = dateTo ? (dateTo.value || '') : '';
+          tableState.page = 1;
+          reloadTable(true);
+        });
+
+        if (clearBtn) clearBtn.addEventListener('click', () => {
+          if (qInput) qInput.value = '';
+          if (dateFrom) dateFrom.value = '';
+          if (dateTo) dateTo.value = '';
+          if (originSelect) originSelect.value = 'all';
+          if (tagSelect) tagSelect.value = 'all';
+          if (sortSelect) sortSelect.value = 'fecha';
+          tableState.sort = 'fecha';
+          tableState.order = 'desc';
+          if (orderDesc) orderDesc.classList.add('active');
+          if (orderAsc) orderAsc.classList.remove('active');
+          if (pageSizeSel) pageSizeSel.value = '50';
+          tableState.page_size = 50;
+          tableState.page = 1;
+          reloadTable(true);
+        });
+
+        if (prevBtn) prevBtn.addEventListener('click', () => { if (tableState.page > 1) { tableState.page--; reloadTable(false); } });
+        if (nextBtn) nextBtn.addEventListener('click', () => { tableState.page++; reloadTable(false); });
+
+      }); // End DOMContentLoaded
 
       async function reloadTable(resetIfEmpty) {
         try {
@@ -1847,7 +1939,9 @@
           params.set('sort', tableState.sort);
           params.set('order', tableState.order);
           // Nuevos filtros
-          if (originSelect && originSelect.value && originSelect.value !== 'all') params.set('origin', originSelect.value);
+          if (originSelect && originSelect.value && originSelect.value !== 'all') {
+            params.set('origin', originSelect.value);
+          }
           if (tagSelect && tagSelect.value && tagSelect.value !== 'all') params.set('tag', tagSelect.value);
 
           if (tableState.q) params.set('q', tableState.q);
@@ -2137,50 +2231,114 @@
       </div>
     </div>
 
+    <!-- MODAL HISTORIAL DE PRUEBAS (SALUD) -->
+    <div class="modal fade" id="modalTestHistory" tabindex="-1" aria-hidden="true">
+      <div class="modal-dialog modal-lg">
+        <div class="modal-content">
+          <div class="modal-header">
+            <h5 class="modal-title text-info"><i class="bi bi-heart-pulse me-2"></i>Historial de Salud (Diagnósticos)
+            </h5>
+            <button type="button" class="btn-close" data-bs-dismiss="modal" aria-label="Close"></button>
+          </div>
+          <div class="modal-body p-0">
+            <div class="table-responsive">
+              <table class="table table-striped table-hover mb-0" style="font-size:0.9rem;">
+                <thead class="table-light">
+                  <tr>
+                    <th>Fecha</th>
+                    <th>Estado</th>
+                    <th>Salida / Output</th>
+                    <th>Actor</th>
+                  </tr>
+                </thead>
+                <tbody id="testHistTableBody">
+                </tbody>
+              </table>
+            </div>
+            <div id="testHistLoading" class="text-center p-4">
+              <span class="spinner-border text-primary"></span>
+            </div>
+            <div id="testHistEmpty" class="text-center p-4 d-none text-muted">
+              No hay pruebas registradas.
+            </div>
+          </div>
+          <div class="modal-footer">
+            <button type="button" class="btn btn-secondary" data-bs-dismiss="modal">Cerrar</button>
+          </div>
+        </div>
+      </div>
+    </div>
+
     <!-- Chart.js CDN -->
     <script src="https://cdn.jsdelivr.net/npm/chart.js"></script>
 
     <script>
+      /**
+       * Dashboard Dashboard Utilities and Async Operations
+       */
+
+      // Unified escapeHtml for consistency
+      function escapeHtml(str) {
+        if (!str) return '';
+        const div = document.createElement('div');
+        div.textContent = str;
+        return div.innerHTML;
+      }
+
+      // Initialize Dashboard Components
       document.addEventListener("DOMContentLoaded", () => {
+        // Init Graphs Button
         const btnShowGraphs = document.getElementById("btnShowGraphs");
         if (btnShowGraphs) {
           btnShowGraphs.addEventListener("click", () => {
             fetchAndRenderGraphs();
           });
         }
+
+        // Ensure other UI elements are ready
+        console.log("Dashboard functionality initialized.");
       });
 
+      // --- Metrics and Charts ---
       let chartTotalInstance = null;
       let chartSourcesInstance = null;
 
+      function getColorForSource(key) {
+        const colors = {
+          "manual": "#0d6efd",
+          "csv": "#0dcaf0",
+          "api": "#ffc107"
+        };
+        if (colors[key]) return colors[key];
+        let hash = 0;
+        for (let i = 0; i < key.length; i++) hash = key.charCodeAt(i) + ((hash << 5) - hash);
+        const c = (hash & 0x00FFFFFF).toString(16).toUpperCase();
+        return "#" + "00000".substring(0, 6 - c.length) + c;
+      }
+
       async function fetchAndRenderGraphs() {
-        // Abrir modal
-        const myModal = new bootstrap.Modal(document.getElementById('metricsModal'));
+        const modalEl = document.getElementById('metricsModal');
+        const myModal = new bootstrap.Modal(modalEl);
         myModal.show();
 
         try {
           const res = await fetch("/api/counters/history");
+          if (!res.ok) throw new Error("HTTP " + res.status);
           const data = await res.json();
 
           if (!data || data.length === 0) {
-            console.warn("No history data");
+            console.warn("No history data available for graphs");
             return;
           }
 
-          // Preparar datos
-          // Data array sorted by TS? Usually append-only so yes.
-          const labels = data.map(d => d.date); // "YYYY-MM-DD"
+          const labels = data.map(d => d.date);
           const totals = data.map(d => d.total);
-
-          // Sources dataset
-          // extract all known sources keys across all data
           const allSrcKeys = new Set();
           data.forEach(d => {
             if (d.sources) Object.keys(d.sources).forEach(k => allSrcKeys.add(k));
           });
 
-          // Build datasets for sources
-          const sourceDatasets = Array.from(allSrcKeys).map((key, index) => {
+          const sourceDatasets = Array.from(allSrcKeys).map((key) => {
             return {
               label: key,
               data: data.map(d => (d.sources ? (d.sources[key] || 0) : 0)),
@@ -2191,10 +2349,8 @@
             };
           });
 
-          // 1) Render Chart Total
           const ctxTotal = document.getElementById("chartTotal").getContext("2d");
           if (chartTotalInstance) chartTotalInstance.destroy();
-
           chartTotalInstance = new Chart(ctxTotal, {
             type: 'line',
             data: {
@@ -2211,10 +2367,8 @@
             options: { responsive: true }
           });
 
-          // 2) Render Chart Sources
           const ctxSrc = document.getElementById("chartSources").getContext("2d");
           if (chartSourcesInstance) chartSourcesInstance.destroy();
-
           chartSourcesInstance = new Chart(ctxSrc, {
             type: 'line',
             data: {
@@ -2226,76 +2380,14 @@
 
         } catch (err) {
           console.error("Error loading graphs:", err);
-          // alert("Error al cargar gráficos");
+          showInlineToast("danger", "Error al cargar datos de gráficas");
         }
       }
 
-      function getColorForSource(key) {
-        // Simple hash or predefined
-        const colors = {
-          "manual": "#0d6efd", // primary
-          "csv": "#0dcaf0",    // info
-          "api": "#ffc107"     // warning
-        };
-        if (colors[key]) return colors[key];
-        // Hash string to color fallback
-        let hash = 0;
-        for (let i = 0; i < key.length; i++) hash = key.charCodeAt(i) + ((hash << 5) - hash);
-        const c = (hash & 0x00FFFFFF).toString(16).toUpperCase();
-        return "#" + "00000".substring(0, 6 - c.length) + c;
-      }
-      // --- Toggle Maintenance ---
-      async function toggleMaintenance(active) {
-        try {
-          // Revert checkbox state immediately (optimistic UI causing issues if fail, but better UX usually)
-          // We'll let reload handle the state.
-          const res = await fetch('/maintenance/toggle', {
-            method: 'POST',
-            headers: { 'Content-Type': 'application/json' },
-            body: JSON.stringify({ active: active })
-          });
-          if (res.ok) {
-            window.location.reload();
-          } else {
-            const d = await res.json();
-            alert("Error: " + (d.error || res.statusText));
-            // revert checkbox if exists
-            const el = document.getElementById('maintenanceSwitch');
-            if (el) el.checked = !active;
-          }
-        } catch (e) {
-          alert("Error de conexión: " + e);
-          if (el) el.checked = !active;
-        }
-      }
-
+      // --- Diagnostics (Salud) ---
       async function runDiagnostics() {
         const btn = document.getElementById("runDiagnosticsBtn");
         if (!btn) return;
-        const orig = btn.innerHTML;
-        btn.disabled = true;
-        btn.innerHTML = `<span class="spinner-border spinner-border-sm me-1"></span>`;
-
-        try {
-          const r = await fetch("/api/run-diagnostics", { method: "POST" });
-          const d = await r.json();
-
-          if (r.ok && d.ok) {
-            showInlineToast("success", "Autodiagnóstico: TODO OK");
-          } else {
-            showInlineToast("danger", "Autodiagnóstico: FALLO (ver notificaciones)");
-          }
-        } catch (e) {
-          showInlineToast("danger", "Error de red al ejecutar diagnósticos");
-        } finally {
-          if (btn) {
-            btn.disabled = false;
-            btn.innerHTML = orig;
-          }
-        }
-      }
-      async function runDiagnostics() {
-        const btn = document.getElementById("runDiagnosticsBtn");
         const orig = btn.innerHTML;
         btn.disabled = true;
         btn.innerHTML = `<span class="spinner-border spinner-border-sm me-1"></span> Ejecutando...`;
@@ -2304,26 +2396,193 @@
           const r = await fetch("/api/run-diagnostics", { method: "POST" });
           const d = await r.json();
 
-          if (r.ok && d.ok) {
+          if (r.ok && (d.ok || (d.extra && d.extra.ok))) {
             showInlineToast("success", "Autodiagnóstico: TODO OK");
           } else {
-            showInlineToast("danger", "Autodiagnóstico: FALLO (ver notificaciones)");
-            console.error("Diagnostics Output:", d.output);
-          }
-          // Recargar notificaciones para ver el resultado registrado
-          if (typeof renderList === 'function') {
-            // Pequeño delay para asegurar que el backend escribió
-            setTimeout(() => {
-              // Hack: forzar recarga recargando la página o re-fetch si tuviéramos endpoint
-              // Como renderList usa `serverMessages` inyectado, necesitamos reload completo o fetch notifs.
-              // Por simplicidad, recargamos notificaciones vía API si existiera endpoint GET, 
-              // pero como no lo hay expuesto fácil para JSON, haremos reload parcial o dejaremos que el usuario vea la campana
-              // Mejor: reload de la página tras éxito/fallo crítico si queremos ver la notificación ya.
-              // O simplemente avisar.
-            }, 1000);
+            showInlineToast("danger", "Autodiagnóstico: FALLO (ver historial)");
+            if (d.extra && d.extra.output) console.error(d.extra.output);
           }
         } catch (e) {
-          showInlineToast("danger", "Error de red al ejecutar diagnósticos");
+          console.error("Diagnostic execution error:", e);
+          showInlineToast("danger", "Error invocando diagnóstico: " + e.message);
+        } finally {
+          btn.disabled = false;
+          btn.innerHTML = orig;
+        }
+      }
+
+      // --- Maintenance Toggle ---
+      async function toggleMaintenance(active) {
+        try {
+          const res = await fetch('/maintenance/toggle', {
+            method: 'POST',
+            headers: { 'Content-Type': 'application/json' },
+            body: JSON.stringify({ active: active })
+          });
+          const d = await res.json();
+          if (res.ok) {
+            window.location.reload();
+          } else {
+            alert("Error: " + (d.error || res.statusText));
+            const el = document.getElementById('maintenanceSwitch');
+            if (el) el.checked = !active;
+          }
+        } catch (e) {
+          console.error("Maintenance toggle error:", e);
+          alert("Error de conexión: " + e.message);
+          const el = document.getElementById('maintenanceSwitch');
+          if (el) el.checked = !active;
+        }
+      }
+
+      // --- IP History (Modal) ---
+      async function showHistory(ip) {
+        const modalEl = document.getElementById('modalHistory');
+        if (!modalEl) return;
+
+        const modal = new bootstrap.Modal(modalEl);
+        document.getElementById('histIpLabel').textContent = ip;
+
+        const tbody = document.getElementById('histTableBody');
+        const loading = document.getElementById('histLoading');
+        const empty = document.getElementById('histEmpty');
+
+        if (tbody) tbody.innerHTML = '';
+        if (loading) loading.classList.remove('d-none');
+        if (empty) empty.classList.add('d-none');
+
+        modal.show();
+
+        try {
+          const res = await fetch(`/admin/history/${encodeURIComponent(ip)}`);
+          if (!res.ok) throw new Error("Fetch failed: " + res.status);
+          const data = await res.json();
+
+          const history = data.history || [];
+          if (loading) loading.classList.add('d-none');
+
+          if (history.length === 0) {
+            if (empty) empty.classList.remove('d-none');
+            return;
+          }
+
+          const rows = history.map(h => {
+            const dateStr = h.ts ? new Date(h.ts).toLocaleString() : '-';
+            const tags = (h.tags || []).join(', ');
+            const note = h.note || '-';
+            const action = h.action || 'update';
+            const user = h.user || 'system';
+            const source = h.source || '-';
+
+            return `
+              <tr>
+                <td class="small text-nowrap">${escapeHtml(dateStr)}</td>
+                <td class="small">${escapeHtml(user)}</td>
+                <td class="small"><span class="badge bg-secondary text-dark bg-opacity-10 border">${escapeHtml(action)}</span></td>
+                <td class="small">${escapeHtml(source)}</td>
+                <td class="small">${escapeHtml(tags)}</td>
+                <td class="small text-muted">${escapeHtml(note)}</td>
+              </tr>
+            `;
+          }).join('');
+
+          if (tbody) tbody.innerHTML = rows;
+
+        } catch (e) {
+          console.error("History fetch error:", e);
+          if (loading) loading.classList.add('d-none');
+          if (tbody) tbody.innerHTML = `<tr><td colspan="6" class="text-danger text-center">Error cargando historial</td></tr>`;
+        }
+      }
+
+      // --- Global Health History (Modal) ---
+      async function showTestHistory(autoShow = true) {
+        const modalEl = document.getElementById('modalTestHistory');
+        if (!modalEl) return;
+
+        const modal = bootstrap.Modal.getOrCreateInstance(modalEl);
+        if (autoShow) modal.show();
+
+        const tbody = document.getElementById('testHistTableBody');
+        const loading = document.getElementById('testHistLoading');
+        const empty = document.getElementById('testHistEmpty');
+
+        if (tbody) tbody.innerHTML = '';
+        if (loading) loading.classList.remove('d-none');
+        if (empty) empty.classList.add('d-none');
+
+        try {
+          const res = await fetch('/api/test-history');
+          if (!res.ok) throw new Error("Fetch failed: " + res.status);
+          const data = await res.json();
+
+          if (loading) loading.classList.add('d-none');
+
+          const history = data.history || [];
+          if (history.length === 0) {
+            if (empty) empty.classList.remove('d-none');
+            return;
+          }
+
+          if (tbody) {
+            tbody.innerHTML = history.map(h => {
+              const date = h.ts ? new Date(h.ts).toLocaleString() : '-';
+              const badge = h.success
+                ? '<span class="badge bg-success">OK</span>'
+                : '<span class="badge bg-danger">FAIL</span>';
+
+              // Simplificar output para la tabla
+              let shortOut = '-';
+              if (h.output) {
+                // Si es muy largo, recortar.
+                shortOut = h.output.length > 80 ? h.output.substring(0, 80) + '...' : h.output;
+              }
+
+              return `
+                <tr>
+                  <td class="small text-nowrap">${escapeHtml(date)}</td>
+                  <td>${badge}</td>
+                  <td class="small text-muted font-monospace" style="font-size:0.85em;" title="${escapeHtml(h.output || '')}">${escapeHtml(shortOut)}</td>
+                  <td class="small">${escapeHtml(h.actor || 'system')}</td>
+                </tr>
+              `;
+            }).join('');
+          }
+        } catch (e) {
+          console.error("Test history fetch error:", e);
+          if (loading) loading.classList.add('d-none');
+          if (tbody) tbody.innerHTML = '<tr><td colspan="4" class="text-danger text-center">Error cargando historial</td></tr>';
+        }
+      }
+
+      // --- Diagnostics (Salud) ---
+      async function runDiagnostics() {
+        const btn = document.getElementById("runDiagnosticsBtn");
+        if (!btn) return;
+        const orig = btn.innerHTML;
+        btn.disabled = true;
+        btn.innerHTML = `<span class="spinner-border spinner-border-sm me-1"></span> Ejecutando...`;
+
+        try {
+          const r = await fetch("/api/run-diagnostics", { method: "POST" });
+          const d = await r.json();
+
+          if (r.ok && (d.ok || (d.extra && d.extra.ok))) {
+            showInlineToast("success", "Autodiagnóstico: TODO OK");
+          } else {
+            showInlineToast("danger", "Autodiagnóstico: FALLO (ver historial)");
+            if (d.extra && d.extra.output) console.error(d.extra.output);
+          }
+
+          // == AUTOMATICAMENTE ABRIR EL HISTORIAL/RESUMEN ==
+          // Damos un pequeño delay para que la BD haya guardado
+          setTimeout(() => {
+            showTestHistory(true);
+          }, 500);
+
+        } catch (e) {
+          console.error("Diagnostic execution error:", e);
+          showInlineToast("danger", "Error invocando diagnóstico: " + e.message);
         } finally {
           btn.disabled = false;
           btn.innerHTML = orig;

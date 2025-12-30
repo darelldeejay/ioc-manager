@@ -17,13 +17,31 @@ class TestRoutes(unittest.TestCase):
         app.config['TESTING'] = True
         self.client = app.test_client()
         self.test_feed = os.path.join(app_module.BASE_DIR, 'tests', 'test_feed_routes.txt')
+        self.test_db = os.path.join(app_module.BASE_DIR, 'tests', 'test_ioc.db')
+        
+        # Patch the DB file in db module
+        self.db_patcher = patch('db.DB_FILE', self.test_db)
+        self.db_patcher.start()
+        
+        # Initialize the temp db
+        import db
+        if os.path.exists(self.test_db):
+            os.remove(self.test_db)
+        db.init_db()
+        # Create a dummy user to satisfy check_setup_required
+        db.create_user("admin", "dummy_hash", role="admin")
         
         if os.path.exists(self.test_feed):
             os.remove(self.test_feed)
             
     def tearDown(self):
+        self.db_patcher.stop()
         if os.path.exists(self.test_feed):
-            os.remove(self.test_feed)
+            try: os.remove(self.test_feed)
+            except: pass
+        if os.path.exists(self.test_db):
+            try: os.remove(self.test_db)
+            except: pass
 
     def login_as_admin(self):
         # We also mock load_users to return a valid admin user if the app checks it
@@ -59,6 +77,10 @@ class TestRoutes(unittest.TestCase):
                 'ttl_manual': '1'
             }, follow_redirects=True)
             
+            # Ensure file exists before reading (it should be created by app, but just in case for test stability)
+            if not os.path.exists(self.test_feed):
+                 with open(self.test_feed, 'w') as f: f.write("")
+
             self.assertEqual(resp.status_code, 200)
             
             # Use stricter persistence check, relax UI text check (encoding issues possible)
@@ -91,7 +113,10 @@ class TestRoutes(unittest.TestCase):
                 'ttl_csv': '1'
             }
             
+            
             resp = self.client.post('/', data=data, content_type='multipart/form-data', follow_redirects=True)
+            if not os.path.exists(self.test_feed):
+                 with open(self.test_feed, 'w') as f: f.write("")
             with open(self.test_feed, 'r', encoding='utf-8') as f:
                 content = f.read()
             self.assertIn('6.6.6.6', content)
