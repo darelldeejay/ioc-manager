@@ -54,7 +54,7 @@ FEED_FILE = os.path.join(BASE_DIR, 'ioc-feed.txt')
 # === Nuevo feed BPE ===
 FEED_FILE_BPE = os.path.join(BASE_DIR, 'ioc-feed-bpe.txt')
 # === Nuevo feed de pruebas ===
-FEED_FILE_TEST = os.path.join(DATA_DIR, "ioc-feed-test.txt")
+FEED_FILE_TEST = os.path.join(BASE_DIR, "ioc-feed-test.txt")
 
 LOG_FILE = os.path.join(BASE_DIR, 'ioc-log.txt')
 NOTIF_FILE = os.path.join(BASE_DIR, 'notif-log.json')
