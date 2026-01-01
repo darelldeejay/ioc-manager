@@ -33,11 +33,45 @@ class TestRoutes(unittest.TestCase):
         
         if os.path.exists(self.test_feed):
             os.remove(self.test_feed)
+
+        # === CRITICAL: Patch ALL global file paths in app namespace ===
+        # This prevents tests from overwriting production files when regenerate_feeds_from_db runs
+        self.test_log = os.path.join(app_module.BASE_DIR, 'tests', 'test_audit.jsonl')
+        
+        self.feed_patcher = patch('app.FEED_FILE', self.test_feed)
+        self.bpe_patcher = patch('app.FEED_FILE_BPE', self.test_feed + ".bpe")
+        self.test_feed_patcher = patch('app.FEED_FILE_TEST', self.test_feed + ".test")
+        self.meta_patcher = patch('app.META_FILE', self.test_feed + ".meta")
+        self.audit_patcher = patch('app.AUDIT_LOG_FILE', self.test_log)
+        
+        self.feed_patcher.start()
+        self.bpe_patcher.start()
+        self.test_feed_patcher.start()
+        self.meta_patcher.start()
+        self.audit_patcher.start()
             
     def tearDown(self):
         self.db_patcher.stop()
+        self.feed_patcher.stop()
+        self.bpe_patcher.stop()
+        self.test_feed_patcher.stop()
+        self.meta_patcher.stop()
+        self.audit_patcher.stop()
+        
         if os.path.exists(self.test_feed):
             try: os.remove(self.test_feed)
+            except: pass
+        if os.path.exists(self.test_feed + ".bpe"):
+            try: os.remove(self.test_feed + ".bpe")
+            except: pass
+        if os.path.exists(self.test_feed + ".test"):
+            try: os.remove(self.test_feed + ".test")
+            except: pass
+        if os.path.exists(self.test_feed + ".meta"):
+            try: os.remove(self.test_feed + ".meta")
+            except: pass
+        if os.path.exists(self.test_log):
+            try: os.remove(self.test_log)
             except: pass
         if os.path.exists(self.test_db):
             try: os.remove(self.test_db)
@@ -63,11 +97,7 @@ class TestRoutes(unittest.TestCase):
             "test": {"file": self.test_feed + ".test", "label": "Test", "icon": "bi-cone"}
         }
         
-        with patch('app.FEED_FILE', self.test_feed), \
-             patch('app.FEED_FILE_BPE', self.test_feed + ".bpe"), \
-             patch('app.FEED_FILE_TEST', self.test_feed + ".test"), \
-             patch('app.META_FILE', self.test_feed + ".meta"), \
-             patch('app.load_users', return_value=mock_users), \
+        with patch('app.load_users', return_value=mock_users), \
              patch.dict('app.FEEDS_CONFIG', mock_feeds):
             
             resp = self.client.post('/', data={
@@ -101,11 +131,7 @@ class TestRoutes(unittest.TestCase):
              "global": {"virtual": True}
         }
 
-        with patch('app.FEED_FILE', self.test_feed), \
-             patch('app.FEED_FILE_BPE', self.test_feed + ".bpe"), \
-             patch('app.FEED_FILE_TEST', self.test_feed + ".test"), \
-             patch('app.META_FILE', self.test_feed + ".meta"), \
-             patch('app.load_users', return_value=mock_users), \
+        with patch('app.load_users', return_value=mock_users), \
              patch.dict('app.FEEDS_CONFIG', mock_feeds):
         
             data = {

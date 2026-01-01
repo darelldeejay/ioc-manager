@@ -17,10 +17,50 @@ class TestAPI(unittest.TestCase):
         app.config['TESTING'] = True
         self.client = app.test_client()
         self.test_feed = os.path.join(app_module.BASE_DIR, 'tests', 'test_feed_api.txt')
+        self.test_db = os.path.join(app_module.BASE_DIR, 'tests', 'test_api.db')
+        self.test_log = os.path.join(app_module.BASE_DIR, 'tests', 'test_api_audit.jsonl')
+
+        # === DB ISOLATION ===
+        self.db_patcher = patch('db.DB_FILE', self.test_db)
+        self.db_patcher.start()
+        
+        # Init temp DB
+        import db
+        if os.path.exists(self.test_db):
+            try: os.remove(self.test_db)
+            except: pass
+        db.init_db()
+
+        # === FILES ISOLATION ===
+        self.feed_patcher = patch('app.FEED_FILE', self.test_feed)
+        self.bpe_patcher = patch('app.FEED_FILE_BPE', self.test_feed + ".bpe")
+        self.test_feed_patcher = patch('app.FEED_FILE_TEST', self.test_feed + ".test")
+        self.meta_patcher = patch('app.META_FILE', self.test_feed + ".meta")
+        self.audit_patcher = patch('app.AUDIT_LOG_FILE', self.test_log)
+        
+        self.feed_patcher.start()
+        self.bpe_patcher.start()
+        self.test_feed_patcher.start()
+        self.meta_patcher.start()
+        self.audit_patcher.start()
+        
         self._clean_files()
 
     def tearDown(self):
+        self.db_patcher.stop()
+        self.feed_patcher.stop()
+        self.bpe_patcher.stop()
+        self.test_feed_patcher.stop()
+        self.meta_patcher.stop()
+        self.audit_patcher.stop()
+        
         self._clean_files()
+        if os.path.exists(self.test_db):
+            try: os.remove(self.test_db)
+            except: pass
+        if os.path.exists(self.test_log):
+            try: os.remove(self.test_log)
+            except: pass
 
     def _clean_files(self):
         for ext in ["", ".bpe", ".test", ".meta", ".lock"]:
@@ -53,10 +93,6 @@ class TestAPI(unittest.TestCase):
         base = self.test_feed
         
         with patch('app.TOKEN_API', 'test-token'), \
-             patch('app.FEED_FILE', base), \
-             patch('app.FEED_FILE_BPE', base + ".bpe"), \
-             patch('app.FEED_FILE_TEST', base + ".test"), \
-             patch('app.META_FILE', base + ".meta"), \
              patch('app.TAGS_DIR', os.path.join(os.path.dirname(base), "tags")):
             
             # Ensure cleanup of these extra files if needed, or let OS temp handle (but we use local file)
@@ -80,11 +116,7 @@ class TestAPI(unittest.TestCase):
 
     def test_api_idempotency(self):
         base = self.test_feed
-        with patch('app.TOKEN_API', 'test-token'), \
-             patch('app.FEED_FILE', base), \
-             patch('app.FEED_FILE_BPE', base + ".bpe"), \
-             patch('app.FEED_FILE_TEST', base + ".test"), \
-             patch('app.META_FILE', base + ".meta"):
+        with patch('app.TOKEN_API', 'test-token'):
              
             headers = {'X-API-Key': 'test-token'}
             payload = {

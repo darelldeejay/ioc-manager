@@ -89,9 +89,11 @@ var tableState = {
     order: 'desc',
     q: '',
     date_from: '',
-    date_to: ''
+    date_to: '',
+    tag: 'all',
+    origin: 'all'
 };
-let serverMode = true; // intentamos server JSON; si falla, fallback local
+var serverMode = true; // intentamos server JSON; si falla, fallback local
 
 /* ========================================================
    Buscador local (fallback)
@@ -130,17 +132,15 @@ function initLocalSearchFallback() {
     document.getElementById('addManualBtn')?.addEventListener('click', () => mark('manual'));
     document.getElementById('uploadCsvBtn')?.addEventListener('click', () => mark('csv'));
 
-    document.getElementById('mainForm')?.addEventListener('submit', () => {
-        const fileHasValue = !!document.querySelector('input[type="file"][name="file"]')?.value;
-        if (!sessionStorage.getItem('lastActionType')) {
-            mark(fileHasValue ? 'csv' : 'manual');
-        }
-    });
+    // Listeners separados para cada formulario
+    document.getElementById('addManualForm')?.addEventListener('submit', () => mark('manual'));
+    document.getElementById('uploadCsvForm')?.addEventListener('submit', () => mark('csv'));
 })();
 
 /* ========================================================
    Helpers Tags (manual y csv)
    ======================================================== */
+// ... (rest of logic)
 function selectedTags(cls) {
     return Array.from(document.querySelectorAll('.' + cls + ':checked')).map(el => el.value);
 }
@@ -182,42 +182,28 @@ const setLoading = (btn, textWhileLoading) => {
     `;
 };
 
-document.getElementById('mainForm')?.addEventListener('submit', (ev) => {
-    // --- Validación de tags ---
+// manejador estandar para Manual
+const handleManualSubmit = (ev) => {
     syncHiddenTags();
-    const fileHasValue = !!document.querySelector('input[type="file"][name="file"]')?.value;
-
-    if (!fileHasValue) {            // === Flujo MANUAL ===
-        const man = selectedTags('tag-manual');
-        if (man.length === 0) {
-            ev.preventDefault(); ev.stopPropagation();
-            showManualTagError(true);
-            document.querySelector('.tag-manual')?.focus();
-            return;
-        } else {
-            showManualTagError(false);
-        }
-    } else {                        // === Flujo CSV (OBLIGATORIO) ===
-        const csv = selectedTags('tag-csv');
-        if (csv.length === 0) {
-            ev.preventDefault(); ev.stopPropagation();
-            showCsvTagError(true);
-            document.querySelector('.tag-csv')?.focus();
-            return;
-        } else {
-            showCsvTagError(false);
-        }
+    const man = selectedTags('tag-manual');
+    if (man.length === 0) {
+        ev.preventDefault(); ev.stopPropagation();
+        showManualTagError(true);
+        document.querySelector('.tag-manual')?.focus();
+        return;
     }
+    showManualTagError(false);
+    setLoading(document.getElementById('addManualBtn'), 'Añadiendo…');
+};
 
-    // Spinners (igual que tenías)
-    const manualBtn = document.getElementById('addManualBtn');
-    const csvBtn = document.getElementById('uploadCsvBtn');
-    if (fileHasValue) {
-        setLoading(csvBtn, 'Subiendo…');
-    } else {
-        setLoading(manualBtn, 'Añadiendo…');
-    }
-});
+// manejador estandar para CSV
+const handleCsvSubmit = (ev) => {
+    // CSV tags are now per-row or optional, so we don't enforce global tags here.
+    setLoading(document.getElementById('uploadCsvBtn'), 'Subiendo…');
+};
+
+document.getElementById('addManualForm')?.addEventListener('submit', handleManualSubmit);
+document.getElementById('uploadCsvForm')?.addEventListener('submit', handleCsvSubmit);
 
 window.addEventListener('pageshow', () => {
     ['addManualBtn', 'uploadCsvBtn'].forEach(id => {
@@ -258,6 +244,7 @@ function showInlineToast(kind, text, delay = 6000) {
     portal.appendChild(el);
     new bootstrap.Toast(el, { autohide: true, delay }).show();
 }
+window.showInlineToast = showInlineToast;
 
 document.getElementById('markReadBtn').addEventListener('click', async () => {
     try { await fetch('/notifications/read-all', { method: 'POST' }); } catch (e) { }
@@ -437,12 +424,12 @@ console.log("DEBUG: Pre-DeletePreview");
     });
 })();
 
-console.log("DEBUG: Pre-InstantValidate");
-(function initInstantValidate() {
-    console.log("VALIDATION: Init triggered");
+console.log("DEBUG: Pre-InstantValidate (Now integrated in index.js)");
+(function wireManualValidation() {
+    console.log("VALIDATION: Init wired in index.js");
     const input = document.getElementById('ipInput');
     const feedback = document.getElementById('ipFeedback');
-    const form = document.getElementById('mainForm');
+    const form = document.getElementById('addManualForm');
 
     if (!input || !feedback || !form) return;
 
@@ -512,6 +499,10 @@ console.log("DEBUG: Pre-InstantValidate");
         setState(state);
     });
 
+    // Remove old submit listener if possible? No, we just ensure this one runs FIRST or cooperates.
+    // Actually, handleManualSubmit in index.js checks tags. We need to check text input too.
+
+    // We attach this check to 'submit' as well, to prevent submission on Invalid IP
     form.addEventListener('submit', (e) => {
         if (input.value.trim()) {
             const state = validate(input.value);
@@ -521,6 +512,11 @@ console.log("DEBUG: Pre-InstantValidate");
                 setState(state);
                 input.focus();
             }
+        } else {
+            // Empty input is handled by 'required' attribute usually, but if not:
+            e.preventDefault();
+            input.classList.add('is-invalid');
+            feedback.textContent = 'Campo obligatorio';
         }
     });
 })();
@@ -561,7 +557,9 @@ function updateBulkUI() {
 }
 
 function attachTableSelectionHandlers() {
-    document.querySelectorAll('.row-chk').forEach(chk => {
+    const rows = document.querySelectorAll('.row-chk');
+    console.log("DEBUG: attachTableSelectionHandlers found checkboxes:", rows.length);
+    rows.forEach(chk => {
         chk.addEventListener('change', () => {
             updateBulkUI();
             const tr = chk.closest('tr');
@@ -591,39 +589,119 @@ const pageInfo = document.getElementById('pageInfo');
 const prevBtn = document.getElementById('prevPage');
 const nextBtn = document.getElementById('nextPage');
 
-const qInput = document.getElementById('qInput');
-const dateFrom = document.getElementById('dateFrom');
-const dateTo = document.getElementById('dateTo');
-const sortSelect = document.getElementById('sortSelect');
-const orderDesc = document.getElementById('orderDesc');
-const orderAsc = document.getElementById('orderAsc');
-const pageSizeSel = document.getElementById('pageSize');
-const applyBtn = document.getElementById('applyTableFilters');
-const clearBtn = document.getElementById('clearTableFilters');
+/* ========================================================
+   Logic de Tabla y Filtros
+   ======================================================== */
 
-orderDesc.addEventListener('click', () => { tableState.order = 'desc'; orderDesc.classList.add('active'); orderAsc.classList.remove('active'); reloadTable(true); });
-orderAsc.addEventListener('click', () => { tableState.order = 'asc'; orderAsc.classList.add('active'); orderDesc.classList.remove('active'); reloadTable(true); });
-sortSelect.addEventListener('change', () => { tableState.sort = sortSelect.value; reloadTable(true); });
-pageSizeSel.addEventListener('change', () => { tableState.page_size = parseInt(pageSizeSel.value, 10) || 50; tableState.page = 1; reloadTable(true); });
 
-applyBtn.addEventListener('click', () => {
-    tableState.q = qInput.value.trim();
-    tableState.date_from = dateFrom.value || '';
-    tableState.date_to = dateTo.value || '';
-    tableState.page = 1;
-    reloadTable(true);
+document.addEventListener('DOMContentLoaded', () => {
+
+    const qInput = document.getElementById('qInput');
+    const dateFrom = document.getElementById('dateFrom');
+    const dateTo = document.getElementById('dateTo');
+    const sortSelect = document.getElementById('sortSelect');
+    const orderDesc = document.getElementById('orderDesc');
+    const orderAsc = document.getElementById('orderAsc');
+    const pageSizeSel = document.getElementById('pageSize');
+    const applyBtn = document.getElementById('applyTableFilters');
+    const clearBtn = document.getElementById('clearTableFilters');
+    const bulkDeleteBtn = document.getElementById('bulkDeleteBtn');
+
+    // NEW Filters
+    const tagSelect = document.getElementById('tagSelect');
+    const originSelect = document.getElementById('originSelect');
+
+    if (orderDesc) orderDesc.addEventListener('click', () => { tableState.order = 'desc'; orderDesc.classList.add('active'); orderAsc.classList.remove('active'); reloadTable(true); });
+    if (orderAsc) orderAsc.addEventListener('click', () => { tableState.order = 'asc'; orderAsc.classList.add('active'); orderDesc.classList.remove('active'); reloadTable(true); });
+    if (sortSelect) sortSelect.addEventListener('change', () => { tableState.sort = sortSelect.value; reloadTable(true); });
+    if (pageSizeSel) pageSizeSel.addEventListener('change', () => { tableState.page_size = parseInt(pageSizeSel.value, 10) || 50; tableState.page = 1; reloadTable(true); });
+
+    // Reactive Filters (Instant Reload)
+    if (tagSelect) {
+        tagSelect.addEventListener('change', () => {
+            tableState.tag = tagSelect.value;
+            tableState.page = 1;
+            reloadTable(true);
+        });
+    }
+    if (originSelect) {
+        originSelect.addEventListener('change', () => {
+            tableState.origin = originSelect.value;
+            tableState.page = 1;
+            reloadTable(true);
+        });
+    }
+
+    // Debounce helper
+    const debounce = (func, wait) => {
+        let timeout;
+        return function executedFunction(...args) {
+            const later = () => {
+                clearTimeout(timeout);
+                func(...args);
+            };
+            clearTimeout(timeout);
+            timeout = setTimeout(later, wait);
+        };
+    };
+
+    // Filtro Búsqueda (Real-time debounced)
+    if (qInput) {
+        qInput.addEventListener('input', debounce(() => {
+            tableState.q = qInput.value.trim();
+            tableState.page = 1;
+            reloadTable(true);
+        }, 500));
+    }
+
+    if (bulkDeleteBtn) {
+        bulkDeleteBtn.addEventListener('click', bulkDeleteSelected);
+    }
+
+    if (applyBtn) {
+        applyBtn.addEventListener('click', () => {
+            if (qInput) tableState.q = qInput.value.trim();
+            if (dateFrom) tableState.date_from = dateFrom.value || '';
+            if (dateTo) tableState.date_to = dateTo.value || '';
+
+            // Capture Filters
+            if (tagSelect) tableState.tag = tagSelect.value;
+            if (originSelect) tableState.origin = originSelect.value;
+
+            tableState.page = 1;
+            reloadTable(true);
+        });
+    }
+
+    if (clearBtn) {
+        clearBtn.addEventListener('click', () => {
+            if (qInput) qInput.value = '';
+            if (dateFrom) dateFrom.value = '';
+            if (dateTo) dateTo.value = '';
+            if (sortSelect) sortSelect.value = 'fecha';
+
+            // Clear Filters
+            if (tagSelect) tagSelect.value = 'all';
+            if (originSelect) originSelect.value = 'all';
+            tableState.tag = 'all';
+            tableState.origin = 'all';
+
+            tableState.sort = 'fecha';
+            tableState.order = 'desc';
+            if (orderDesc) orderDesc.classList.add('active');
+            if (orderAsc) orderAsc.classList.remove('active');
+            if (pageSizeSel) pageSizeSel.value = '50';
+            tableState.page_size = 50; tableState.page = 1;
+            reloadTable(true);
+        });
+    }
+
+    if (prevBtn) prevBtn.addEventListener('click', () => { if (tableState.page > 1) { tableState.page--; reloadTable(false); } });
+    if (nextBtn) nextBtn.addEventListener('click', () => { tableState.page++; reloadTable(false); });
+
+    // Initial load
+    // reloadTable(true); // Optional: usually loaded by server template, but we can re-fetch if needed.
 });
-
-clearBtn.addEventListener('click', () => {
-    qInput.value = ''; dateFrom.value = ''; dateTo.value = '';
-    sortSelect.value = 'fecha'; tableState.sort = 'fecha';
-    tableState.order = 'desc'; orderDesc.classList.add('active'); orderAsc.classList.remove('active');
-    pageSizeSel.value = '50'; tableState.page_size = 50; tableState.page = 1;
-    reloadTable(true);
-});
-
-prevBtn.addEventListener('click', () => { if (tableState.page > 1) { tableState.page--; reloadTable(false); } });
-nextBtn.addEventListener('click', () => { tableState.page++; reloadTable(false); });
 
 async function reloadTable(resetIfEmpty) {
     try {
@@ -633,7 +711,12 @@ async function reloadTable(resetIfEmpty) {
         params.set('page_size', String(tableState.page_size));
         params.set('sort', tableState.sort);
         params.set('order', tableState.order);
+
         if (tableState.q) params.set('q', tableState.q);
+        // Include new filters
+        if (tableState.tag && tableState.tag !== 'all') params.set('tag', tableState.tag);
+        if (tableState.origin && tableState.origin !== 'all') params.set('origin', tableState.origin);
+
         const hasRange = (tableState.date_from || tableState.date_to);
         if (hasRange) {
             const val = `${tableState.date_from || ''}${tableState.date_from || tableState.date_to ? ',' : ''}${tableState.date_to || ''}`;
@@ -678,22 +761,46 @@ function renderRows(items) {
     tbody.innerHTML = '';
     items.forEach((row) => {
         const tr = document.createElement('tr');
-        const ttlText = (row.ttl === 0 || row.ttl === '0') ? '∞' : String(row.ttl);
+
+        // Show remaining days if available, otherwise fallback to static TTL or '∞'
+        let ttlDisplay = '∞';
+        if (row.ttl !== 0 && row.ttl !== "0" && row.ttl !== "permanente") {
+            if (row.days_remaining !== undefined && row.days_remaining !== null) {
+                ttlDisplay = `${row.ttl}<br><small class="text-muted">(${row.days_remaining} d. rest.)</small>`;
+            } else {
+                ttlDisplay = String(row.ttl);
+            }
+        }
+
+        // Calculate remaining days if needed (simple approximation or server property)
+        // For now, consistent with basic view.
+        // We need to pass tags to openEditTTL. Safe serialization:
+        const tagsJson = JSON.stringify(row.tags || []).replace(/"/g, '&quot;');
+
         tr.innerHTML = `
         <td><input type="checkbox" class="row-chk" value="${escapeHtml(row.ip)}"></td>
-        <td>${escapeHtml(row.ip)}</td>
-        <td>${escapeHtml(row.fecha_alta || '')}</td>
-        <td>${escapeHtml(ttlText)}</td>
+        <td class="fw-bold text-monospace">${escapeHtml(row.ip)}</td>
+        <td class="small">${escapeHtml(row.fecha_alta || '')}</td>
+        <td class="small" style="cursor:pointer;" title="Click para editar TTL"
+            onclick="openEditTTL('${escapeHtml(row.ip)}', ${tagsJson})">
+            ${ttlDisplay}
+            <i class="bi bi-pencil-square ms-1 text-muted" style="font-size: 0.75rem;"></i>
+        </td>
         <td>${(row.tags && row.tags.length)
                 ? row.tags.map(tagBadge).join(' ')
                 : '<span class="text-muted">—</span>'
             }</td>
         <td>${alertsCellHtml(row)}</td>
         <td>
-          <form method="POST" onsubmit="return confirm('¿Eliminar ${escapeHtml(row.ip)}?');">
-            <input type="hidden" name="delete_ip" value="${escapeHtml(row.ip)}">
-            <button type="submit" class="btn btn-sm btn-outline-danger">Eliminar</button>
-          </form>
+          <div class="d-flex gap-2">
+            <button type="button" class="btn btn-sm btn-outline-secondary" onclick="openHistory('${escapeHtml(row.ip)}')">
+                <i class="bi bi-clock-history"></i>
+            </button>
+            <form method="POST" onsubmit="return confirm('¿Eliminar ${escapeHtml(row.ip)}?');">
+                <input type="hidden" name="delete_ip" value="${escapeHtml(row.ip)}">
+                <button type="submit" class="btn btn-sm btn-outline-danger">Eliminar</button>
+            </form>
+          </div>
         </td>
       `;
         tbody.appendChild(tr);
@@ -730,6 +837,7 @@ function updateCounters(counters) {
 }
 
 async function bulkDeleteSelected() {
+    console.log("DEBUG: bulkDeleteSelected triggered");
     const ips = getSelectedIPs();
     if (ips.length === 0) return;
 
@@ -746,25 +854,29 @@ async function bulkDeleteSelected() {
         <span class="ms-1">Eliminando…</span>`;
     }
 
-    let okCount = 0, failCount = 0;
+    // --- FIX: Send as ONE batch request to avoid spamming notifications ---
+    // --- FIX: Send as ONE batch request to avoid spamming notifications ---
+    try {
+        console.log("Sending bulk delete request for IPs:", ips);
+        const urlEncodedData = new URLSearchParams();
+        urlEncodedData.append('bulk_delete_ips', ips.join(','));
 
-    for (const ip of ips) {
-        try {
-            const fd = new FormData();
-            fd.append('delete_ip', ip);
-            const r = await fetch('/', { method: 'POST', body: fd });
-            if (r.ok) okCount++; else failCount++;
-        } catch (e) {
-            failCount++;
+        const r = await fetch('/', {
+            method: 'POST',
+            body: urlEncodedData,
+            headers: {
+                'Content-Type': 'application/x-www-form-urlencoded',
+            }
+        });
+
+        if (r.ok || r.redirected) {
+            showInlineToast('warning', `${ips.length} IP(s) eliminada(s) en lote.`);
+        } else {
+            showInlineToast('danger', 'Error al eliminar lote.');
         }
-    }
 
-    if (okCount && !failCount) {
-        showInlineToast('warning', `${okCount} IP(s) eliminada(s).`);
-    } else if (okCount && failCount) {
-        showInlineToast('warning', `${okCount} eliminada(s) · ${failCount} error(es).`);
-    } else {
-        showInlineToast('danger', 'No se pudo eliminar ninguna IP.');
+    } catch (e) {
+        showInlineToast('danger', 'Error de red al eliminar.');
     }
 
     document.getElementById('chkAll')?.click();
@@ -785,7 +897,7 @@ async function bulkDeleteSelected() {
         btn.disabled = false;
     }
 }
-document.getElementById('bulkDeleteBtn')?.addEventListener('click', bulkDeleteSelected);
+
 
 
 document.addEventListener("DOMContentLoaded", function () {
@@ -795,6 +907,9 @@ document.addEventListener("DOMContentLoaded", function () {
 
     // Renderizar historial de notificaciones
     renderList();
+
+    // Attach Bulk Delete Handler (moved here to ensure element exists)
+    document.getElementById('bulkDeleteBtn')?.addEventListener('click', bulkDeleteSelected);
 
     // Renderizar toasts iniciales (Flash messages)
     if (window.newFlashes && window.newFlashes.length) {
@@ -821,3 +936,97 @@ document.addEventListener("DOMContentLoaded", function () {
     // Inicializar lista de notificaciones
     if (typeof renderList === 'function') renderList();
 });
+
+/* ========================================================
+   Edit TTL Logic (Added here to ensure global availability)
+   ======================================================== */
+let currentEditIp = null;
+let currentEditTags = [];
+
+window.openEditTTL = function (ip, tags) {
+    currentEditIp = ip;
+    currentEditTags = tags || [];
+
+    const span = document.getElementById('editTTLIp');
+    if (span) span.textContent = ip;
+
+    // Open Modal
+    const el = document.getElementById('modalEditTTL');
+    if (el) {
+        const modal = new bootstrap.Modal(el);
+        modal.show();
+    }
+};
+
+window.saveEditTTL = async function () {
+    if (!currentEditIp) return;
+
+    const sel = document.getElementById('editTTLSelect');
+    const val = sel ? sel.value : "0";
+
+    const btn = document.querySelector('#modalEditTTL .btn-primary');
+    let orig = 'Guardar';
+    if (btn) {
+        orig = btn.innerHTML;
+        btn.disabled = true;
+        btn.innerHTML = '<span class="spinner-border spinner-border-sm"></span>';
+    }
+
+    try {
+        const res = await fetch('/update-ttl', {
+            method: 'POST',
+            headers: { 'Content-Type': 'application/json' },
+            body: JSON.stringify({
+                ip: currentEditIp,
+                ttl: val,
+                tags: currentEditTags
+            })
+        });
+        const d = await res.json();
+
+        if (res.ok) {
+            // Reload table to show new TTL
+            if (typeof reloadTable === 'function') reloadTable(false);
+
+            // Hide modal
+            const el = document.getElementById('modalEditTTL');
+            const modal = bootstrap.Modal.getInstance(el);
+            if (modal) modal.hide();
+
+            if (typeof showInlineToast === 'function') showInlineToast('success', 'TTL actualizado correctamente');
+        } else {
+            if (typeof showInlineToast === 'function') showInlineToast('danger', d.error || 'Error al actualizar TTL');
+        }
+    } catch (e) {
+        console.error(e);
+        if (typeof showInlineToast === 'function') showInlineToast('danger', 'Error de conexión');
+    } finally {
+        if (btn) {
+            btn.disabled = false;
+            btn.innerHTML = orig;
+        }
+    }
+};
+
+window.confirmDeleteJS = function (ip, tags) {
+    let msg = `¿Eliminar ${ip}?`;
+    if (tags && (tags.includes('BPE') || tags.includes('bpe'))) {
+        msg = `⚠️ ATENCIÓN: La IP ${ip} es CRÍTICA (BPE).\n\nSe eliminará de TODAS las listas (Principal y BPE).\n\n¿Estás seguro de continuar?`;
+    }
+
+    if (confirm(msg)) {
+        // Enviar POST programático
+        const form = document.createElement('form');
+        form.method = 'POST';
+        form.style.display = 'none';
+
+        const inp = document.createElement('input');
+        inp.type = 'hidden';
+        inp.name = 'delete_ip';
+        inp.value = ip;
+
+        form.appendChild(inp);
+        document.body.appendChild(form);
+        form.submit();
+    }
+};

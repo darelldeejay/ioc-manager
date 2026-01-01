@@ -6,6 +6,7 @@
   <title>IOC Manager</title>
   <meta name="viewport" content="width=device-width, initial-scale=1" />
 
+
   <!-- Bootstrap 5 -->
   <link href="https://cdn.jsdelivr.net/npm/bootstrap@5.3.3/dist/css/bootstrap.min.css" rel="stylesheet">
   <!-- Bootstrap Icons -->
@@ -35,14 +36,13 @@
   <!-- Bootstrap -->
 
 
-  <!-- Google Font Inter for modern typography -->
-  <link rel="preconnect" href="https://fonts.googleapis.com">
-  <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
-  <link href="https://fonts.googleapis.com/css2?family=Inter:wght@400;500;600;700&display=swap" rel="stylesheet">
-
   <!-- Estilos propios -->
   <link rel="stylesheet" href="{{ url_for('static', filename='css/index.css') }}?v=2">
 
+  <!-- Favicon (Moved to bottom to override) -->
+  <link rel="icon" href="{{ url_for('static', filename='img/logo-dpb.svg') }}?v=5">
+  <link rel="shortcut icon" href="{{ url_for('static', filename='img/logo-dpb.svg') }}?v=5">
+  <link rel="apple-touch-icon" href="{{ url_for('static', filename='img/logo-dpb.svg') }}?v=5">
 
 </head>
 
@@ -121,7 +121,6 @@
           <!-- DIAGNOSTICS (Salud) -->
           {% if session.get('role') in ['admin', 'editor'] %}
           <div class="btn-group gap-1">
-            <!-- (Resumen removed) -->
             <button class="btn btn-outline-warning btn-sm rounded-pill d-flex align-items-center gap-1" type="button"
               id="runDiagnosticsBtn" onclick="runDiagnostics()" title="Autodiagnóstico">
               <i class="bi bi-heart-pulse"></i>
@@ -180,9 +179,6 @@
     {% endif %}
 
     <!-- ======= RESUMEN AMPLIADO ======= -->
-    <!-- NUEVAS TARJETAS DE RESUMEN -->
-    <!-- Tabs de Feeds (Dinámico) -->
-    <!-- Tabs de Feeds ELIMINADOS por redundancia (se usa filtro Tag) -->
 
     <!-- NUEVAS TARJETAS DE RESUMEN -->
     <div class="row g-3 mb-4">
@@ -290,8 +286,7 @@
     <!-- ======= FIN RESUMEN AMPLIADO ======= -->
 
     <!-- Botones de backup -->
-    <!-- Botones de backup MOVIDOS A TARJETAS -->
-    <!-- (Eliminado bloque flotante) -->
+    <!-- Botones de backup (en tarjetas) -->
 
     <!-- Solo errores graves si el backend los envía en 'error' -->
     {% if error %}
@@ -326,7 +321,7 @@
 
       <!-- === PESTAÑA MANUAL === -->
       <div class="tab-pane fade show active" id="pane-manual" role="tabpanel" aria-labelledby="tab-manual">
-        <form id="addManualForm" method="POST">
+        <form id="addManualForm" method="POST" action="{{ url_for('index') }}">
           <input type="hidden" name="source" value="web">
           <!-- Alta manual -->
           <div class="row g-3 mb-1 align-items-end">
@@ -370,16 +365,18 @@
               <label class="form-label small mb-1 fw-bold">Tags <span class="text-danger">*</span></label>
               <div class="d-flex gap-3 align-items-center flex-wrap">
                 <div class="form-check form-switch">
-                  <input class="form-check-input" type="checkbox" id="tag_multi" name="tags_manual_cb"
+                  <input class="form-check-input tag-manual" type="checkbox" id="tag_multi" name="tags_manual_cb"
                     value="Multicliente" checked>
                   <label class="form-check-label" for="tag_multi">Multicliente</label>
                 </div>
                 <div class="form-check form-switch">
-                  <input class="form-check-input" type="checkbox" id="tag_bpe" name="tags_manual_cb" value="BPE">
+                  <input class="form-check-input tag-manual" type="checkbox" id="tag_bpe" name="tags_manual_cb"
+                    value="BPE">
                   <label class="form-check-label" for="tag_bpe">BPE</label>
                 </div>
                 <div class="form-check form-switch">
-                  <input class="form-check-input" type="checkbox" id="tag_test" name="tags_manual_cb" value="Test">
+                  <input class="form-check-input tag-manual" type="checkbox" id="tag_test" name="tags_manual_cb"
+                    value="Test">
                   <label class="form-check-label" for="tag_test">Test</label>
                 </div>
               </div>
@@ -399,7 +396,7 @@
 
       <!-- === PESTAÑA CSV === -->
       <div class="tab-pane fade" id="pane-csv" role="tabpanel" aria-labelledby="tab-csv">
-        <form method="POST" enctype="multipart/form-data">
+        <form id="uploadCsvForm" method="POST" enctype="multipart/form-data" action="{{ url_for('index') }}">
           <input type="hidden" name="source" value="web">
           <!-- Subida por CSV -->
           <div class="row g-3 mb-1 align-items-end">
@@ -774,7 +771,8 @@
               </td>
               <td class="fw-bold text-monospace">{{ ip_txt }}</td>
               <td class="small">{{ parts[1] }}</td>
-              <td class="small">
+              <td class="small" style="cursor:pointer;" title="Click para editar TTL"
+                onclick="openEditTTL('{{ ip_txt }}', {{ tags|tojson }})">
                 {% if parts[2] == '0' %}
                 ∞
                 {% else %}
@@ -784,6 +782,7 @@
                 <br><small class="text-muted">({{ left }} d. rest.)</small>
                 {% endif %}
                 {% endif %}
+                <i class="bi bi-pencil-square ms-1 text-muted" style="font-size: 0.75rem;"></i>
               </td>
               <td>
                 {% if tags %}
@@ -1146,91 +1145,19 @@
 
     <!-- Scripts de la aplicación -->
     <script>console.log("DEBUG: Attempting to load index.js");</script>
+    <script src="{{ url_for('static', filename='js/index.js') }}?v=105" defer></script>
     <script src="{{ url_for('static', filename='js/users.js') }}" defer></script>
+
+
+
+
+
+
+
     <script>
       /* ========================================================
-         Gestión de Tema (Claro / Oscuro)
-         ======================================================== */
-      (function () {
-
-        function applyTheme(theme) {
-          const body = document.body;
-          const isDark = (theme === 'dark');
-
-          // Clases globales en el body
-          body.classList.remove('bg-light', 'bg-dark', 'text-white');
-          if (isDark) {
-            body.classList.add('bg-dark', 'text-white');
-          } else {
-            body.classList.add('bg-light');
-          }
-
-          // Atributo global para CSS
-          document.documentElement.setAttribute('data-theme', theme);
-
-          // Tabla principal
-          const tbl = document.getElementById('tablaIps');
-          if (tbl) {
-            tbl.classList.toggle('table-dark', isDark);
-          }
-
-          // Botón de notificaciones
-          const notifBtn = document.getElementById('notif-btn');
-          if (notifBtn) {
-            notifBtn.classList.remove('btn-outline-primary', 'btn-outline-light');
-            notifBtn.classList.add(isDark ? 'btn-outline-light' : 'btn-outline-primary');
-          }
-
-          // Botón de tema (icono + texto)
-          const icon = document.getElementById('themeToggleIcon');
-          const text = document.getElementById('themeToggleText');
-          if (icon && text) {
-            if (isDark) {
-              icon.classList.remove('bi-moon-stars');
-              icon.classList.add('bi-sun');
-              text.textContent = 'Claro';
-            } else {
-              icon.classList.remove('bi-sun');
-              icon.classList.add('bi-moon-stars');
-              text.textContent = 'Oscuro';
-            }
-          }
-        }
-
-        // Función global que llama el onclick del botón
-        window.toggleTheme = function () {
-          const current = document.documentElement.getAttribute('data-theme') === 'dark' ? 'dark' : 'light';
-          const next = (current === 'dark') ? 'light' : 'dark';
-
-          // Guardar preferencia
-          try {
-            localStorage.setItem('theme', next);
-          } catch (e) { }
-
-          // Si pasamos a claro, quitamos el estilo anti-flash
-          const anti = document.getElementById('anti-flash-dark');
-          if (next === 'light' && anti) {
-            anti.remove();
-          }
-
-          applyTheme(next);
-        };
-
-        // Aplicar tema guardado al cargar la página
-        document.addEventListener('DOMContentLoaded', function () {
-          let theme = 'light';
-          try {
-            const saved = localStorage.getItem('theme');
-            if (saved === 'dark') theme = 'dark';
-          } catch (e) { }
-          applyTheme(theme);
-        });
-
-      })();
-
-      /* ========================================================
-         Estado de tabla (server-side)
-         ======================================================== */
+      Estado de tabla (server-side)
+      ======================================================== */
       const USER_ROLE = "{{ user_role }}"; // injected by server
       const CURRENT_FEED_KEY = "{{ current_feed|default('global') }}".toLowerCase();
 
@@ -1255,335 +1182,14 @@
         }
       })();
 
-      let serverMode = false;
-      let tableState = {
-        page: 1,
-        page_size: 50,
-        sort: 'fecha',
-        order: 'desc',
-        q: '',
-        date_from: '',
-        date_to: ''
-      };
-
-      window.initNotificationsSystem = function () {// intentamos server JSON; si falla, fallback local
-
-        /* ========================================================
-           Buscador local (fallback)
-           ======================================================== */
-        function initLocalSearchFallback() {
-          const wrap = document.getElementById('localSearchWrap');
-          wrap.classList.remove('d-none');
-          const input = document.getElementById('buscadorIp');
-          const table = document.getElementById('tablaIps');
-          if (input && table) {
-            input.addEventListener('keyup', function () {
-              const filtro = input.value.toLowerCase();
-              const filas = table.getElementsByTagName('tr');
-              for (let i = 1; i < filas.length; i++) {
-                const celdas = filas[i].getElementsByTagName('td');
-                if (celdas.length > 1) {
-                  const ip = celdas[1].textContent.toLowerCase();
-                  filas[i].style.display = ip.includes(filtro) ? '' : 'none';
-                }
-              }
-            });
-          }
-        }
-
-        /* ========================================================
-           Marcar tipo de acción (manual vs csv)
-           ======================================================== */
-        (function wireActionMarkers() {
-          const mark = (type) => {
-            try {
-              sessionStorage.setItem('lastActionType', type);
-              sessionStorage.setItem('lastActionTs', String(Date.now()));
-            } catch { }
-          };
-
-          document.getElementById('addManualBtn')?.addEventListener('click', () => mark('manual'));
-          document.getElementById('uploadCsvBtn')?.addEventListener('click', () => mark('csv'));
-
-          document.getElementById('mainForm')?.addEventListener('submit', () => {
-            const fileHasValue = !!document.querySelector('input[type="file"][name="file"]')?.value;
-            if (!sessionStorage.getItem('lastActionType')) {
-              mark(fileHasValue ? 'csv' : 'manual');
-            }
-          });
-        })();
-
-        /* ========================================================
-           Helpers Tags (manual y csv)
-           ======================================================== */
-        function selectedTags(cls) {
-          return Array.from(document.querySelectorAll('.' + cls + ':checked')).map(el => el.value);
-        }
-        function syncHiddenTags() {
-          const man = selectedTags('tag-manual');
-          const csv = selectedTags('tag-csv');
-          const manInput = document.getElementById('tagsManualInput');
-          const csvInput = document.getElementById('tagsCsvInput');
-          if (manInput) manInput.value = man.join(',');
-          if (csvInput) csvInput.value = csv.join(',');
-        }
-        document.querySelectorAll('.tag-manual, .tag-csv').forEach(el => {
-          el.addEventListener('change', syncHiddenTags);
-        });
-
-        function showManualTagError(show) {
-          const fb = document.getElementById('tagManualFeedback');
-          const hidden = document.getElementById('tagsManualInput');
-          if (!fb || !hidden) return;
-          fb.style.display = show ? 'block' : 'none';
-          hidden.classList.toggle('is-invalid', !!show);
-        }
-
-        function showCsvTagError(show) {
-          const fb = document.getElementById('tagCsvFeedback');
-          const group = document.getElementById('tagCsvGroup');
-          if (!fb || !group) return;
-          fb.style.display = show ? 'block' : 'none';
-          group.classList.toggle('is-invalid', !!show);
-        }
-
-        const setLoading = (btn, textWhileLoading) => {
-          if (!btn) return;
-          btn.dataset.originalHtml = btn.innerHTML;
-          btn.disabled = true;
-          btn.innerHTML = `
-      <span class="spinner-border spinner-border-sm" role="status" aria-hidden="true"></span>
-      <span class="ms-1">${textWhileLoading}</span>
-    `;
-        };
-
-        document.getElementById('mainForm')?.addEventListener('submit', (ev) => {
-          // --- Validación de tags ---
-          syncHiddenTags();
-          const fileHasValue = !!document.querySelector('input[type="file"][name="file"]')?.value;
-
-          if (!fileHasValue) {            // === Flujo MANUAL ===
-            const man = selectedTags('tag-manual');
-            if (man.length === 0) {
-              ev.preventDefault(); ev.stopPropagation();
-              showManualTagError(true);
-              document.querySelector('.tag-manual')?.focus();
-              return;
-            } else {
-              showManualTagError(false);
-            }
-          }
-          // === Flujo CSV === 
-          // Ya no hay checkboxes de tags, vienen dentro del CSV.
-          // Se permite enviar el formulario directamente.
-
-          // Spinners (igual que tenías)
-          const manualBtn = document.getElementById('addManualBtn');
-          const csvBtn = document.getElementById('uploadCsvBtn');
-          if (fileHasValue) {
-            setLoading(csvBtn, 'Subiendo…');
-          } else {
-            setLoading(manualBtn, 'Añadiendo…');
-          }
-        });
-
-        window.addEventListener('pageshow', () => {
-          ['addManualBtn', 'uploadCsvBtn'].forEach(id => {
-            const b = document.getElementById(id);
-            if (b && b.dataset.originalHtml) {
-              b.innerHTML = b.dataset.originalHtml;
-              b.disabled = false;
-              delete b.dataset.originalHtml;
-            }
-          });
-        });
-
-        // (Función showCombinedActionToast eliminada - reemplazada por script inline en index.html)
-
-        function mapToastColor(kind) {
-          if (kind === 'error' || kind === 'danger' || kind === 'accion_no_permitida') return 'danger';
-          if (kind === 'warning') return 'warning';
-          if (kind === 'success') return 'success';
-          return 'primary';
-        }
-
-        function escapeHtml(text) {
-          if (!text) return '';
-          const map = { '&': '&amp;', '<': '&lt;', '>': '&gt;', '"': '&quot;', "'": '&#039;' };
-          return text.replace(/[&<>"']/g, function (m) { return map[m]; });
-        }
-
-        function showInlineToast(kind, text, delay = 6000) {
-          const portal = document.getElementById('toast-portal');
-          const el = document.createElement('div');
-          el.className = 'toast align-items-center text-bg-' + mapToastColor(kind) + ' border-0';
-          el.innerHTML = `
-      <div class="d-flex">
-        <div class="toast-body">${escapeHtml(text || '')}</div>
-        <button type="button" class="btn-close btn-close-white me-2 m-auto"
-                data-bs-dismiss="toast" aria-label="Close"></button>
-      </div>`;
-          portal.appendChild(el);
-          new bootstrap.Toast(el, { autohide: true, delay }).show();
-        }
-        window.showInlineToast = showInlineToast;
-
-        document.getElementById('markReadBtn')?.addEventListener('click', async () => {
-          try { await fetch('/notifications/read-all', { method: 'POST' }); } catch (e) { }
-          markAllReadUI();
-          showInlineToast('success', 'Notificaciones marcadas como leídas');
-        });
-        const offcanvasEl = document.getElementById('offcanvasNotifs');
-        if (offcanvasEl) {
-          offcanvasEl.addEventListener('shown.bs.offcanvas', async () => {
-            try { await fetch('/notifications/read-all', { method: 'POST' }); } catch (e) { }
-            markAllReadUI();
-          });
-        }
-
-        const PAGE_SIZE_NOTIF = 10;
-
-        // Usamos window.serverMessages que se inyectó en el HTML
-        let notifData = (window.serverMessages || []).map((m, i) => {
-          const txt = m.message || '';
-          const theMatch = txt.match(/^(\d{4}-\d{2}-\d{2})(?:\s+(\d{2}:\d{2}:\d{2}))?\s+(.*)$/);
-          let dt = null;
-          let cleanMsg = txt;
-          if (theMatch) {
-            const ymd = theMatch[1];
-            const hms = theMatch[2] || '00:00:00';
-            dt = new Date(`${ymd}T${hms}`);
-            cleanMsg = theMatch[3];
-          }
-          return { id: i + 1, category: m.category, message: cleanMsg, date: dt };
-        });
-
-        notifData.sort((a, b) => {
-          const ad = a.date ? a.date.getTime() : -Infinity;
-          const bd = b.date ? b.date.getTime() : -Infinity;
-          return bd - ad;
-        });
 
 
-        const listEl = document.getElementById('notifList');
-        const pagEl = document.getElementById('notifPagination');
-        const infoEl = document.getElementById('notifCountInfo');
 
-        let filterType = '';
-        let filterDate = '';
-        let currentPage = 1;
-
-        document.getElementById('applyFilters')?.addEventListener('click', () => {
-          const ft = document.getElementById('filterType');
-          const fd = document.getElementById('filterDate');
-          if (ft) filterType = ft.value;
-          if (fd) filterDate = fd.value;
-          currentPage = 1;
-          renderList();
-        });
-        document.getElementById('clearFilters')?.addEventListener('click', () => {
-          const ft = document.getElementById('filterType');
-          const fd = document.getElementById('filterDate');
-          if (ft) ft.value = '';
-          if (fd) fd.value = '';
-          filterType = filterDate = '';
-          currentPage = 1;
-          renderList();
-        });
-
-        function filtered() {
-          return notifData.filter(n => {
-            if (filterType && n.category !== filterType) return false;
-            if (filterDate) {
-              const d = n.date;
-              if (!d || isNaN(d.getTime())) return false; // Protección contra fechas inválidas
-              try {
-                const ymd = d.toISOString().slice(0, 10);
-                if (ymd !== filterDate) return false;
-              } catch (e) { return false; }
-            }
-            return true;
-          });
-        }
-
-        function renderList() {
-          const data = filtered();
-          const totalPages = Math.max(1, Math.ceil(data.length / PAGE_SIZE_NOTIF));
-          if (currentPage > totalPages) currentPage = totalPages;
-
-          const start = (currentPage - 1) * PAGE_SIZE_NOTIF;
-          const pageItems = data.slice(start, start + PAGE_SIZE_NOTIF);
-
-          infoEl.textContent = `Mostrando ${pageItems.length} de ${data.length} notificaciones`;
-
-          listEl.innerHTML = '';
-          if (data.length === 0) {
-            listEl.innerHTML = '<div class="p-2 text-muted small">No hay notificaciones recientes</div>';
-          }
-
-          pageItems.forEach(n => {
-            try {
-              const cls = mapToastColor(n.category);
-              const pill = n.category === 'success' ? '✅' :
-                n.category === 'warning' ? '⚠️' :
-                  (n.category === 'danger' || n.category === 'accion_no_permitida') ? '❌' : 'ℹ️';
-
-              let dtTxt = '';
-              if (n.date && !isNaN(n.date.getTime())) {
-                try { dtTxt = n.date.toLocaleString(); } catch (e) { dtTxt = 'Fecha inválida'; }
-              }
-
-              const item = document.createElement('div');
-              item.className = `border rounded p-2 bg-white text-dark mb-1`;
-              item.innerHTML = `
-            <div class="d-flex align-items-center justify-content-between">
-              <span class="badge text-bg-${cls}">${pill}</span>
-              <span class="small text-muted ms-2">${escapeHtml(dtTxt)}</span>
-            </div>
-            <div class="mt-1">${escapeHtml(n.message)}</div>
-          `;
-              listEl.appendChild(item);
-            } catch (err) {
-              console.error("Error rendering item:", err);
-            }
-          });
-
-          pagEl.innerHTML = '';
-          const mkPage = (p, label = p, disabled = false, active = false) => {
-            const li = document.createElement('li');
-            li.className = `page-item ${disabled ? 'disabled' : ''} ${active ? 'active' : ''}`;
-            const a = document.createElement('a');
-            a.className = 'page-link';
-            a.href = '#';
-            a.textContent = label;
-            a.addEventListener('click', (e) => {
-              e.preventDefault();
-              if (!disabled && currentPage !== p) {
-                currentPage = p;
-                renderList();
-              }
-            });
-            li.appendChild(a);
-            return li;
-          };
-
-          const pages = Math.max(1, Math.ceil(data.length / PAGE_SIZE_NOTIF));
-          pagEl.appendChild(mkPage(Math.max(1, currentPage - 1), '«', currentPage === 1, false));
-          for (let p = 1; p <= pages; p++) pagEl.appendChild(mkPage(p, String(p), false, p === currentPage));
-          pagEl.appendChild(mkPage(Math.min(pages, currentPage + 1), '»', currentPage >= pages, false));
-        }
-        renderList();
-
-        // Exponer funciones cruciales
-        window.showInlineToast = showInlineToast;
-        window.renderList = renderList;
-        window.initNotificationsSystem = initNotificationsSystem;
-      }
 
 
       /* ========================================================
-         Inline TTL Edit Logic
-         ======================================================== */
+      Inline TTL Edit Logic
+      ======================================================== */
       let currentEditIp = null;
       let currentEditTags = [];
 
@@ -1614,6 +1220,7 @@
         try {
           const r = await fetch('/api/bloquear-ip', {
             method: 'POST',
+            credentials: 'include',
             headers: { 'Content-Type': 'application/json' },
             body: JSON.stringify(payload)
           });
@@ -1648,8 +1255,8 @@
             return;
           }
 
-          //   if (lastController) lastController.abort();
-          //   lastController = new AbortController();
+          // if (lastController) lastController.abort();
+          // lastController = new AbortController();
           // NOTA: AbortController comentado si da problemas, pero recomendado
 
           const controller = new AbortController();
@@ -1728,11 +1335,12 @@
             if (validMasks.has(mask)) return { ok: true };
             return { ok: false, msg: 'Máscara inválida. Usa máscara de red contigua (p.ej. 255.255.255.0).' };
           }
-          return { ok: false, msg: 'Formato inválido. Ejemplos: 1.2.3.4 · 1.2.3.0/24 · 1.2.3.4-1.2.3.20 · 1.2.3.0 255.255.255.0' };
+          return {
+            ok: false, msg: 'Formato inválido. Ejemplos: 1.2.3.4 · 1.2.3.0/24 · 1.2.3.4-1.2.3.20 · 1.2.3.0 255.255.255.0'
+          };
         }
 
         function setState(state) {
-
           if (state.ok) {
             input.classList.remove('is-invalid');
             input.classList.add('is-valid');
@@ -1765,437 +1373,463 @@
             }
           }
         });
-      };
-
-      // Auto-run safely
-      // Init Validations
-      if (typeof window.initInstantValidate === 'function') {
-        window.initInstantValidate();
-      }
-      // Init Notifications
-      if (typeof window.initNotificationsSystem === 'function') {
-        window.initNotificationsSystem();
-      }
-      function mapToastColor(cat) {
-        if (cat === 'success') return 'success';
-        if (cat === 'warning') return 'warning';
-        if (cat === 'accion_no_permitida' || cat === 'danger') return 'danger';
-        return 'secondary';
-      }
-      function escapeHtml(str) {
-        return (str || '').replace(/[&<>\"']/g, s => ({ '&': '&amp;', '<': '&lt;', '>': '&gt;', '"': '&quot;', "'": '&#39;' }[s]));
-      }
-
-      function confirmDeletePattern() {
-        const val = document.getElementById('delete_net_input').value.trim();
-        return confirm(`Vas a eliminar todas las IPs que coincidan con:\n\n${val}\n\n¿Confirmas?`);
-      }
-      function markAllReadUI() {
-        localStorage.setItem('notif_unread', '0');
-        const badge = document.getElementById('notif-badge');
-        if (badge) {
-          badge.textContent = '0';
-          badge.classList.add('d-none');
+        // Init Notifications
+        if (typeof window.initNotificationsSystem === 'function') {
+          window.initNotificationsSystem();
         }
-      }
+        function mapToastColor(cat) {
+          if (cat === 'success') return 'success';
+          if (cat === 'warning') return 'warning';
+          if (cat === 'accion_no_permitida' || cat === 'danger') return 'danger';
+          return 'secondary';
+        }
+        function escapeHtml(str) {
+          return (str || '').replace(/[&<>"']/g, s => ({
+            '&': '&amp;', '<': '&lt;', '>': '&gt;', '"': '&quot;', "'": '&#39;'
+          }[s]));
+        }
 
-      function getSelectedIPs() {
-        return Array.from(document.querySelectorAll('.row-chk:checked')).map(chk => chk.value);
-      }
+        function confirmDeletePattern() {
+          const val = document.getElementById('delete_net_input').value.trim();
+          return confirm(`Vas a eliminar todas las IPs que coincidan con:\n\n${val}\n\n¿Confirmas?`);
+        }
 
-      function updateBulkUI() {
-        const count = getSelectedIPs().length;
-        const btn = document.getElementById('bulkDeleteBtn');
-        const label = document.getElementById('bulkSelectedCount');
-        if (label) label.textContent = String(count);
-        if (btn) btn.disabled = (count === 0);
-      }
+        function markAllReadUI() {
+          localStorage.setItem('notif_unread', '0');
+          const badge = document.getElementById('notif-badge');
+          if (badge) {
+            badge.textContent = '0';
+            badge.classList.add('d-none');
+          }
+        }
 
-      /* ========================================================
-         Select All Logic
-         ======================================================== */
-      const selectAllCb = document.getElementById('chkAll');
-      if (selectAllCb) {
-        selectAllCb.checked = false; // Reset on load
-        selectAllCb.addEventListener('change', function () {
-          const isChecked = this.checked;
-          document.querySelectorAll('.row-chk').forEach(chk => {
-            chk.checked = isChecked;
-            const tr = chk.closest('tr');
-            if (tr) tr.classList.toggle('table-active-selected', isChecked);
-          });
-          updateBulkUI();
-        });
-      }
+        function getSelectedIPs() {
+          return Array.from(document.querySelectorAll('.row-chk:checked')).map(chk => chk.value);
+        }
 
-      function attachTableSelectionHandlers() {
-        document.querySelectorAll('.row-chk').forEach(chk => {
-          chk.addEventListener('change', function () {
-            const tr = this.closest('tr');
-            if (tr) tr.classList.toggle('table-active-selected', this.checked);
+        function updateBulkUI() {
+          const count = getSelectedIPs().length;
+          const btn = document.getElementById('bulkDeleteBtn');
+          const label = document.getElementById('bulkSelectedCount');
+          if (label) label.textContent = String(count);
+          if (btn) btn.disabled = (count === 0);
+        }
 
-            // Sync master
-            if (!this.checked && selectAllCb) selectAllCb.checked = false;
-            if (this.checked && selectAllCb) {
-              const all = document.querySelectorAll('.row-chk');
-              const allChecked = Array.from(all).every(c => c.checked);
-              selectAllCb.checked = allChecked;
-            }
-
+        /* ========================================================
+        Select All Logic
+        ======================================================== */
+        const selectAllCb = document.getElementById('chkAll');
+        if (selectAllCb) {
+          selectAllCb.checked = false; // Reset on load
+          selectAllCb.addEventListener('change', function () {
+            const isChecked = this.checked;
+            document.querySelectorAll('.row-chk').forEach(chk => {
+              chk.checked = isChecked;
+              const tr = chk.closest('tr');
+              if (tr) tr.classList.toggle('table-active-selected', isChecked);
+            });
             updateBulkUI();
           });
-        });
-      }
+        }
 
-      // Global UI Variables (so reloadTable can access them)
-      let tbody, pageInfo, prevBtn, nextBtn;
-      let qInput, originSelect, tagSelect, dateFrom, dateTo;
-      let sortSelect, orderDesc, orderAsc, pageSizeSel;
-      let applyBtn, clearBtn;
+        function attachTableSelectionHandlers() {
+          document.querySelectorAll('.row-chk').forEach(chk => {
+            chk.addEventListener('change', function () {
+              const tr = this.closest('tr');
+              if (tr) tr.classList.toggle('table-active-selected', this.checked);
 
-      // Utility: Debounce (Global or Local is fine, but Global allows reuse if needed)
-      function debounce(func, wait) {
-        let timeout;
-        return function (...args) {
-          clearTimeout(timeout);
-          timeout = setTimeout(() => func.apply(this, args), wait);
-        };
-      }
+              // Sync master
+              if (!this.checked && selectAllCb) selectAllCb.checked = false;
+              if (this.checked && selectAllCb) {
+                const all = document.querySelectorAll('.row-chk');
+                const allChecked = Array.from(all).every(c => c.checked);
+                selectAllCb.checked = allChecked;
+              }
 
-      document.addEventListener('DOMContentLoaded', function () {
-        console.log("DEBUG: Script Initializing...");
+              updateBulkUI();
+            });
+          });
+        }
 
-        // Assign Globals
-        tbody = document.querySelector('#tablaIps tbody');
-        pageInfo = document.getElementById('pageInfo');
-        prevBtn = document.getElementById('prevPage');
-        nextBtn = document.getElementById('nextPage');
-        qInput = document.getElementById('qInput');
-        originSelect = document.getElementById('originSelect');
-        tagSelect = document.getElementById('tagSelect');
-        dateFrom = document.getElementById('dateFrom');
-        dateTo = document.getElementById('dateTo');
-        sortSelect = document.getElementById('sortSelect');
-        orderDesc = document.getElementById('orderDesc');
-        orderAsc = document.getElementById('orderAsc');
-        pageSizeSel = document.getElementById('pageSize');
-        applyBtn = document.getElementById('applyTableFilters');
-        clearBtn = document.getElementById('clearTableFilters');
+        // Global UI Variables (so reloadTable can access them)
+        let tbody, pageInfo, prevBtn, nextBtn;
+        let qInput, originSelect, tagSelect, dateFrom, dateTo;
+        let sortSelect, orderDesc, orderAsc, pageSizeSel;
+        let applyBtn, clearBtn;
 
-        // Attach Listeners
-        if (orderDesc) orderDesc.addEventListener('click', () => { tableState.order = 'desc'; orderDesc.classList.add('active'); orderAsc.classList.remove('active'); reloadTable(true); });
-        if (orderAsc) orderAsc.addEventListener('click', () => { tableState.order = 'asc'; orderAsc.classList.add('active'); orderDesc.classList.remove('active'); reloadTable(true); });
-        if (sortSelect) sortSelect.addEventListener('change', () => { tableState.sort = sortSelect.value; reloadTable(true); });
-        if (pageSizeSel) pageSizeSel.addEventListener('change', () => { tableState.page_size = parseInt(pageSizeSel.value, 10) || 50; tableState.page = 1; reloadTable(true); });
+        // Utility: Debounce (Global or Local is fine, but Global allows reuse if needed)
+        function debounce(func, wait) {
+          let timeout;
+          return function (...args) {
+            clearTimeout(timeout);
+            timeout = setTimeout(() => func.apply(this, args), wait);
+          };
+        }
 
-        if (tagSelect) tagSelect.addEventListener('change', () => { tableState.page = 1; reloadTable(true); });
-        if (originSelect) originSelect.addEventListener('change', () => { tableState.page = 1; reloadTable(true); });
+        document.addEventListener('DOMContentLoaded', function () {
+          console.log("DEBUG: Script Initializing...");
 
-        // Real-time search Listener
-        if (qInput) {
-          qInput.addEventListener('input', debounce(() => {
-            tableState.q = qInput.value.trim();
+          // Assign Globals
+          tbody = document.querySelector('#tablaIps tbody');
+          pageInfo = document.getElementById('pageInfo');
+          prevBtn = document.getElementById('prevPage');
+          nextBtn = document.getElementById('nextPage');
+          qInput = document.getElementById('qInput');
+          originSelect = document.getElementById('originSelect');
+          tagSelect = document.getElementById('tagSelect');
+          dateFrom = document.getElementById('dateFrom');
+          dateTo = document.getElementById('dateTo');
+          sortSelect = document.getElementById('sortSelect');
+          orderDesc = document.getElementById('orderDesc');
+          orderAsc = document.getElementById('orderAsc');
+          pageSizeSel = document.getElementById('pageSize');
+          applyBtn = document.getElementById('applyTableFilters');
+          clearBtn = document.getElementById('clearTableFilters');
+
+          // Attach Listeners
+          if (orderDesc) orderDesc.addEventListener('click', () => {
+            tableState.order = 'desc';
+            orderDesc.classList.add('active'); orderAsc.classList.remove('active'); reloadTable(true);
+          });
+          if (orderAsc) orderAsc.addEventListener('click', () => {
+            tableState.order = 'asc';
+            orderAsc.classList.add('active'); orderDesc.classList.remove('active'); reloadTable(true);
+          });
+          if (sortSelect) sortSelect.addEventListener('change', () => {
+            tableState.sort = sortSelect.value;
+            reloadTable(true);
+          });
+          if (pageSizeSel) pageSizeSel.addEventListener('change', () => {
+            tableState.page_size =
+              parseInt(pageSizeSel.value, 10) || 50; tableState.page = 1; reloadTable(true);
+          });
+
+          if (tagSelect) tagSelect.addEventListener('change', () => { tableState.page = 1; reloadTable(true); });
+          if (originSelect) originSelect.addEventListener('change', () => { tableState.page = 1; reloadTable(true); });
+
+          // Real-time search Listener
+          if (qInput) {
+            qInput.addEventListener('input', debounce(() => {
+              tableState.q = qInput.value.trim();
+              tableState.page = 1;
+              reloadTable(true);
+            }, 300));
+          }
+
+          if (applyBtn) applyBtn.addEventListener('click', () => {
+            tableState.q = qInput ? qInput.value.trim() : '';
+            tableState.date_from = dateFrom ? (dateFrom.value || '') : '';
+            tableState.date_to = dateTo ? (dateTo.value || '') : '';
             tableState.page = 1;
             reloadTable(true);
-          }, 300));
+          });
+
+          if (clearBtn) clearBtn.addEventListener('click', () => {
+            if (qInput) qInput.value = '';
+            if (dateFrom) dateFrom.value = '';
+            if (dateTo) dateTo.value = '';
+            if (originSelect) originSelect.value = 'all';
+            if (tagSelect) tagSelect.value = 'all';
+            if (sortSelect) sortSelect.value = 'fecha';
+            tableState.sort = 'fecha';
+            tableState.order = 'desc';
+            if (orderDesc) orderDesc.classList.add('active');
+            if (orderAsc) orderAsc.classList.remove('active');
+            if (pageSizeSel) pageSizeSel.value = '50';
+            tableState.page_size = 50;
+            tableState.page = 1;
+            reloadTable(true);
+          });
+
+          if (prevBtn) prevBtn.addEventListener('click', () => {
+            if (tableState.page > 1) {
+              tableState.page--;
+              reloadTable(false);
+            }
+          });
+          if (nextBtn) nextBtn.addEventListener('click', () => { tableState.page++; reloadTable(false); });
+
+        }); // End DOMContentLoaded
+
+        async function reloadTable(resetIfEmpty) {
+          try {
+            const params = new URLSearchParams();
+            params.set('format', 'json');
+            params.set('page', String(tableState.page));
+            params.set('page_size', String(tableState.page_size));
+            params.set('sort', tableState.sort);
+            params.set('order', tableState.order);
+            // Nuevos filtros
+            if (originSelect && originSelect.value && originSelect.value !== 'all') {
+              params.set('origin', originSelect.value);
+            }
+            if (tagSelect && tagSelect.value && tagSelect.value !== 'all') params.set('tag', tagSelect.value);
+
+            if (tableState.q) params.set('q', tableState.q);
+            const hasRange = (tableState.date_from || tableState.date_to);
+            if (hasRange) {
+              const val = `${tableState.date_from || ''}${tableState.date_from || tableState.date_to ? ',' :
+                ''}${tableState.date_to || ''}`;
+              params.set('date', val);
+            }
+            const r = await fetch(`/?${params.toString()}`, { headers: { 'Accept': 'application/json' } });
+            if (!r.ok) throw new Error('HTTP ' + r.status);
+            const data = await r.json();
+            renderRows(data.items || []);
+            updateCounters(data.counters);
+            updatePager(data.page, data.page_size, data.total);
+            serverMode = true;
+            document.getElementById('localSearchWrap').classList.add('d-none');
+          } catch (e) {
+            serverMode = false;
+            initLocalSearchFallback();
+          }
         }
 
-        if (applyBtn) applyBtn.addEventListener('click', () => {
-          tableState.q = qInput ? qInput.value.trim() : '';
-          tableState.date_from = dateFrom ? (dateFrom.value || '') : '';
-          tableState.date_to = dateTo ? (dateTo.value || '') : '';
-          tableState.page = 1;
-          reloadTable(true);
-        });
-
-        if (clearBtn) clearBtn.addEventListener('click', () => {
-          if (qInput) qInput.value = '';
-          if (dateFrom) dateFrom.value = '';
-          if (dateTo) dateTo.value = '';
-          if (originSelect) originSelect.value = 'all';
-          if (tagSelect) tagSelect.value = 'all';
-          if (sortSelect) sortSelect.value = 'fecha';
-          tableState.sort = 'fecha';
-          tableState.order = 'desc';
-          if (orderDesc) orderDesc.classList.add('active');
-          if (orderAsc) orderAsc.classList.remove('active');
-          if (pageSizeSel) pageSizeSel.value = '50';
-          tableState.page_size = 50;
-          tableState.page = 1;
-          reloadTable(true);
-        });
-
-        if (prevBtn) prevBtn.addEventListener('click', () => { if (tableState.page > 1) { tableState.page--; reloadTable(false); } });
-        if (nextBtn) nextBtn.addEventListener('click', () => { tableState.page++; reloadTable(false); });
-
-      }); // End DOMContentLoaded
-
-      async function reloadTable(resetIfEmpty) {
-        try {
-          const params = new URLSearchParams();
-          params.set('format', 'json');
-          params.set('page', String(tableState.page));
-          params.set('page_size', String(tableState.page_size));
-          params.set('sort', tableState.sort);
-          params.set('order', tableState.order);
-          // Nuevos filtros
-          if (originSelect && originSelect.value && originSelect.value !== 'all') {
-            params.set('origin', originSelect.value);
-          }
-          if (tagSelect && tagSelect.value && tagSelect.value !== 'all') params.set('tag', tagSelect.value);
-
-          if (tableState.q) params.set('q', tableState.q);
-          const hasRange = (tableState.date_from || tableState.date_to);
-          if (hasRange) {
-            const val = `${tableState.date_from || ''}${tableState.date_from || tableState.date_to ? ',' : ''}${tableState.date_to || ''}`;
-            params.set('date', val);
-          }
-          const r = await fetch(`/?${params.toString()}`, { headers: { 'Accept': 'application/json' } });
-          if (!r.ok) throw new Error('HTTP ' + r.status);
-          const data = await r.json();
-          renderRows(data.items || []);
-          updateCounters(data.counters);
-          updatePager(data.page, data.page_size, data.total);
-          serverMode = true;
-          document.getElementById('localSearchWrap').classList.add('d-none');
-        } catch (e) {
-          serverMode = false;
-          initLocalSearchFallback();
+        function tagBadge(t) {
+          // Colores simples por tipo de tag
+          const cls = (t === 'BPE') ? 'text-bg-warning' : (t === 'Test' ? 'text-bg-secondary' : 'text-bg-primary');
+          return `<span class="badge ${cls}" style="margin-right:6px;">${escapeHtml(t)}</span>`;
         }
-      }
 
-      function tagBadge(t) {
-        // Colores simples por tipo de tag
-        const cls = (t === 'BPE') ? 'text-bg-warning' : (t === 'Test' ? 'text-bg-secondary' : 'text-bg-primary');
-        return `<span class="badge ${cls}" style="margin-right:6px;">${escapeHtml(t)}</span>`;
-      }
-
-      function alertsCellHtml(row) {
-        const ids = row.alert_ids || [];
-        if (!ids.length) {
-          return '<span class="text-muted">—</span>';
-        }
-        const count = ids.length;
-        const listPreview = ids.slice(0, 6).map(escapeHtml).join(', ');
-        const more = ids.length > 6 ? ' …' : '';
-        const plural = count === 1 ? '' : 's';
-        return `
-      <span class="badge text-bg-info">${count} alerta${plural}</span>
-      <div class="alert-ids-list text-muted">${listPreview}${more}</div>
-    `;
-      }
-
-      function renderRows(items) {
-        if (selectAllCb) selectAllCb.checked = false; // Reset master on new page
-        tbody.innerHTML = '';
-        items.forEach((row) => {
-          const tr = document.createElement('tr');
-          const ttlText = (row.ttl === 0 || row.ttl === '0') ? '∞' : String(row.ttl);
-
-          let ttlHtml = ttlText;
-          if (row.days_remaining !== undefined && row.days_remaining !== null) {
-            ttlHtml += `<br><small class="text-muted">(${row.days_remaining} d. rest.)</small>`;
+        function alertsCellHtml(row) {
+          const ids = row.alert_ids || [];
+          if (!ids.length) {
+            return '<span class="text-muted">—</span>';
           }
+          const count = ids.length;
+          const listPreview = ids.slice(0, 6).map(escapeHtml).join(', ');
+          const more = ids.length > 6 ? ' …' : '';
+          const plural = count === 1 ? '' : 's';
+          return `
+        <span class="badge text-bg-info">${count} alerta${plural}</span>
+        <div class="alert-ids-list text-muted">${listPreview}${more}</div>
+        `;
+        }
 
-          tr.innerHTML = `
+        function renderRows(items) {
+          if (selectAllCb) selectAllCb.checked = false; // Reset master on new page
+          tbody.innerHTML = '';
+          items.forEach((row) => {
+            const tr = document.createElement('tr');
+            const ttlText = (row.ttl === 0 || row.ttl === '0') ? '∞' : String(row.ttl);
+
+            let ttlHtml = ttlText;
+            if (row.days_remaining !== undefined && row.days_remaining !== null) {
+              ttlHtml += `<br><small class="text-muted">(${row.days_remaining} d. rest.)</small>`;
+            }
+
+            tr.innerHTML = `
         <td><input type="checkbox" class="row-chk" value="${escapeHtml(row.ip)}"></td>
         <td>${escapeHtml(row.ip)}</td>
         <td>${escapeHtml(row.fecha_alta || '')}</td>
         <td class="small">${ttlHtml}</td>
         <td>${(row.tags && row.tags.length)
-              ? row.tags.map(tagBadge).join(' ')
-              : '<span class="text-muted">—</span>'
-            }</td>
+                ? row.tags.map(tagBadge).join(' ')
+                : '<span class="text-muted">—</span>'
+              }</td>
         <td>${alertsCellHtml(row)}</td>
         <td>
-            <div class="d-flex gap-1 justify-content-end">
-              ${(USER_ROLE !== 'view_only') ?
-              `<button type="button" class="btn btn-sm btn-outline-primary" 
-                  title="Editar TTL"
-                  onclick='openEditTTL("${escapeHtml(row.ip)}", ${JSON.stringify(row.tags || [])})'>
-                  <i class="bi bi-pencil"></i>
-                 </button>` : ''
-            }
-              <button type="button" class="btn btn-sm btn-outline-danger" 
-                title="Eliminar"
-                onclick='confirmDeleteJS("${escapeHtml(row.ip)}", ${JSON.stringify(row.tags || [])})'>
-                <i class="bi bi-trash"></i>
-              </button>
-            </div>
+          <div class="d-flex gap-1 justify-content-end">
+            ${(USER_ROLE !== 'view_only') ?
+                `<button type="button" class="btn btn-sm btn-outline-primary" title="Editar TTL"
+              onclick='openEditTTL("${escapeHtml(row.ip)}", ${JSON.stringify(row.tags || [])})'>
+              <i class="bi bi-pencil"></i>
+            </button>` : ''
+              }
+            <button type="button" class="btn btn-sm btn-outline-danger" title="Eliminar"
+              onclick='confirmDeleteJS("${escapeHtml(row.ip)}", ${JSON.stringify(row.tags || [])})'>
+              <i class="bi bi-trash"></i>
+            </button>
+          </div>
         </td>
-      `;
-          tbody.appendChild(tr);
+        `;
+            tbody.appendChild(tr);
+          });
+          attachTableSelectionHandlers();
+        }
+
+        function updatePager(page, pageSize, total) {
+          const pages = Math.max(1, Math.ceil((total || 0) / (pageSize || 50)));
+          tableState.page = Math.min(Math.max(1, parseInt(page || 1, 10)), pages);
+          pageInfo.textContent = `Página ${tableState.page} de ${pages} — ${total || 0} IPs`;
+          prevBtn.disabled = (tableState.page <= 1); nextBtn.disabled = (tableState.page >= pages);
+        }
+
+        // ===>> Actualiza totales globales (incluye API y Tags)
+        function updateCounters(counters) {
+          if (!counters) return;
+          const t = document.getElementById('totalCount');
+          const m = document.getElementById('manualCount');
+          const c = document.getElementById('csvCount');
+          const a = document.getElementById('apiCount');
+          const tm = document.getElementById('tagMultiCount');
+          const tb = document.getElementById('tagBpeCount');
+
+          if (t && counters.total !== undefined) t.textContent = counters.total;
+          if (m && counters.manual !== undefined) m.textContent = counters.manual;
+          if (c && counters.csv !== undefined) c.textContent = counters.csv;
+          if (a && counters.api !== undefined) a.textContent = counters.api;
+
+          const tags = (counters.tags || {});
+          if (tm && tags['Multicliente'] !== undefined) tm.textContent = tags['Multicliente'];
+          if (tb && tags['BPE'] !== undefined) tb.textContent = tags['BPE'];
+        }
+
+
+
+
+        document.addEventListener("DOMContentLoaded", function () {
+          // Inicializar lógica de carga
+          reloadTable(true);
+          attachTableSelectionHandlers();
+
+          // Renderizar historial de notificaciones
+          renderList();
+
+          // Renderizar toasts iniciales (Flash messages)
+          if (window.newFlashes && window.newFlashes.length) {
+            window.newFlashes.forEach(f => {
+              // Mapeo categorías Flask -> Bootstrap
+              let cat = f.category || 'info';
+              if (cat === 'message') cat = 'info';
+              showInlineToast(cat, f.message);
+            });
+          }
+
+          const checkboxes = document.querySelectorAll(".tag-manual");
+          const hiddenInput = document.getElementById("tagsManualInput");
+
+          function updateTagsManual() {
+            const selected = Array.from(checkboxes)
+              .filter(chk => chk.checked)
+              .map(chk => chk.value);
+            hiddenInput.value = selected.join(","); // ejemplo: "Multicliente,BPE"
+          }
+
+          checkboxes.forEach(chk => chk.addEventListener("change", updateTagsManual));
+
+          // Inicializar lista de notificaciones
+          if (typeof renderList === 'function') renderList();
         });
-        attachTableSelectionHandlers();
-      }
 
-      function updatePager(page, pageSize, total) {
-        const pages = Math.max(1, Math.ceil((total || 0) / (pageSize || 50)));
-        tableState.page = Math.min(Math.max(1, parseInt(page || 1, 10)), pages);
-        pageInfo.textContent = `Página ${tableState.page} de ${pages} — ${total || 0} IPs`;
-        prevBtn.disabled = (tableState.page <= 1);
-        nextBtn.disabled = (tableState.page >= pages);
-      }
+        // --- Lógica para quitar tags ---
+        async function removeTag(element, ip, tag) {
+          if (!confirm(`¿Seguro que quieres quitar el tag "${tag}" de la IP ${ip}?`)) {
+            return;
+          }
 
-      // ===>> Actualiza totales globales (incluye API y Tags)
-      function updateCounters(counters) {
-        if (!counters) return;
-        const t = document.getElementById('totalCount');
-        const m = document.getElementById('manualCount');
-        const c = document.getElementById('csvCount');
-        const a = document.getElementById('apiCount');
-        const tm = document.getElementById('tagMultiCount');
-        const tb = document.getElementById('tagBpeCount');
-
-        if (t && counters.total !== undefined) t.textContent = counters.total;
-        if (m && counters.manual !== undefined) m.textContent = counters.manual;
-        if (c && counters.csv !== undefined) c.textContent = counters.csv;
-        if (a && counters.api !== undefined) a.textContent = counters.api;
-
-        const tags = (counters.tags || {});
-        if (tm && tags['Multicliente'] !== undefined) tm.textContent = tags['Multicliente'];
-        if (tb && tags['BPE'] !== undefined) tb.textContent = tags['BPE'];
-      }
-
-      async function bulkDeleteSelected() {
-        const ips = getSelectedIPs();
-        if (ips.length === 0) return;
-
-        const preview = ips.slice(0, 10).join(', ') + (ips.length > 10 ? ` … (+${ips.length - 10})` : '');
-        const ok = confirm(`Vas a eliminar ${ips.length} IP(s):\n\n${preview}\n\n¿Confirmas?`);
-        if (!ok) return;
-
-        const btn = document.getElementById('bulkDeleteBtn');
-        const origHtml = btn?.innerHTML;
-        if (btn) {
-          btn.disabled = true;
-          btn.innerHTML = `
-        <span class="spinner-border spinner-border-sm" role="status" aria-hidden="true"></span>
-        <span class="ms-1">Eliminando…</span>`;
-        }
-
-        let okCount = 0, failCount = 0;
-
-        for (const ip of ips) {
           try {
-            const fd = new FormData();
-            fd.append('delete_ip', ip);
-            const r = await fetch('/', { method: 'POST', body: fd });
-            if (r.ok) okCount++; else failCount++;
+            const res = await fetch('/api/remove-tag', {
+              method: 'POST',
+              headers: { 'Content-Type': 'application/json' },
+              body: JSON.stringify({ ip: ip, tag: tag })
+            });
+            const data = await res.json();
+
+            if (res.ok && data.ok) {
+              // Eliminar visualmente el chip
+            } else {
+              showInlineToast("danger", data.error || "Error al eliminar tag");
+            }
           } catch (e) {
-            failCount++;
+            showInlineToast("danger", "Error de red al eliminar tag");
           }
         }
 
-        if (okCount && !failCount) {
-          showInlineToast('warning', `${okCount} IP(s) eliminada(s).`);
-        } else if (okCount && failCount) {
-          showInlineToast('warning', `${okCount} eliminada(s) · ${failCount} error(es).`);
-        } else {
-          showInlineToast('danger', 'No se pudo eliminar ninguna IP.');
-        }
-
-        document.getElementById('chkAll')?.click();
-        updateBulkUI();
-
-        if (typeof reloadTable === 'function') {
-          await reloadTable(true);
-        } else {
-          const rows = Array.from(document.querySelectorAll('#tablaIps tbody tr'));
-          ips.forEach(ip => {
-            const row = rows.find(tr => tr.cells[1] && tr.cells[1].textContent.trim() === ip);
-            if (row) row.remove();
-          });
-        }
-
-        if (btn && origHtml) {
-          btn.innerHTML = origHtml;
-          btn.disabled = false;
-        }
-      }
-      document.getElementById('bulkDeleteBtn')?.addEventListener('click', bulkDeleteSelected);
-
-
-      document.addEventListener("DOMContentLoaded", function () {
-        // Inicializar lógica de carga
-        reloadTable(true);
-        attachTableSelectionHandlers();
-
-        // Renderizar historial de notificaciones
-        renderList();
-
-        // Renderizar toasts iniciales (Flash messages)
-        if (window.newFlashes && window.newFlashes.length) {
-          window.newFlashes.forEach(f => {
-            // Mapeo categorías Flask -> Bootstrap
-            let cat = f.category || 'info';
-            if (cat === 'message') cat = 'info';
-            showInlineToast(cat, f.message);
-          });
-        }
-
-        const checkboxes = document.querySelectorAll(".tag-manual");
-        const hiddenInput = document.getElementById("tagsManualInput");
-
-        function updateTagsManual() {
-          const selected = Array.from(checkboxes)
-            .filter(chk => chk.checked)
-            .map(chk => chk.value);
-          hiddenInput.value = selected.join(","); // ejemplo: "Multicliente,BPE"
-        }
-
-        checkboxes.forEach(chk => chk.addEventListener("change", updateTagsManual));
-
-        // Inicializar lista de notificaciones
-        if (typeof renderList === 'function') renderList();
-      });
-
-      // --- Lógica para quitar tags ---
-      async function removeTag(element, ip, tag) {
-        if (!confirm(`¿Seguro que quieres quitar el tag "${tag}" de la IP ${ip}?`)) {
-          return;
-        }
-
-        try {
-          const res = await fetch('/api/remove-tag', {
-            method: 'POST',
-            headers: { 'Content-Type': 'application/json' },
-            body: JSON.stringify({ ip: ip, tag: tag })
-          });
-          const data = await res.json();
-
-          if (res.ok && data.ok) {
-            // Eliminar visualmente el chip
-          } else {
-            showInlineToast("danger", data.error || "Error al eliminar tag");
+        window.confirmDeleteJS = function (ip, tags) {
+          let msg = `¿Eliminar ${ip}?`;
+          if (tags && (tags.includes('BPE') || tags.includes('bpe'))) {
+            msg = `⚠️ ATENCIÓN: La IP ${ip} es CRÍTICA (BPE).\n\nSe eliminará de TODAS las listas (Principal y
+          BPE).\n\n¿Estás seguro de continuar?`;
           }
-        } catch (e) {
-          showInlineToast("danger", "Error de red al eliminar tag");
+
+          if (confirm(msg)) {
+            // Enviar POST programático
+            const form = document.createElement('form');
+            form.method = 'POST';
+            form.style.display = 'none';
+
+            const inp = document.createElement('input');
+            inp.type = 'hidden';
+            inp.name = 'delete_ip';
+            inp.value = ip;
+
+            form.appendChild(inp);
+            document.body.appendChild(form);
+            form.submit();
+          }
         }
-      }
 
-      window.confirmDeleteJS = function (ip, tags) {
-        let msg = `¿Eliminar ${ip}?`;
-        if (tags && (tags.includes('BPE') || tags.includes('bpe'))) {
-          msg = `⚠️ ATENCIÓN: La IP ${ip} es CRÍTICA (BPE).\n\nSe eliminará de TODAS las listas (Principal y BPE).\n\n¿Estás seguro de continuar?`;
-        }
+        // --- Edit TTL Logic ---
+        let currentEditIp = null;
+        let currentEditTags = [];
 
-        if (confirm(msg)) {
-          // Enviar POST programático
-          const form = document.createElement('form');
-          form.method = 'POST';
-          form.style.display = 'none';
+        window.openEditTTL = function (ip, tags) {
+          currentEditIp = ip;
+          currentEditTags = tags || [];
 
-          const inp = document.createElement('input');
-          inp.type = 'hidden';
-          inp.name = 'delete_ip';
-          inp.value = ip;
+          const span = document.getElementById('editTTLIp');
+          if (span) span.textContent = ip;
 
-          form.appendChild(inp);
-          document.body.appendChild(form);
-          form.submit();
-        }
-      }
+          // Open Modal
+          const el = document.getElementById('modalEditTTL');
+          if (el) {
+            const modal = new bootstrap.Modal(el);
+            modal.show();
+          }
+        };
+
+        window.saveEditTTL = async function () {
+          if (!currentEditIp) return;
+
+          const sel = document.getElementById('editTTLSelect');
+          const val = sel ? sel.value : "0";
+
+          // Tomamos el botón que disparó el evento (si existe) o lo buscamos
+          const btn = document.querySelector('#modalEditTTL .btn-primary');
+          let orig = 'Guardar';
+          if (btn) {
+            orig = btn.innerHTML;
+            btn.disabled = true;
+            btn.innerHTML = '<span class="spinner-border spinner-border-sm"></span>';
+          }
+
+          try {
+            const res = await fetch('/update-ttl', {
+              method: 'POST',
+              headers: { 'Content-Type': 'application/json' },
+              body: JSON.stringify({
+                ip: currentEditIp,
+                ttl: val,
+                tags: currentEditTags
+              })
+            });
+            const d = await res.json();
+
+            if (res.ok) {
+              // Reload table to show new TTL
+              if (typeof reloadTable === 'function') reloadTable(false);
+
+              // Hide modal
+              const el = document.getElementById('modalEditTTL');
+              const modal = bootstrap.Modal.getInstance(el);
+              if (modal) modal.hide();
+
+              if (typeof showInlineToast === 'function') showInlineToast('success', 'TTL actualizado correctamente');
+            } else {
+              if (typeof showInlineToast === 'function') showInlineToast('danger', d.error || 'Error al actualizar TTL');
+            }
+          } catch (e) {
+            console.error(e);
+            if (typeof showInlineToast === 'function') showInlineToast('danger', 'Error de conexión');
+          } finally {
+            if (btn) {
+              btn.disabled = false;
+              btn.innerHTML = orig;
+            }
+          }
+        };
     </script>
     <!-- MODAL GRÁFICAS -->
     <div class="modal fade" id="metricsModal" tabindex="-1" aria-hidden="true">
@@ -2236,7 +1870,8 @@
       <div class="modal-dialog modal-lg">
         <div class="modal-content">
           <div class="modal-header">
-            <h5 class="modal-title text-info"><i class="bi bi-heart-pulse me-2"></i>Historial de Salud (Diagnósticos)
+            <h5 class="modal-title text-info"><i class="bi bi-heart-pulse me-2"></i>Historial de Salud
+              (Diagnósticos)
             </h5>
             <button type="button" class="btn-close" data-bs-dismiss="modal" aria-label="Close"></button>
           </div>
@@ -2273,208 +1908,212 @@
     <script src="https://cdn.jsdelivr.net/npm/chart.js"></script>
 
     <script>
-      /**
-       * Dashboard Dashboard Utilities and Async Operations
-       */
+        /**
+         * Dashboard Dashboard Utilities and Async Operations
+         */
 
-      // Unified escapeHtml for consistency
-      function escapeHtml(str) {
-        if (!str) return '';
-        const div = document.createElement('div');
-        div.textContent = str;
-        return div.innerHTML;
-      }
-
-      // Initialize Dashboard Components
-      document.addEventListener("DOMContentLoaded", () => {
-        // Init Graphs Button
-        const btnShowGraphs = document.getElementById("btnShowGraphs");
-        if (btnShowGraphs) {
-          btnShowGraphs.addEventListener("click", () => {
-            fetchAndRenderGraphs();
-          });
+        // Unified escapeHtml for consistency
+        function escapeHtml(str) {
+          if (!str) return '';
+          const div = document.createElement('div');
+          div.textContent = str;
+          return div.innerHTML;
         }
 
-        // Ensure other UI elements are ready
-        console.log("Dashboard functionality initialized.");
-      });
-
-      // --- Metrics and Charts ---
-      let chartTotalInstance = null;
-      let chartSourcesInstance = null;
-
-      function getColorForSource(key) {
-        const colors = {
-          "manual": "#0d6efd",
-          "csv": "#0dcaf0",
-          "api": "#ffc107"
-        };
-        if (colors[key]) return colors[key];
-        let hash = 0;
-        for (let i = 0; i < key.length; i++) hash = key.charCodeAt(i) + ((hash << 5) - hash);
-        const c = (hash & 0x00FFFFFF).toString(16).toUpperCase();
-        return "#" + "00000".substring(0, 6 - c.length) + c;
-      }
-
-      async function fetchAndRenderGraphs() {
-        const modalEl = document.getElementById('metricsModal');
-        const myModal = new bootstrap.Modal(modalEl);
-        myModal.show();
-
-        try {
-          const res = await fetch("/api/counters/history");
-          if (!res.ok) throw new Error("HTTP " + res.status);
-          const data = await res.json();
-
-          if (!data || data.length === 0) {
-            console.warn("No history data available for graphs");
-            return;
+        // Initialize Dashboard Components
+        document.addEventListener("DOMContentLoaded", () => {
+          // Init Graphs Button
+          const btnShowGraphs = document.getElementById("btnShowGraphs");
+          if (btnShowGraphs) {
+            btnShowGraphs.addEventListener("click", () => {
+              fetchAndRenderGraphs();
+            });
           }
 
-          const labels = data.map(d => d.date);
-          const totals = data.map(d => d.total);
-          const allSrcKeys = new Set();
-          data.forEach(d => {
-            if (d.sources) Object.keys(d.sources).forEach(k => allSrcKeys.add(k));
-          });
+          // Ensure other UI elements are ready
+          console.log("Dashboard functionality initialized.");
+        });
 
-          const sourceDatasets = Array.from(allSrcKeys).map((key) => {
-            return {
-              label: key,
-              data: data.map(d => (d.sources ? (d.sources[key] || 0) : 0)),
-              backgroundColor: getColorForSource(key),
-              borderColor: getColorForSource(key),
-              fill: false,
-              tension: 0.2
-            };
-          });
+        // --- Metrics and Charts ---
+        let chartTotalInstance = null;
+        let chartSourcesInstance = null;
 
-          const ctxTotal = document.getElementById("chartTotal").getContext("2d");
-          if (chartTotalInstance) chartTotalInstance.destroy();
-          chartTotalInstance = new Chart(ctxTotal, {
-            type: 'line',
-            data: {
-              labels: labels,
-              datasets: [{
-                label: 'Total IPs',
-                data: totals,
-                borderColor: '#0d6efd',
-                backgroundColor: 'rgba(13, 110, 253, 0.1)',
-                fill: true,
-                tension: 0.3
-              }]
-            },
-            options: { responsive: true }
-          });
-
-          const ctxSrc = document.getElementById("chartSources").getContext("2d");
-          if (chartSourcesInstance) chartSourcesInstance.destroy();
-          chartSourcesInstance = new Chart(ctxSrc, {
-            type: 'line',
-            data: {
-              labels: labels,
-              datasets: sourceDatasets
-            },
-            options: { responsive: true }
-          });
-
-        } catch (err) {
-          console.error("Error loading graphs:", err);
-          showInlineToast("danger", "Error al cargar datos de gráficas");
+        function getColorForSource(key) {
+          const colors = {
+            "manual": "#0d6efd",
+            "csv": "#0dcaf0",
+            "api": "#ffc107"
+          };
+          if (colors[key]) return colors[key];
+          let hash = 0;
+          for (let i = 0; i < key.length; i++) hash = key.charCodeAt(i) + ((hash << 5) - hash);
+          const c = (hash & 0x00FFFFFF).toString(16).toUpperCase();
+          return "#" + "00000".substring(0, 6 - c.length) + c;
         }
-      }
 
-      // --- Diagnostics (Salud) ---
-      async function runDiagnostics() {
-        const btn = document.getElementById("runDiagnosticsBtn");
-        if (!btn) return;
-        const orig = btn.innerHTML;
-        btn.disabled = true;
-        btn.innerHTML = `<span class="spinner-border spinner-border-sm me-1"></span> Ejecutando...`;
+        async function fetchAndRenderGraphs() {
+          const modalEl = document.getElementById('metricsModal');
+          const myModal = new bootstrap.Modal(modalEl);
+          myModal.show();
 
-        try {
-          const r = await fetch("/api/run-diagnostics", { method: "POST" });
-          const d = await r.json();
+          try {
+            const res = await fetch("/api/counters/history");
+            if (!res.ok) throw new Error("HTTP " + res.status);
+            const data = await res.json();
 
-          if (r.ok && (d.ok || (d.extra && d.extra.ok))) {
-            showInlineToast("success", "Autodiagnóstico: TODO OK");
-          } else {
-            showInlineToast("danger", "Autodiagnóstico: FALLO (ver historial)");
-            if (d.extra && d.extra.output) console.error(d.extra.output);
+            if (!data || data.length === 0) {
+              console.warn("No history data available for graphs");
+              return;
+            }
+
+            const labels = data.map(d => d.date);
+            const totals = data.map(d => d.total);
+            const allSrcKeys = new Set();
+            data.forEach(d => {
+              if (d.sources) Object.keys(d.sources).forEach(k => allSrcKeys.add(k));
+            });
+
+            const sourceDatasets = Array.from(allSrcKeys).map((key) => {
+              return {
+                label: key,
+                data: data.map(d => (d.sources ? (d.sources[key] || 0) : 0)),
+                backgroundColor: getColorForSource(key),
+                borderColor: getColorForSource(key),
+                fill: false,
+                tension: 0.2
+              };
+            });
+
+            const ctxTotal = document.getElementById("chartTotal").getContext("2d");
+            if (chartTotalInstance) chartTotalInstance.destroy();
+            chartTotalInstance = new Chart(ctxTotal, {
+              type: 'line',
+              data: {
+                labels: labels,
+                datasets: [{
+                  label: 'Total IPs',
+                  data: totals,
+                  borderColor: '#0d6efd',
+                  backgroundColor: 'rgba(13, 110, 253, 0.1)',
+                  fill: true,
+                  tension: 0.3
+                }]
+              },
+              options: { responsive: true }
+            });
+
+            const ctxSrc = document.getElementById("chartSources").getContext("2d");
+            if (chartSourcesInstance) chartSourcesInstance.destroy();
+            chartSourcesInstance = new Chart(ctxSrc, {
+              type: 'line',
+              data: {
+                labels: labels,
+                datasets: sourceDatasets
+              },
+              options: { responsive: true }
+            });
+
+          } catch (err) {
+            console.error("Error loading graphs:", err);
+            showInlineToast("danger", "Error al cargar datos de gráficas");
           }
-        } catch (e) {
-          console.error("Diagnostic execution error:", e);
-          showInlineToast("danger", "Error invocando diagnóstico: " + e.message);
-        } finally {
-          btn.disabled = false;
-          btn.innerHTML = orig;
         }
-      }
 
-      // --- Maintenance Toggle ---
-      async function toggleMaintenance(active) {
-        try {
-          const res = await fetch('/maintenance/toggle', {
-            method: 'POST',
-            headers: { 'Content-Type': 'application/json' },
-            body: JSON.stringify({ active: active })
-          });
-          const d = await res.json();
-          if (res.ok) {
-            window.location.reload();
-          } else {
-            alert("Error: " + (d.error || res.statusText));
+        // --- Diagnostics (Salud) ---
+        async function runDiagnostics() {
+          const btn = document.getElementById("runDiagnosticsBtn");
+          if (!btn) return;
+          const orig = btn.innerHTML;
+          btn.disabled = true;
+          btn.innerHTML = `<span class="spinner-border spinner-border-sm me-1"></span> Ejecutando...`;
+
+          try {
+            const r = await fetch("/api/run-diagnostics", { method: "POST" });
+            const d = await r.json();
+
+            if (r.ok && (d.ok || (d.extra && d.extra.ok))) {
+              showInlineToast("success", "Autodiagnóstico: TODO OK");
+            } else {
+              showInlineToast("danger", "Autodiagnóstico: FALLO (ver historial)");
+              if (d.extra && d.extra.output) console.error(d.extra.output);
+            }
+          } catch (e) {
+            console.error("Diagnostic execution error:", e);
+            showInlineToast("danger", "Error invocando diagnóstico: " + e.message);
+          } finally {
+            btn.disabled = false;
+            btn.innerHTML = orig;
+          }
+        }
+
+        // --- Maintenance Toggle ---
+        async function toggleMaintenance(active) {
+          try {
+            const res = await fetch('/maintenance/toggle', {
+              method: 'POST',
+              headers: { 'Content-Type': 'application/json' },
+              body: JSON.stringify({ active: active })
+            });
+            const d = await res.json();
+            if (res.ok) {
+              window.location.reload();
+            } else {
+              alert("Error: " + (d.error || res.statusText));
+              const el = document.getElementById('maintenanceSwitch');
+              if (el) el.checked = !active;
+            }
+          } catch (e) {
+            console.error("Maintenance toggle error:", e);
+            alert("Error de conexión: " + e.message);
             const el = document.getElementById('maintenanceSwitch');
             if (el) el.checked = !active;
           }
-        } catch (e) {
-          console.error("Maintenance toggle error:", e);
-          alert("Error de conexión: " + e.message);
-          const el = document.getElementById('maintenanceSwitch');
-          if (el) el.checked = !active;
         }
-      }
 
-      // --- IP History (Modal) ---
-      async function showHistory(ip) {
-        const modalEl = document.getElementById('modalHistory');
-        if (!modalEl) return;
+        // --- IP History (Modal) ---
+        // --- IP History (Modal) ---
+        async function openHistory(ip) {
+          const modalEl = document.getElementById('modalHistory');
+          if (!modalEl) return;
 
-        const modal = new bootstrap.Modal(modalEl);
-        document.getElementById('histIpLabel').textContent = ip;
+          const modal = new bootstrap.Modal(modalEl);
+          document.getElementById('histIpLabel').textContent = ip;
 
-        const tbody = document.getElementById('histTableBody');
-        const loading = document.getElementById('histLoading');
-        const empty = document.getElementById('histEmpty');
+          const tbody = document.getElementById('histTableBody');
+          const loading = document.getElementById('histLoading');
+          const empty = document.getElementById('histEmpty');
 
-        if (tbody) tbody.innerHTML = '';
-        if (loading) loading.classList.remove('d-none');
-        if (empty) empty.classList.add('d-none');
+          if (tbody) tbody.innerHTML = '';
+          if (loading) loading.classList.remove('d-none');
+          if (empty) empty.classList.add('d-none');
 
-        modal.show();
+          modal.show();
 
-        try {
-          const res = await fetch(`/admin/history/${encodeURIComponent(ip)}`);
-          if (!res.ok) throw new Error("Fetch failed: " + res.status);
-          const data = await res.json();
+          try {
+            const res = await fetch(`/api/estado/${encodeURIComponent(ip)}`, {
+              credentials: 'include',
+              headers: { 'Accept': 'application/json' }
+            });
+            if (!res.ok) throw new Error("Fetch failed: " + res.status);
+            const data = await res.json();
 
-          const history = data.history || [];
-          if (loading) loading.classList.add('d-none');
+            const history = data.history || [];
+            if (loading) loading.classList.add('d-none');
 
-          if (history.length === 0) {
-            if (empty) empty.classList.remove('d-none');
-            return;
-          }
+            if (history.length === 0) {
+              if (empty) empty.classList.remove('d-none');
+              return;
+            }
 
-          const rows = history.map(h => {
-            const dateStr = h.ts ? new Date(h.ts).toLocaleString() : '-';
-            const tags = (h.tags || []).join(', ');
-            const note = h.note || '-';
-            const action = h.action || 'update';
-            const user = h.user || 'system';
-            const source = h.source || '-';
+            const rows = history.map(h => {
+              const dateStr = h.ts ? new Date(h.ts).toLocaleString() : '-';
+              const tags = (h.tags || []).join(', ');
+              const note = h.note || '-';
+              const action = h.action || 'update';
+              const user = h.user || 'system';
+              const source = h.source || '-';
 
-            return `
+              return `
               <tr>
                 <td class="small text-nowrap">${escapeHtml(dateStr)}</td>
                 <td class="small">${escapeHtml(user)}</td>
@@ -2484,61 +2123,61 @@
                 <td class="small text-muted">${escapeHtml(note)}</td>
               </tr>
             `;
-          }).join('');
+            }).join('');
 
-          if (tbody) tbody.innerHTML = rows;
+            if (tbody) tbody.innerHTML = rows;
 
-        } catch (e) {
-          console.error("History fetch error:", e);
-          if (loading) loading.classList.add('d-none');
-          if (tbody) tbody.innerHTML = `<tr><td colspan="6" class="text-danger text-center">Error cargando historial</td></tr>`;
-        }
-      }
-
-      // --- Global Health History (Modal) ---
-      async function showTestHistory(autoShow = true) {
-        const modalEl = document.getElementById('modalTestHistory');
-        if (!modalEl) return;
-
-        const modal = bootstrap.Modal.getOrCreateInstance(modalEl);
-        if (autoShow) modal.show();
-
-        const tbody = document.getElementById('testHistTableBody');
-        const loading = document.getElementById('testHistLoading');
-        const empty = document.getElementById('testHistEmpty');
-
-        if (tbody) tbody.innerHTML = '';
-        if (loading) loading.classList.remove('d-none');
-        if (empty) empty.classList.add('d-none');
-
-        try {
-          const res = await fetch('/api/test-history');
-          if (!res.ok) throw new Error("Fetch failed: " + res.status);
-          const data = await res.json();
-
-          if (loading) loading.classList.add('d-none');
-
-          const history = data.history || [];
-          if (history.length === 0) {
-            if (empty) empty.classList.remove('d-none');
-            return;
+          } catch (e) {
+            console.error("History fetch error:", e);
+            if (loading) loading.classList.add('d-none');
+            if (tbody) tbody.innerHTML = `<tr><td colspan="6" class="text-danger text-center">Error cargando historial</td></tr>`;
           }
+        }
 
-          if (tbody) {
-            tbody.innerHTML = history.map(h => {
-              const date = h.ts ? new Date(h.ts).toLocaleString() : '-';
-              const badge = h.success
-                ? '<span class="badge bg-success">OK</span>'
-                : '<span class="badge bg-danger">FAIL</span>';
+        // --- Global Health History (Modal) ---
+        async function showTestHistory(autoShow = true) {
+          const modalEl = document.getElementById('modalTestHistory');
+          if (!modalEl) return;
 
-              // Simplificar output para la tabla
-              let shortOut = '-';
-              if (h.output) {
-                // Si es muy largo, recortar.
-                shortOut = h.output.length > 80 ? h.output.substring(0, 80) + '...' : h.output;
-              }
+          const modal = bootstrap.Modal.getOrCreateInstance(modalEl);
+          if (autoShow) modal.show();
 
-              return `
+          const tbody = document.getElementById('testHistTableBody');
+          const loading = document.getElementById('testHistLoading');
+          const empty = document.getElementById('testHistEmpty');
+
+          if (tbody) tbody.innerHTML = '';
+          if (loading) loading.classList.remove('d-none');
+          if (empty) empty.classList.add('d-none');
+
+          try {
+            const res = await fetch('/api/test-history');
+            if (!res.ok) throw new Error("Fetch failed: " + res.status);
+            const data = await res.json();
+
+            if (loading) loading.classList.add('d-none');
+
+            const history = data.history || [];
+            if (history.length === 0) {
+              if (empty) empty.classList.remove('d-none');
+              return;
+            }
+
+            if (tbody) {
+              tbody.innerHTML = history.map(h => {
+                const date = h.ts ? new Date(h.ts).toLocaleString() : '-';
+                const badge = h.success
+                  ? '<span class="badge bg-success">OK</span>'
+                  : '<span class="badge bg-danger">FAIL</span>';
+
+                // Simplificar output para la tabla
+                let shortOut = '-';
+                if (h.output) {
+                  // Si es muy largo, recortar.
+                  shortOut = h.output.length > 80 ? h.output.substring(0, 80) + '...' : h.output;
+                }
+
+                return `
                 <tr>
                   <td class="small text-nowrap">${escapeHtml(date)}</td>
                   <td>${badge}</td>
@@ -2546,48 +2185,48 @@
                   <td class="small">${escapeHtml(h.actor || 'system')}</td>
                 </tr>
               `;
-            }).join('');
+              }).join('');
+            }
+          } catch (e) {
+            console.error("Test history fetch error:", e);
+            if (loading) loading.classList.add('d-none');
+            if (tbody) tbody.innerHTML = '<tr><td colspan="4" class="text-danger text-center">Error cargando historial</td></tr>';
           }
-        } catch (e) {
-          console.error("Test history fetch error:", e);
-          if (loading) loading.classList.add('d-none');
-          if (tbody) tbody.innerHTML = '<tr><td colspan="4" class="text-danger text-center">Error cargando historial</td></tr>';
         }
-      }
 
-      // --- Diagnostics (Salud) ---
-      async function runDiagnostics() {
-        const btn = document.getElementById("runDiagnosticsBtn");
-        if (!btn) return;
-        const orig = btn.innerHTML;
-        btn.disabled = true;
-        btn.innerHTML = `<span class="spinner-border spinner-border-sm me-1"></span> Ejecutando...`;
+        // --- Diagnostics (Salud) ---
+        async function runDiagnostics() {
+          const btn = document.getElementById("runDiagnosticsBtn");
+          if (!btn) return;
+          const orig = btn.innerHTML;
+          btn.disabled = true;
+          btn.innerHTML = `<span class="spinner-border spinner-border-sm me-1"></span> Ejecutando...`;
 
-        try {
-          const r = await fetch("/api/run-diagnostics", { method: "POST" });
-          const d = await r.json();
+          try {
+            const r = await fetch("/api/run-diagnostics", { method: "POST" });
+            const d = await r.json();
 
-          if (r.ok && (d.ok || (d.extra && d.extra.ok))) {
-            showInlineToast("success", "Autodiagnóstico: TODO OK");
-          } else {
-            showInlineToast("danger", "Autodiagnóstico: FALLO (ver historial)");
-            if (d.extra && d.extra.output) console.error(d.extra.output);
+            if (r.ok && (d.ok || (d.extra && d.extra.ok))) {
+              showInlineToast("success", "Autodiagnóstico: TODO OK");
+            } else {
+              showInlineToast("danger", "Autodiagnóstico: FALLO (ver historial)");
+              if (d.extra && d.extra.output) console.error(d.extra.output);
+            }
+
+            // == AUTOMATICAMENTE ABRIR EL HISTORIAL/RESUMEN ==
+            // Damos un pequeño delay para que la BD haya guardado
+            setTimeout(() => {
+              showTestHistory(true);
+            }, 500);
+
+          } catch (e) {
+            console.error("Diagnostic execution error:", e);
+            showInlineToast("danger", "Error invocando diagnóstico: " + e.message);
+          } finally {
+            btn.disabled = false;
+            btn.innerHTML = orig;
           }
-
-          // == AUTOMATICAMENTE ABRIR EL HISTORIAL/RESUMEN ==
-          // Damos un pequeño delay para que la BD haya guardado
-          setTimeout(() => {
-            showTestHistory(true);
-          }, 500);
-
-        } catch (e) {
-          console.error("Diagnostic execution error:", e);
-          showInlineToast("danger", "Error invocando diagnóstico: " + e.message);
-        } finally {
-          btn.disabled = false;
-          btn.innerHTML = orig;
         }
-      }
     </script>
 </body>
 

@@ -411,8 +411,23 @@ def remove_tag(ip, tag):
             conn.close()
             return True
         return True # Tag no estaba, éxito
+
     except Exception as e:
         print(f"DB Remove Tag Error: {e}")
+        return False
+
+def update_ip_ttl(ip, new_ttl):
+    """
+    Actualiza solo el TTL de una IP.
+    """
+    try:
+        conn = get_db()
+        conn.execute("UPDATE ip_metadata SET ttl = ? WHERE ip = ?", (str(new_ttl), ip))
+        conn.commit()
+        conn.close()
+        return True
+    except Exception as e:
+        print(f"DB Update TTL Error: {e}")
         return False
 
 # --- Metrics Dashboard Helpers ---
