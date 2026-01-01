@@ -1,4 +1,3 @@
-
 .venv/
 __pycache__/
 *.pyc
@@ -20,8 +19,7 @@ backups/
 data/
 *.zip
 
-# Datos de operaciÃ³n (feed y meta)
-# Se excluyen para que cada entorno tenga sus propios datos
+# Datos de operación
 ioc-feed.txt
 ioc-feed-bpe.txt
 ioc-feed-test.txt
@@ -30,21 +28,19 @@ api_payload.json
 contador_manual.txt
 .expiry_last
 
-# Scripts de Prueba y Debug (Solo Local)
-# debug_*.py
-# test_*.py
+# Scripts
 fix_templates.py
 templates/test_*.html
 
-# Archivos de sistema/editor
+# System
 .vscode/
 .idea/
 .DS_Store
 
 # User requested exclusions
 Instrucciones
-.gitignore
-install
+# .gitignore REMOVED
+# install REMOVED
 
 # Test files
 verify_*.py
