@@ -224,5 +224,5 @@ Tareas disponibles:
 
 ## 👤 Autor
 
-Proyecto desarrollado por **Darell Pérez (darelldeejay)**.  
+Proyecto desarrollado por **Darell Pérez**.  
 Todos los derechos reservados.
