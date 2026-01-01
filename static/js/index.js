@@ -550,10 +550,13 @@ function getSelectedIPs() {
 
 function updateBulkUI() {
     const count = getSelectedIPs().length;
-    const btn = document.getElementById('bulkDeleteBtn');
+    const btnDel = document.getElementById('bulkDeleteBtn');
+    const btnTags = document.getElementById('bulkTagsBtn');
     const label = document.getElementById('bulkSelectedCount');
+
     if (label) label.textContent = String(count);
-    if (btn) btn.disabled = (count === 0);
+    if (btnDel) btnDel.disabled = (count === 0);
+    if (btnTags) btnTags.disabled = (count === 0);
 }
 
 function attachTableSelectionHandlers() {
@@ -1030,3 +1033,77 @@ window.confirmDeleteJS = function (ip, tags) {
         form.submit();
     }
 };
+
+
+/* ========================================================
+   Bulk Tag Management Logic
+   ======================================================== */
+window.openManageTags = function () {
+    // Get selected IPs
+    const checkboxes = document.querySelectorAll('.row-chk:checked');
+    const selectedCount = checkboxes.length;
+
+    if (selectedCount === 0) {
+        showInlineToast('warning', 'No hay IPs seleccionadas.');
+        return;
+    }
+
+    const countSpan = document.getElementById('tagManageCount');
+    if (countSpan) countSpan.textContent = selectedCount;
+
+    // Clear input
+    const input = document.getElementById('tagInputBulk');
+    if (input) input.value = '';
+
+    const el = document.getElementById('modalManageTags');
+    const modal = new bootstrap.Modal(el);
+    modal.show();
+};
+
+window.submitManageTags = async function (action) {
+    const input = document.getElementById('tagInputBulk');
+    const tag = input ? input.value.trim() : '';
+
+    if (!tag) {
+        alert("Por favor escribe un tag.");
+        return;
+    }
+
+    // Get selected IPs
+    const checkboxes = document.querySelectorAll('.row-chk:checked');
+    const ips = Array.from(checkboxes).map(c => c.value);
+
+    if (ips.length === 0) return;
+
+    // UI Loading state could be added here (disable buttons)
+
+    try {
+        const res = await fetch('/api/tags/bulk', {
+            method: 'POST',
+            headers: { 'Content-Type': 'application/json' },
+            body: JSON.stringify({
+                ips: ips,
+                tag: tag,
+                action: action
+            })
+        });
+        const data = await res.json();
+
+        if (res.ok) {
+            // Success
+            const el = document.getElementById('modalManageTags');
+            const modal = bootstrap.Modal.getInstance(el);
+            if (modal) modal.hide();
+
+            showInlineToast('success', data.message || 'Operación realizada');
+            // Reload table
+            if (typeof reloadTable === 'function') reloadTable(false);
+        } else {
+            alert("Error: " + (data.error || 'Desconocido'));
+        }
+    } catch (e) {
+        console.error(e);
+        alert("Error de conexión");
+    }
+};
+

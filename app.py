@@ -3859,6 +3859,91 @@ def api_remove_tag():
     except Exception as e:
         return json_response_error(f"Error interno: {str(e)}", 500)
 
+@app.route("/api/tags/add", methods=["POST"])
+@login_required
+def api_add_tag():
+    """
+    Endpoint para añadir un tag específico a una IP.
+    Payload: {"ip": "...", "tag": "..."}
+    """
+    if session.get("role") == "view_only":
+        return json_response_error("No tienes permisos (vista).", 403)
+
+    data = request.get_json(silent=True) or {}
+    ip = data.get("ip")
+    tag = data.get("tag")
+
+    if not ip or not tag:
+        return json_response_error("Faltan datos (ip, tag).")
+    
+    # Validar formato de tag (básico)
+    tag = tag.strip()
+    if not tag:
+        return json_response_error("Tag vacío.")
+
+    try:
+        if db.add_tag(ip, tag):
+            regenerate_feeds_from_db()
+            _audit("add_tag", f"web/{session.get('username','admin')}", ip, {"tag": tag})
+            return json_response_ok([], {"message": f"Tag '{tag}' añadido a {ip}"})
+        else:
+            # Si retorna False, es que ya tenía el tag o IP no existe
+            # Verificamos si IP existe
+            if not db.get_ip(ip):
+                 return json_response_error(f"IP {ip} no encontrada", 404)
+            return json_response_ok([], {"message": f"Tag '{tag}' ya existía en {ip}"})
+            
+    except Exception as e:
+        return json_response_error(f"Error interno: {str(e)}", 500)
+
+@app.route("/api/tags/bulk", methods=["POST"])
+@login_required
+def api_bulk_tags():
+    """
+    Endpoint masivo para añadir/quitar tags.
+    Payload: {
+      "ips": ["1.1.1.1", "2.2.2.2"],
+      "tag": "BPE",
+      "action": "add" | "remove"
+    }
+    """
+    if session.get("role") == "view_only":
+        return json_response_error("No tienes permisos (vista).", 403)
+
+    data = request.get_json(silent=True) or {}
+    ips = data.get("ips", [])
+    tag = data.get("tag")
+    action = data.get("action")
+
+    if not ips or not tag or not action:
+        return json_response_error("Faltan datos (ips, tag, action).")
+    
+    tag = tag.strip()
+    if not tag:
+        return json_response_error("Tag vacío.")
+
+    try:
+        modified = False
+        if action == "add":
+            modified = db.bulk_add_tag(ips, tag)
+            audit_evt = "bulk_tag_add"
+        elif action == "remove":
+            modified = db.bulk_remove_tag(ips, tag)
+            audit_evt = "bulk_tag_remove"
+        else:
+            return json_response_error("Acción inválida usage: add|remove")
+        
+        if modified:
+            regenerate_feeds_from_db()
+            _audit(audit_evt, f"web/{session.get('username','admin')}", {"count": len(ips)}, {"tag": tag, "ips": ips})
+            return json_response_ok([], {"message": "Operación completada con éxito"})
+        else:
+             return json_response_ok([], {"message": "Sin cambios (tags ya asignados o no asignados)"})
+
+    except Exception as e:
+        return json_response_error(f"Error interno: {str(e)}", 500)
+
+
 
 @app.route("/api/run-diagnostics", methods=["POST"])
 @login_required

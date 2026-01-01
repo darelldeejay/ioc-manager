@@ -734,9 +734,14 @@
         <div class="small text-muted">
           <span id="bulkSelectedCount">0</span> seleccionada(s)
         </div>
-        <button id="bulkDeleteBtn" class="btn btn-outline-danger btn-sm" disabled>
-          🗑️ Eliminar seleccionadas
-        </button>
+        <div class="d-flex gap-2">
+          <button id="bulkDeleteBtn" class="btn btn-outline-danger btn-sm" disabled>
+            🗑️ Eliminar seleccionadas
+          </button>
+          <button id="bulkTagsBtn" class="btn btn-outline-secondary btn-sm" disabled onclick="openManageTags()">
+            <i class="bi bi-tags"></i> Gestionar Tags
+          </button>
+        </div>
       </div>
 
       <div class="table-responsive">
@@ -1859,6 +1864,36 @@
                   </div>
                 </div>
               </div>
+            </div>
+          </div>
+        </div>
+      </div>
+    </div>
+
+    <!-- MODAL GESTIÓN DE TAGS MASIVA -->
+    <div class="modal fade" id="modalManageTags" tabindex="-1" aria-hidden="true">
+      <div class="modal-dialog">
+        <div class="modal-content">
+          <div class="modal-header">
+            <h5 class="modal-title"><i class="bi bi-tags me-2"></i>Gestionar Tags</h5>
+            <button type="button" class="btn-close" data-bs-dismiss="modal" aria-label="Close"></button>
+          </div>
+          <div class="modal-body">
+            <p>Acción sobre <strong id="tagManageCount">0</strong> IPs seleccionadas.</p>
+
+            <div class="mb-3">
+              <label for="tagInputBulk" class="form-label">Nombre del Tag</label>
+              <input type="text" class="form-control" id="tagInputBulk" placeholder="Ej: BPE, Revisar, Nuevo...">
+              <div class="form-text">Escribe el tag que quieres añadir o quitar.</div>
+            </div>
+
+            <div class="d-flex justify-content-between gap-2">
+              <button type="button" class="btn btn-outline-danger w-50" onclick="submitManageTags('remove')">
+                <i class="bi bi-dash-circle me-1"></i> Quitar Tag
+              </button>
+              <button type="button" class="btn btn-primary w-50" onclick="submitManageTags('add')">
+                <i class="bi bi-plus-circle me-1"></i> Añadir Tag
+              </button>
             </div>
           </div>
         </div>

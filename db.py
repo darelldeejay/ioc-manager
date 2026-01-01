@@ -430,7 +430,93 @@ def update_ip_ttl(ip, new_ttl):
         print(f"DB Update TTL Error: {e}")
         return False
 
-# --- Metrics Dashboard Helpers ---
+
+# --- Tag Management Helpers ---
+def add_tag(ip, tag):
+    """
+    Añade un tag específico a una IP si no lo tiene ya.
+    """
+    try:
+        ip_data = get_ip(ip)
+        if not ip_data:
+            return False
+            
+        tags = []
+        if ip_data['tags']:
+            try:
+                tags = json.loads(ip_data['tags'])
+            except:
+                pass
+                
+        if tag not in tags:
+            tags.append(tag)
+            conn = get_db()
+            conn.execute("UPDATE ip_metadata SET tags = ? WHERE ip = ?", (json.dumps(tags, ensure_ascii=False), ip))
+            conn.commit()
+            conn.close()
+            return True
+        return False # Tag ya existía
+    except Exception as e:
+        print(f"DB Add Tag Error: {e}")
+        return False
+
+def bulk_add_tag(ip_list, tag):
+    """
+    Añade el tag a todas las IPs de la lista.
+    Retorna True si al menos una IP fue modificada.
+    """
+    modified = False
+    try:
+        conn = get_db()
+        for ip in ip_list:
+            # Check existing tags
+            row = conn.execute("SELECT tags FROM ip_metadata WHERE ip = ?", (ip,)).fetchone()
+            if not row: continue
+            
+            curr_tags = []
+            if row['tags']:
+                try: curr_tags = json.loads(row['tags'])
+                except: pass
+            
+            if tag not in curr_tags:
+                curr_tags.append(tag)
+                conn.execute("UPDATE ip_metadata SET tags = ? WHERE ip = ?", (json.dumps(curr_tags, ensure_ascii=False), ip))
+                modified = True
+        
+        conn.commit()
+        conn.close()
+    except Exception as e:
+        print(f"DB Bulk Add Error: {e}")
+    return modified
+
+def bulk_remove_tag(ip_list, tag):
+    """
+    Elimina el tag de todas las IPs de la lista.
+    Retorna True si al menos una IP fue modificada.
+    """
+    modified = False
+    try:
+        conn = get_db()
+        for ip in ip_list:
+            row = conn.execute("SELECT tags FROM ip_metadata WHERE ip = ?", (ip,)).fetchone()
+            if not row: continue
+            
+            curr_tags = []
+            if row['tags']:
+                try: curr_tags = json.loads(row['tags'])
+                except: pass
+            
+            if tag in curr_tags:
+                curr_tags.remove(tag)
+                conn.execute("UPDATE ip_metadata SET tags = ? WHERE ip = ?", (json.dumps(curr_tags, ensure_ascii=False), ip))
+                modified = True
+        
+        conn.commit()
+        conn.close()
+    except Exception as e:
+        print(f"DB Bulk Remove Error: {e}")
+    return modified
+
 
 def save_daily_snapshot(counters):
     """
