@@ -381,7 +381,8 @@
                     <label class="dropdown-item d-flex align-items-center gap-2 py-2 cursor-pointer"
                       onclick="event.stopPropagation()">
                       <input class="form-check-input m-0 tag-chk-manual" type="checkbox" name="tags_manual_cb"
-                        value="{{ t }}" onchange="updateTagsBtn()" {% if t=='Multicliente' %}checked{% endif %}>
+                        value="{{ t }}" onclick="window.refreshTagsUI()" onchange="window.refreshTagsUI()" {% if
+                        t=='Multicliente' %}checked{% endif %}>
                       <span>{{ t }}</span>
                     </label>
                   </li>
@@ -1740,10 +1741,10 @@
 
           // Inicializar tags (Prioridad Alta)
           console.log("DOM Loaded (Revisado): Initializing Tags...");
-          if (typeof window.updateTagsBtn === 'function') {
-            window.updateTagsBtn();
+          if (typeof window.refreshTagsUI === 'function') {
+            window.refreshTagsUI();
           } else {
-            console.error("Critical: window.updateTagsBtn not defined!");
+            console.error("Critical: window.refreshTagsUI not defined!");
           }
 
           // Inicializar lista de notificaciones
@@ -1751,9 +1752,12 @@
         });
 
         // Función Global para el Dropdown de Tags
-        window.updateTagsBtn = function () {
-          console.log("updateTagsBtn called");
+        window.refreshTagsUI = function () {
+          // DEBUG: Confirmar ejecución
+          console.log("refreshTagsUI called");
+
           const checkboxes = document.querySelectorAll(".tag-chk-manual");
+          // Use querySelector to find the span inside the button explicitly if needed, but ID should be unique.
           const btnSpan = document.getElementById("tagsDropdownSpan");
 
           if (!btnSpan) {
@@ -2322,6 +2326,39 @@
             btn.innerHTML = orig;
           }
         }
+    </script>
+
+    <!-- ROBUST FALLBACK SCRIPT FOR TAGS UI -->
+    <script>
+        (function () {
+          // Redefinición segura de la función de UI
+          window.refreshTagsUI = function () {
+            // console.log("Fallback refreshTagsUI called");
+            const checkboxes = document.querySelectorAll(".tag-chk-manual");
+            const btnSpan = document.getElementById("tagsDropdownSpan");
+
+            if (!btnSpan) return;
+
+            const selected = Array.from(checkboxes)
+              .filter(chk => chk.checked)
+              .map(chk => chk.value);
+
+            if (selected.length === 0) {
+              btnSpan.textContent = "Seleccionar tags...";
+              btnSpan.classList.add("text-muted");
+              btnSpan.classList.remove("fw-bold");
+            } else {
+              btnSpan.textContent = selected.join(", ");
+              btnSpan.classList.remove("text-muted");
+              btnSpan.classList.add("fw-bold");
+            }
+          };
+
+          // Ejecutar inmediatamente al final del body (garantiza que el DOM existe)
+          try {
+            window.refreshTagsUI();
+          } catch (e) { console.error("Fallback init error", e); }
+        })();
     </script>
 </body>
 
