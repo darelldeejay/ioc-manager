@@ -362,18 +362,18 @@
             <div class="col-12">
               <label class="form-label small mb-1 fw-bold">Tags Existentes</label>
               <div class="dropdown">
-                <button
+                <button id="tagsDropdownBtn"
                   class="btn btn-outline-secondary btn-sm dropdown-toggle w-100 text-start d-flex justify-content-between align-items-center"
                   type="button" data-bs-toggle="dropdown" aria-expanded="false">
-                  <span>Seleccionar tags...</span>
+                  <span id="tagsDropdownSpan">Seleccionar tags...</span>
                 </button>
                 <ul class="dropdown-menu w-100 shadow p-0" style="max-height: 250px; overflow-y: auto;">
                   {% for t in known_tags %}
                   <li>
                     <label class="dropdown-item d-flex align-items-center gap-2 py-2 cursor-pointer"
                       onclick="event.stopPropagation()">
-                      <input class="form-check-input m-0" type="checkbox" name="tags_manual_cb" value="{{ t }}" {% if
-                        t=='Multicliente' %}checked{% endif %}>
+                      <input class="form-check-input m-0 tag-chk-manual" type="checkbox" name="tags_manual_cb"
+                        value="{{ t }}" {% if t=='Multicliente' %}checked{% endif %}>
                       <span>{{ t }}</span>
                     </label>
                   </li>
@@ -1730,17 +1730,30 @@
             });
           }
 
-          const checkboxes = document.querySelectorAll(".tag-manual");
-          const hiddenInput = document.getElementById("tagsManualInput");
+          const checkboxes = document.querySelectorAll(".tag-chk-manual");
+          const btnSpan = document.getElementById("tagsDropdownSpan");
 
-          function updateTagsManual() {
+          function updateTagsBtn() {
             const selected = Array.from(checkboxes)
               .filter(chk => chk.checked)
               .map(chk => chk.value);
-            hiddenInput.value = selected.join(","); // ejemplo: "Multicliente,BPE"
+
+            if (btnSpan) {
+              if (selected.length === 0) {
+                btnSpan.textContent = "Seleccionar tags...";
+                btnSpan.classList.add("text-muted");
+                btnSpan.classList.remove("fw-bold", "text-dark");
+              } else {
+                btnSpan.textContent = selected.join(", ");
+                btnSpan.classList.remove("text-muted");
+                btnSpan.classList.add("fw-bold", "text-dark");
+              }
+            }
           }
 
-          checkboxes.forEach(chk => chk.addEventListener("change", updateTagsManual));
+          checkboxes.forEach(chk => chk.addEventListener("change", updateTagsBtn));
+          // Inicializar al cargar (para mostrar Multicliente por defecto)
+          updateTagsBtn();
 
           // Inicializar lista de notificaciones
           if (typeof renderList === 'function') renderList();
