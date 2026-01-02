@@ -373,7 +373,7 @@
                     <label class="dropdown-item d-flex align-items-center gap-2 py-2 cursor-pointer"
                       onclick="event.stopPropagation()">
                       <input class="form-check-input m-0 tag-chk-manual" type="checkbox" name="tags_manual_cb"
-                        value="{{ t }}" {% if t=='Multicliente' %}checked{% endif %}>
+                        value="{{ t }}" onchange="updateTagsBtn()" {% if t=='Multicliente' %}checked{% endif %}>
                       <span>{{ t }}</span>
                     </label>
                   </li>
@@ -1730,34 +1730,34 @@
             });
           }
 
+          // Inicializar lista de notificaciones
+          if (typeof renderList === 'function') renderList();
+
+          // Inicializar tags
+          if (typeof window.updateTagsBtn === 'function') window.updateTagsBtn();
+        });
+
+        // Función Global para el Dropdown de Tags
+        window.updateTagsBtn = function () {
           const checkboxes = document.querySelectorAll(".tag-chk-manual");
           const btnSpan = document.getElementById("tagsDropdownSpan");
 
-          function updateTagsBtn() {
-            const selected = Array.from(checkboxes)
-              .filter(chk => chk.checked)
-              .map(chk => chk.value);
+          if (!btnSpan) return;
 
-            if (btnSpan) {
-              if (selected.length === 0) {
-                btnSpan.textContent = "Seleccionar tags...";
-                btnSpan.classList.add("text-muted");
-                btnSpan.classList.remove("fw-bold", "text-dark");
-              } else {
-                btnSpan.textContent = selected.join(", ");
-                btnSpan.classList.remove("text-muted");
-                btnSpan.classList.add("fw-bold", "text-dark");
-              }
-            }
+          const selected = Array.from(checkboxes)
+            .filter(chk => chk.checked)
+            .map(chk => chk.value);
+
+          if (selected.length === 0) {
+            btnSpan.textContent = "Seleccionar tags...";
+            btnSpan.classList.add("text-muted");
+            btnSpan.classList.remove("fw-bold", "text-dark");
+          } else {
+            btnSpan.textContent = selected.join(", ");
+            btnSpan.classList.remove("text-muted");
+            btnSpan.classList.add("fw-bold", "text-dark");
           }
-
-          checkboxes.forEach(chk => chk.addEventListener("change", updateTagsBtn));
-          // Inicializar al cargar (para mostrar Multicliente por defecto)
-          updateTagsBtn();
-
-          // Inicializar lista de notificaciones
-          if (typeof renderList === 'function') renderList();
-        });
+        };
 
         // --- Lógica para quitar tags ---
         async function removeTag(element, ip, tag) {
