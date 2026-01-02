@@ -1730,23 +1730,34 @@
             });
           }
 
+          // Inicializar tags (Prioridad Alta)
+          console.log("DOM Loaded (Revisado): Initializing Tags...");
+          if (typeof window.updateTagsBtn === 'function') {
+            window.updateTagsBtn();
+          } else {
+            console.error("Critical: window.updateTagsBtn not defined!");
+          }
+
           // Inicializar lista de notificaciones
           if (typeof renderList === 'function') renderList();
-
-          // Inicializar tags
-          if (typeof window.updateTagsBtn === 'function') window.updateTagsBtn();
         });
 
         // Función Global para el Dropdown de Tags
         window.updateTagsBtn = function () {
+          console.log("updateTagsBtn called");
           const checkboxes = document.querySelectorAll(".tag-chk-manual");
           const btnSpan = document.getElementById("tagsDropdownSpan");
 
-          if (!btnSpan) return;
+          if (!btnSpan) {
+            console.error("Error: tagsDropdownSpan not found");
+            return;
+          }
 
           const selected = Array.from(checkboxes)
             .filter(chk => chk.checked)
             .map(chk => chk.value);
+
+          console.log("Selected tags:", selected);
 
           if (selected.length === 0) {
             btnSpan.textContent = "Seleccionar tags...";
