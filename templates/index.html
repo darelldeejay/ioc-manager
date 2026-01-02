@@ -369,7 +369,8 @@
                 <ul class="dropdown-menu w-100 shadow p-0" style="max-height: 250px; overflow-y: auto;">
                   {% for t in known_tags %}
                   <li>
-                    <label class="dropdown-item d-flex align-items-center gap-2 py-2 cursor-pointer">
+                    <label class="dropdown-item d-flex align-items-center gap-2 py-2 cursor-pointer"
+                      onclick="event.stopPropagation()">
                       <input class="form-check-input m-0" type="checkbox" name="tags_manual_cb" value="{{ t }}" {% if
                         t=='Multicliente' %}checked{% endif %}>
                       <span>{{ t }}</span>

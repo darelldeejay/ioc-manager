@@ -1633,7 +1633,11 @@ def _collect_known_tags():
         # Opción B: Helper SQL -> Rápido.
         # Usamos la lógica de contadores que ya itera todo:
         _, tag_counts, _, _ = compute_source_and_tag_counters_union()
-        tags = list(tag_counts.keys())
+        current_tags = set(tag_counts.keys())
+        # Ensure default tags are always available for selection
+        current_tags.update(ALLOWED_TAGS) 
+        
+        tags = list(current_tags)
         tags.sort(key=lambda x: x.lower())
         return tags
     except Exception as e:
