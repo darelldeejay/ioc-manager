@@ -3430,8 +3430,9 @@ def _api_guard():
     g.api_actor = f"api/{_client_ip()}"
 
 def _auth_ok():
-    if not TOKEN_API:
-        return False
+    # Relaxed check: We allow DB tokens even if TOKEN_API env var is missing
+    # if not TOKEN_API: return False (Removed to support DB-only auth)
+
     
     token_found = None
     
