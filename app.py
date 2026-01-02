@@ -996,9 +996,19 @@ def _norm_tags(tags):
         s = str(t).strip()
         if not s:
             continue
-        if s not in seen:
-            out.append(s)
-            seen.add(s)
+        
+        # 1. Intentar normalizar con el mapa canónico
+        lower_k = s.lower()
+        if lower_k in CANONICAL_TAGS:
+            s_final = CANONICAL_TAGS[lower_k]
+        else:
+            # 2. Si es nuevo y desconocido, usar Title Case por defecto para homogeneizar
+            # (Ej: "mi ataque" -> "Mi Ataque")
+            s_final = s.title() if s.islower() else s
+
+        if s_final not in seen:
+            out.append(s_final)
+            seen.add(s_final)
     return out
 
 def _filter_allowed_tags(tags):
@@ -1529,18 +1539,22 @@ def _days_left(fecha_dt, ttl_int):
 #  Helpers de UI: colores de tags + known_tags
 # =========================
 def _tag_color_hsl(tag: str) -> str:
-    """Color estable por tag (HSL -> hex) para usar en la UI."""
+    """Devuelve CLASE Bootstrap para el badge."""
     if not tag:
-        return "#6c757d"
+        return "text-bg-secondary"
     
-    # Colores fijos para tags del sistema (Premium Look)
     t_lower = tag.lower()
     if "multicliente" in t_lower:
-        return "#0d6efd" # Primary Blue
-    if "bpe" in t_lower:
-        return "#fd7e14" # Orange
-    if "test" in t_lower:
-        return "#6c757d" # Secondary Grey
+        return "text-bg-primary"
+    elif "bpe" in t_lower:
+        return "text-bg-warning text-dark" # Orange needs dark text
+    elif "test" in t_lower:
+        return "text-bg-secondary"
+    else:
+        # Para tags desconocidos, usamos un color genérico visible
+        # O podríamos hacer hash -> bg-success/danger/info aleatorio.
+        # Por simplicidad y legibilidad: Info (Cyan) o Dark.
+        return "text-bg-info text-dark"
     
     h = int(hashlib.sha256(tag.encode("utf-8")).hexdigest(), 16) % 360
     s = 60
@@ -1608,30 +1622,122 @@ def inject_helpers():
 
 
 def _collect_known_tags():
-    """Devuelve lista ordenada de tags conocidos de ficheros y meta."""
-    seen = set()
-    out = []
-    # de ficheros
+    """Devuelve lista ordenada de tags conocidos activamente en la BD."""
+    # Como ya calculamos 'tag_totals' en otras partes (compute_source_and_tag_counters_union),
+    # podríamos reusarlo. Pero para asegurarnos, consultamos la union actual o la BD.
+    # Fase 2: Consultar la cache de contadores global si es fresca, o recalcular.
+    # Por simplicidad ahora: llamar a DB helper
     try:
-        if os.path.isdir(TAGS_DIR):
-            for name in os.listdir(TAGS_DIR):
-                if name.endswith(".txt"):
-                    t = name[:-4]
-                    if t and t not in seen:
-                        seen.add(t); out.append(t)
-    except Exception:
-        pass
-    # de meta
+        # Recuperamos todos los tags únicos
+        # Opción A: getAllIps y iterar tags -> Lento
+        # Opción B: Helper SQL -> Rápido.
+        # Usamos la lógica de contadores que ya itera todo:
+        _, tag_counts, _, _ = compute_source_and_tag_counters_union()
+        tags = list(tag_counts.keys())
+        tags.sort(key=lambda x: x.lower())
+        return tags
+    except Exception as e:
+        print(f"Error collecting tags: {e}")
+        return ["Multicliente", "BPE", "Test"]
+
+# ... (Hook before_request is fine) ...
+
+def _get_feed_filename(tag):
+    t_lower = tag.lower()
+    if t_lower == "multicliente":
+        return FEED_FILE
+    elif t_lower == "bpe":
+        return FEED_FILE_BPE
+    elif t_lower == "test":
+        return FEED_FILE_TEST
+    else:
+        # Sanitize filename
+        safe_tag = "".join(c for c in tag if c.isalnum() or c in ('-','_'))
+        if not safe_tag: safe_tag = "unknown"
+        return os.path.join(BASE_DIR, f"ioc-feed-{safe_tag}.txt")
+
+def regenerate_feeds_from_db():
+    """
+    Regenera TODOS los archivos de feed dinámicamente.
+    - Multicliente -> ioc-feed.txt
+    - BPE -> ioc-feed-bpe.txt
+    - Test -> ioc-feed-test.txt
+    - Otro -> ioc-feed-Otro.txt
+    """
     try:
-        meta = load_meta()
-        for entry in (meta.get("ip_details") or {}).values():
-            for t in entry.get("tags", []) or []:
-                if t and t not in seen:
-                    seen.add(t); out.append(t)
-    except Exception:
-        pass
-    out.sort(key=lambda x: x.lower())
-    return out
+        all_ips = db.get_all_ips()
+        
+        # Diccionario: nombre_fichero -> lista de lineas
+        active_feeds = {} 
+        # Inicializamos los standard para asegurar que se creen (vacios si hace falta)
+        active_feeds[FEED_FILE] = []
+        active_feeds[FEED_FILE_BPE] = []
+        active_feeds[FEED_FILE_TEST] = []
+        
+        # Para saber qué tags existen y limpiar viejos (opcional, por ahora solo crear/sobrescribir)
+        
+        now = datetime.now()
+        
+        for row in all_ips:
+            ip = row['ip']
+            try:
+                tags = json.loads(row['tags'] or '[]')
+            except:
+                tags = []
+            
+            # Normalizar fecha
+            added_at_str = row['added_at']
+            if not added_at_str:
+                added_at_str = datetime.now().strftime("%Y-%m-%d")
+            else:
+                try:
+                    dt = datetime.fromisoformat(added_at_str.replace("Z", "+00:00"))
+                    added_at_str = dt.strftime("%Y-%m-%d")
+                except:
+                    added_at_str = datetime.now().strftime("%Y-%m-%d")
+
+            ttl_val = str(row['ttl'])
+            line = f"{ip}|{added_at_str}|{ttl_val}"
+            
+            # Distribuir a cada feed correspondiente al tag
+            for tag in tags:
+                # Normalizar tag por si acaso
+                norm_tag = CANONICAL_TAGS.get(tag.lower(), tag)
+                # Obtener nombre de fichero destino
+                fpath = _get_feed_filename(norm_tag)
+                
+                if fpath not in active_feeds:
+                    active_feeds[fpath] = []
+                
+                active_feeds[fpath].append(line)
+        
+        # Escribir Atomicamente todos los ficheros
+        for fpath, lines in active_feeds.items():
+            # Usar lock dinámico según path
+            # Si es standard, usar lock global definido
+            if fpath == FEED_FILE: lock = FEED_LOCK
+            elif fpath == FEED_FILE_BPE: lock = FEED_BPE_LOCK
+            elif fpath == FEED_FILE_TEST: lock = FEED_TEST_LOCK
+            else: lock = FileLock(fpath + ".lock")
+            
+            with lock:
+                tmp_file = fpath + ".tmp"
+                try:
+                    with open(tmp_file, "w", encoding="utf-8") as f:
+                        for l in lines:
+                            f.write(l + "\n")
+                        f.flush()
+                        os.fsync(f.fileno())
+                    os.replace(tmp_file, fpath)
+                except Exception as e:
+                    print(f"[FEED ERROR] writing {fpath}: {e}")
+                    if os.path.exists(tmp_file): os.remove(tmp_file)
+
+        print(f"[DB SYNC] Regenerados {len(active_feeds)} feeds dinámicos.")
+        return True
+    except Exception as e:
+        print(f"[DB SYNC ERROR] {e}")
+        return False
 
 # =========================
 #  Hooks de Flask
@@ -2357,11 +2463,14 @@ def index():
         str_tags = request.form.get("tags_manual", "")
         list_tags = request.form.getlist("tags_manual_cb")
         
-        # Unir ambos origenes
-        combined_raw = str_tags + "," + ",".join(list_tags)
+        # Unir ambos origenes + texto libre
+        text_tags = request.form.get("tags_manual_text", "")
+        combined_raw = str_tags + "," + ",".join(list_tags) + "," + text_tags
         
         raw_tags_manual = _parse_tags_field(combined_raw)
-        tags_manual = _filter_allowed_tags(raw_tags_manual)
+        # Usamos _norm_tags para PERMITIR tags nuevos (normalizados), 
+        # en lugar de _filter_allowed_tags que los elimina.
+        tags_manual = _norm_tags(raw_tags_manual)
 
         if not ticket_number:
             flash("El campo Ticket es obligatorio.", "danger")
@@ -3877,9 +3986,16 @@ def api_add_tag():
         return json_response_error("Faltan datos (ip, tag).")
     
     # Validar formato de tag (básico)
+    # Validar formato de tag (básico)
     tag = tag.strip()
     if not tag:
         return json_response_error("Tag vacío.")
+    
+    # Normalizar (fix: test -> Test)
+    norm = _norm_tags([tag])
+    if not norm:
+        return json_response_error("Tag inválido tras normalización.")
+    tag = norm[0]
 
     try:
         if db.add_tag(ip, tag):
@@ -3921,6 +4037,12 @@ def api_bulk_tags():
     tag = tag.strip()
     if not tag:
         return json_response_error("Tag vacío.")
+
+    # Normalizar (fix: test -> Test)
+    norm = _norm_tags([tag])
+    if not norm:
+        return json_response_error("Tag inválido tras normalización.")
+    tag = norm[0]
 
     try:
         modified = False
