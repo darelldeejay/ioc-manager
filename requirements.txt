@@ -3,3 +3,4 @@ gunicorn>=20.0.0
 python-dotenv
 filelock
 requests
+pytest
