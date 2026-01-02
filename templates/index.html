@@ -365,7 +365,15 @@
                 <button id="tagsDropdownBtn"
                   class="btn btn-outline-secondary btn-sm dropdown-toggle w-100 text-start d-flex justify-content-between align-items-center"
                   type="button" data-bs-toggle="dropdown" aria-expanded="false">
-                  <span id="tagsDropdownSpan">Seleccionar tags...</span>
+                  {% set default_selected = [] %}
+                  {% for t in known_tags %}
+                  {% if t == 'Multicliente' %}
+                  {% set _ = default_selected.append(t) %}
+                  {% endif %}
+                  {% endfor %}
+                  <span id="tagsDropdownSpan" class="{% if default_selected %}fw-bold{% else %}text-muted{% endif %}">
+                    {% if default_selected %}{{ default_selected|join(', ') }}{% else %}Seleccionar tags...{% endif %}
+                  </span>
                 </button>
                 <ul class="dropdown-menu w-100 shadow p-0" style="max-height: 250px; overflow-y: auto;">
                   {% for t in known_tags %}
@@ -1762,11 +1770,11 @@
           if (selected.length === 0) {
             btnSpan.textContent = "Seleccionar tags...";
             btnSpan.classList.add("text-muted");
-            btnSpan.classList.remove("fw-bold", "text-dark");
+            btnSpan.classList.remove("fw-bold");
           } else {
             btnSpan.textContent = selected.join(", ");
             btnSpan.classList.remove("text-muted");
-            btnSpan.classList.add("fw-bold", "text-dark");
+            btnSpan.classList.add("fw-bold");
           }
         };
 
