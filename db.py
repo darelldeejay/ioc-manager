@@ -366,6 +366,50 @@ def upsert_ip(ip, source, tags, ttl, expiration_date, alert_ids, history):
         print(f"DB Upsert IP Error: {e}")
         return False
 
+def bulk_upsert_ips(ip_list):
+    """
+    Inserta o actualiza multiples IPs en una sola transaccion.
+    ip_list: Lista de diccionarios con keys: ip, source, tags, ttl, expiration_date, alert_ids, history
+    """
+    if not ip_list:
+        return True
+        
+    try:
+        conn = get_db()
+        # Usamos executemany para maxima velocidad
+        # Preparamos los datos
+        params = []
+        for item in ip_list:
+            params.append((
+                item['ip'],
+                item['source'],
+                json.dumps(item.get('tags', []), ensure_ascii=False),
+                _iso(datetime.now(timezone.utc)), # added_at (always update?)
+                str(item.get('ttl', 0)),
+                _iso(item['expiration_date']) if isinstance(item.get('expiration_date'), datetime) else item.get('expiration_date'),
+                json.dumps(item.get('alert_ids', []), ensure_ascii=False),
+                json.dumps(item.get('history', []), ensure_ascii=False)
+            ))
+
+        conn.executemany("""
+            INSERT INTO ip_metadata (ip, source, tags, added_at, ttl, expiration_date, alert_ids, history)
+            VALUES (?, ?, ?, ?, ?, ?, ?, ?)
+            ON CONFLICT(ip) DO UPDATE SET
+                source=excluded.source,
+                tags=excluded.tags,
+                ttl=excluded.ttl,
+                expiration_date=excluded.expiration_date,
+                alert_ids=excluded.alert_ids,
+                history=excluded.history
+        """, params)
+        
+        conn.commit()
+        conn.close()
+        return True
+    except Exception as e:
+        print(f"DB Bulk Upsert Error: {e}")
+        return False
+
 def delete_ip(ip):
     try:
         conn = get_db()
