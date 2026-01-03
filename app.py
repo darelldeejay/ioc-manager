@@ -2958,39 +2958,46 @@ def _create_feed_response(ips_list):
     Genera una respuesta Flask con ETag (MD5) para la lista de IPs.
     Si el cliente ya tiene esa versión (If-None-Match), devuelve 304.
     """
-    # --- DEBUG FORTIGATE (FILE) ---
-    # Guardamos logs en archivo para no depender de la consola/journalctl
+    body = "\n".join(ips_list) + "\n"
+    content_hash = hashlib.md5(body.encode('utf-8')).hexdigest()
     # --- AUDIT LOG (DB) ---
+    user_agent = request.headers.get('User-Agent', '')
+    is_fortigate = 'FortiGate' in user_agent
+    
+    # Check if client already has this version
+    client_etag = request.if_none_match.to_header() if request.if_none_match else None
+    status_code = 200
+    if request.if_none_match and content_hash in request.if_none_match and not is_fortigate:
+        status_code = 304
+
     try:
-        # Log request details
-        status_code = 200
-        # If we were doing 304 checks, we would log 304 here. But we force 200.
-        
-        # Details: Body size or specific headers
         details = {
             "size_bytes": len(body),
             "etag": content_hash,
-            "client_etag": request.if_none_match.to_header() if request.if_none_match else None
+            "client_etag": client_etag,
+            "forced_200": is_fortigate and client_etag == content_hash
         }
-        
-        # Async logging ideally, but sqlite is fast enough for low traffic
-        db.log_feed_access(request.remote_addr, request.headers.get('User-Agent'), status_code, details)
+        db.log_feed_access(request.remote_addr, user_agent, status_code, details)
     except Exception as e:
         print(f"[AUDIT ERROR] {e}")
-        # Here we could trigger webhook if critical
-    # -----------------------
-    
-    resp = make_response(body, 200)
-    resp.headers["Content-Type"] = "text/plain"
-    
-    # Anti-Cache Headers agresivos
-    resp.headers["Cache-Control"] = "no-store, no-cache, must-revalidate, max-age=0"
-    resp.headers["Pragma"] = "no-cache"
-    resp.headers["Expires"] = "0"
 
-    # Eliminamos ETag para no tentar al cliente a caché
-    if 'ETag' in resp.headers:
-        del resp.headers['ETag']
+    if status_code == 304:
+        # 304 responses MUST NOT have a body
+        resp = make_response("", 304)
+    else:
+        resp = make_response(body, 200)
+    
+    resp.headers["Content-Type"] = "text/plain"
+    resp.set_etag(content_hash)
+    
+    if is_fortigate:
+        # Anti-Cache Headers agresivos para FortiGate
+        resp.headers["Cache-Control"] = "no-store, no-cache, must-revalidate, max-age=0"
+        resp.headers["Pragma"] = "no-cache"
+        resp.headers["Expires"] = "0"
+        # Quitamos ETag para FortiGate si prefieres seguir con la política de no-etag para ellos
+        if 'ETag' in resp.headers:
+            del resp.headers['ETag']
         
     return resp
 
