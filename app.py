@@ -2979,6 +2979,7 @@ def _create_feed_response(ips_list):
     try:
         details = {
             "size_bytes": len(body),
+            "ip_count": len(ips_list),
             "etag": content_hash,
             "client_etag": client_etag,
             "forced_200": is_fortigate and client_etag == content_hash

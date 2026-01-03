@@ -358,7 +358,19 @@ def get_feed_access_logs(limit=10):
         conn = get_db()
         rows = conn.execute("SELECT * FROM feed_access_log ORDER BY id DESC LIMIT ?", (limit,)).fetchall()
         conn.close()
-        return [dict(r) for r in rows]
+        
+        result = []
+        for r in rows:
+            d = dict(r)
+            try:
+                if d.get('details'):
+                    d['details'] = json.loads(d['details'])
+                else:
+                    d['details'] = {}
+            except:
+                d['details'] = {}
+            result.append(d)
+        return result
     except Exception:
         return []
 

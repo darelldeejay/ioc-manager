@@ -331,8 +331,15 @@
 
                     <div class="d-flex flex-column">
                       <!-- Truncate IP if IPv6 is too long -->
-                      <span class="fw-bold text-dark" style="font-family: monospace;" title="{{ log.remote_ip }}">
+                      <span class="fw-bold text-dark d-flex align-items-center gap-2" style="font-family: monospace;"
+                        title="{{ log.remote_ip }}">
                         {{ log.remote_ip|truncate(15, True, '..') }}
+                        {% if log.details and log.details.ip_count %}
+                        <span class="badge bg-secondary-subtle text-secondary border border-secondary-subtle"
+                          style="font-size: 0.6rem;">
+                          {{ log.details.ip_count }} IPs
+                        </span>
+                        {% endif %}
                       </span>
                       <span class="text-muted" style="font-size: 0.7rem;">
                         {{ log.ts[11:19] }} <!-- HH:MM:SS from ISO string -->
