@@ -1762,6 +1762,11 @@ def regenerate_feeds_from_db():
     except Exception as e:
         print(f"[DB SYNC ERROR] {e}")
         return False
+# Asegurar que los feeds existan al cargar el módulo (necesario para Gunicorn/Producción)
+try:
+    regenerate_feeds_from_db()
+except Exception as e:
+    print(f"[STARTUP ERROR] Feed regeneration failed: {e}")
 
 # =========================
 #  Hooks de Flask
@@ -4358,6 +4363,4 @@ def maintenance_toggle():
 if __name__ == "__main__":
     # Ensure DB tables exist
     db.init_db()
-    # Ensure Feed files exist (since they are no longer in Git)
-    regenerate_feeds_from_db()
     app.run(debug=True, host="0.0.0.0", port=5000)
