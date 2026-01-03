@@ -195,11 +195,22 @@ def json_response_ok(notices=None, extra=None):
     return jsonify(payload)
 
 
-def json_response_error(message, code=400, notices=None, extra=None):
     payload = {"ok": False, "error": str(message), "notices": notices or []}
     if extra:
         payload.update(extra)
     return jsonify(payload), code
+
+# === Helpers de Fecha (Fix 500 Error) ===
+def _now_utc():
+    return datetime.now(timezone.utc)
+
+def _iso(dt: datetime) -> str:
+    if dt is None: return None
+    if isinstance(dt, str): return dt
+    # Ensure UTC
+    if dt.tzinfo is None:
+        dt = dt.replace(tzinfo=timezone.utc)
+    return dt.astimezone(timezone.utc).replace(microsecond=0).isoformat().replace("+00:00", "Z")
 
 
 from functools import wraps
