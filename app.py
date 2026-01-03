@@ -2955,6 +2955,7 @@ def index():
                            ipv6_count=ipv6_count,
                            v4_percent=v4_percent,
                            v6_percent=v6_percent,
+                           latest_sync_logs=latest_sync_logs,
                            maintenance_mode=g.get("maintenance_mode", False))
 
 

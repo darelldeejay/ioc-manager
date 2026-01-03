@@ -4,6 +4,14 @@ import os
 import json
 from datetime import datetime, timezone
 
+def _iso(dt: datetime) -> str:
+    if dt is None: return None
+    if isinstance(dt, str): return dt
+    # Ensure UTC
+    if dt.tzinfo is None:
+        dt = dt.replace(tzinfo=timezone.utc)
+    return dt.astimezone(timezone.utc).replace(microsecond=0).isoformat().replace("+00:00", "Z")
+
 DB_FILE = os.path.join(os.path.dirname(os.path.realpath(__file__)), "ioc_manager.db")
 
 def get_db():
