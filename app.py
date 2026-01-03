@@ -2972,23 +2972,31 @@ def _create_feed_response(ips_list):
     # Calcular ETag
     content_hash = hashlib.md5(body.encode("utf-8")).hexdigest()
     
-    # Check conditional request
-    if request.if_none_match and request.if_none_match.contains(content_hash):
-        try:
-            with open("debug-feed.log", "a", encoding="utf-8") as df:
-                df.write(f"-> Response: 304 Not Modified. Client ETag: {request.if_none_match}\n")
-        except: pass
-        return Response(status=304)
+    # Check conditional request (DISABLED FOR FORTIGATE FIX)
+    # if request.if_none_match and request.if_none_match.contains(content_hash):
+    #     try:
+    #         with open("debug-feed.log", "a", encoding="utf-8") as df:
+    #             df.write(f"-> Response: 304 Not Modified. Client ETag: {request.if_none_match}\n")
+    #     except: pass
+    #     return Response(status=304)
     
     try:
         with open("debug-feed.log", "a", encoding="utf-8") as df:
-            df.write(f"-> Response: 200 OK. Body: {len(body)} bytes. ETag: {content_hash}\n")
+            df.write(f"-> Response: 200 OK (Forced). Body: {len(body)} bytes. ETag: {content_hash}\n")
     except: pass
     
     resp = make_response(body, 200)
     resp.headers["Content-Type"] = "text/plain"
-    resp.headers["ETag"] = content_hash
-    resp.headers["Cache-Control"] = "public, max-age=300" # Cacheable for 5 min
+    
+    # Anti-Cache Headers agresivos
+    resp.headers["Cache-Control"] = "no-store, no-cache, must-revalidate, max-age=0"
+    resp.headers["Pragma"] = "no-cache"
+    resp.headers["Expires"] = "0"
+
+    # Eliminamos ETag para no tentar al cliente a caché
+    if 'ETag' in resp.headers:
+        del resp.headers['ETag']
+        
     return resp
 
 
