@@ -2914,6 +2914,9 @@ def index():
 
     known_tags = _collect_known_tags()
 
+    today_str = datetime.now().strftime("%Y-%m-%d")
+    latest_sync_logs = db.get_feed_access_logs(limit=5)
+    
     return render_template("index.html",
                            current_feed=feed_param,
                            feeds_config=visible_feeds,
@@ -2957,33 +2960,25 @@ def _create_feed_response(ips_list):
     """
     # --- DEBUG FORTIGATE (FILE) ---
     # Guardamos logs en archivo para no depender de la consola/journalctl
+    # --- AUDIT LOG (DB) ---
     try:
-        debug_msg = f"\n[{datetime.now()}] Request from {request.remote_addr}\n"
-        debug_msg += f"User-Agent: {request.headers.get('User-Agent')}\n"
-        debug_msg += f"Headers: {dict(request.headers)}\n"
+        # Log request details
+        status_code = 200
+        # If we were doing 304 checks, we would log 304 here. But we force 200.
         
-        with open("debug-feed.log", "a", encoding="utf-8") as df:
-            df.write(debug_msg)
-    except Exception:
-        pass
+        # Details: Body size or specific headers
+        details = {
+            "size_bytes": len(body),
+            "etag": content_hash,
+            "client_etag": request.if_none_match.to_header() if request.if_none_match else None
+        }
+        
+        # Async logging ideally, but sqlite is fast enough for low traffic
+        db.log_feed_access(request.remote_addr, request.headers.get('User-Agent'), status_code, details)
+    except Exception as e:
+        print(f"[AUDIT ERROR] {e}")
+        # Here we could trigger webhook if critical
     # -----------------------
-
-    body = "\n".join(ips_list) + "\n"
-    # Calcular ETag
-    content_hash = hashlib.md5(body.encode("utf-8")).hexdigest()
-    
-    # Check conditional request (DISABLED FOR FORTIGATE FIX)
-    # if request.if_none_match and request.if_none_match.contains(content_hash):
-    #     try:
-    #         with open("debug-feed.log", "a", encoding="utf-8") as df:
-    #             df.write(f"-> Response: 304 Not Modified. Client ETag: {request.if_none_match}\n")
-    #     except: pass
-    #     return Response(status=304)
-    
-    try:
-        with open("debug-feed.log", "a", encoding="utf-8") as df:
-            df.write(f"-> Response: 200 OK (Forced). Body: {len(body)} bytes. ETag: {content_hash}\n")
-    except: pass
     
     resp = make_response(body, 200)
     resp.headers["Content-Type"] = "text/plain"
@@ -3434,6 +3429,7 @@ def admin_settings_ui():
         print(f"Error loading audit logs: {e}")
 
     available_files = get_audit_log_files()
+    latest_sync_logs = db.get_feed_access_logs(limit=5)
 
     return render_template('settings.html', 
                            api_keys=api_keys, 
@@ -3441,7 +3437,8 @@ def admin_settings_ui():
                            audit_logs=audit_logs,
                            current_file=os.path.basename(target_file),
                            is_historical=is_historical,
-                           available_files=available_files)
+                           available_files=available_files,
+                           latest_sync_logs=latest_sync_logs)
 
 @app.route('/admin/api-keys', methods=['POST'])
 @login_required

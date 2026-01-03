@@ -99,10 +99,23 @@ def init_db():
     )
     ''')
 
-    # Indices
+    # Tabla: Indices
     c.execute('CREATE INDEX IF NOT EXISTS idx_audit_ts ON audit_log(ts)')
     c.execute('CREATE INDEX IF NOT EXISTS idx_audit_event ON audit_log(event)')
     c.execute('CREATE INDEX IF NOT EXISTS idx_meta_source ON ip_metadata(source)')
+
+    # Tabla: Logs de Acceso al Feed (Audit)
+    c.execute('''
+    CREATE TABLE IF NOT EXISTS feed_access_log (
+        id INTEGER PRIMARY KEY AUTOINCREMENT,
+        ts TEXT NOT NULL,
+        remote_ip TEXT,
+        user_agent TEXT,
+        status_code INTEGER,
+        details TEXT -- JSON or string
+    )
+    ''')
+    c.execute('CREATE INDEX IF NOT EXISTS idx_feed_ts ON feed_access_log(ts)')
 
     conn.commit()
     conn.close()
@@ -303,6 +316,42 @@ def get_audit_log(limit=500):
         return result
     except Exception as e:
         print(f"Error fetching audit log: {e}")
+        return []
+
+def log_feed_access(remote_ip, user_agent, status_code, details=None):
+    """
+    Registra un acceso al feed y mantiene solo los ultimos 1000 registros.
+    """
+    try:
+        conn = get_db()
+        conn.execute(
+            "INSERT INTO feed_access_log (ts, remote_ip, user_agent, status_code, details) VALUES (?, ?, ?, ?, ?)",
+            (
+                _iso(datetime.now(timezone.utc)), 
+                remote_ip, 
+                user_agent, 
+                status_code, 
+                json.dumps(details or {}, ensure_ascii=False) if isinstance(details, dict) else str(details)
+            )
+        )
+        
+        # Auto-cleanup: Borrar los viejos si hay mas de 1000
+        # "DELETE FROM feed_access_log WHERE id NOT IN (SELECT id FROM feed_access_log ORDER BY id DESC LIMIT 1000)"
+        # Esta query es estandar y segura en SQLite.
+        conn.execute("DELETE FROM feed_access_log WHERE id NOT IN (SELECT id FROM feed_access_log ORDER BY id DESC LIMIT 1000)")
+        
+        conn.commit()
+        conn.close()
+    except Exception as e:
+        print(f"DB Log Feed Error: {e}")
+
+def get_feed_access_logs(limit=10):
+    try:
+        conn = get_db()
+        rows = conn.execute("SELECT * FROM feed_access_log ORDER BY id DESC LIMIT ?", (limit,)).fetchall()
+        conn.close()
+        return [dict(r) for r in rows]
+    except Exception:
         return []
 
 # --- Helpers de acceso (CRUD basico) ---

@@ -185,7 +185,7 @@
     <!-- NUEVAS TARJETAS DE RESUMEN -->
     <div class="row g-3 mb-4">
       <!-- Tarjeta total IPs activas -->
-      <div class="col-12 col-md-6 col-xl-3">
+      <div class="col-12 col-md-6 col-lg-4 col-xl-4">
         <div class="card metric-card h-100 border-0">
           <div class="card-body d-flex flex-column">
             <h6 class="text-uppercase mb-3">IPs activas</h6>
@@ -228,7 +228,7 @@
 
       <!-- Toolbar: Buscador y Acciones -->
       <!-- Tarjeta IPs por origen -->
-      <div class="col-12 col-md-6 col-xl-3">
+      <div class="col-12 col-md-6 col-lg-4 col-xl-4">
         <div class="card metric-card h-100 border-0">
           <div class="card-body d-flex flex-column">
             <h6 class="text-uppercase mb-3">Por origen</h6>
@@ -281,7 +281,7 @@
         </div>
       </div>
       <!-- Tarjeta IPs por tag -->
-      <div class="col-12 col-md-6 col-xl-3">
+      <div class="col-12 col-md-6 col-lg-4 col-xl-4">
         <div class="card metric-card h-100 border-0">
           <div class="card-body d-flex flex-column">
             <h6 class="text-uppercase mb-3">Por tag</h6>
@@ -308,8 +308,68 @@
           </div>
         </div>
       </div>
-      <!-- Tarjeta backups -->
-      <div class="col-12 col-md-6 col-xl-3">
+      <!-- Tarjeta logs de sincronización (NUEVA) -->
+      <div class="col-12 col-md-6 col-lg-6 col-xl-6">
+        <div class="card metric-card h-100 border-0">
+          <div class="card-body d-flex flex-column p-3">
+            <h6 class="text-uppercase mb-2 text-primary fw-bold" style="font-size: 0.75rem;">
+              <i class="bi bi-activity me-1"></i>Últimas Sincronizaciones
+            </h6>
+
+            <div class="flex-grow-1" style="font-size: 0.8rem;">
+              {% if latest_sync_logs %}
+              <div class="d-flex flex-column gap-2">
+                {% for log in latest_sync_logs %}
+                <div class="d-flex align-items-center justify-content-between border-bottom pb-1">
+                  <!-- Time & Status -->
+                  <div class="d-flex align-items-center gap-2">
+                    {% if log.status_code == 200 or log.status_code == 304 %}
+                    <i class="bi bi-check-circle-fill text-success"></i>
+                    {% else %}
+                    <i class="bi bi-x-circle-fill text-danger"></i>
+                    {% endif %}
+
+                    <div class="d-flex flex-column">
+                      <!-- Truncate IP if IPv6 is too long -->
+                      <span class="fw-bold text-dark" style="font-family: monospace;" title="{{ log.remote_ip }}">
+                        {{ log.remote_ip|truncate(15, True, '..') }}
+                      </span>
+                      <span class="text-muted" style="font-size: 0.7rem;">
+                        {{ log.ts[11:19] }} <!-- HH:MM:SS from ISO string -->
+                      </span>
+                    </div>
+                  </div>
+
+                  <!-- Agent info (Mini) -->
+                  <div class="text-end opacity-75" style="max-width: 60px;">
+                    {% if 'FortiGate' in log.user_agent %}
+                    <i class="bi bi-bricks" title="FortiGate"></i>
+                    {% elif 'curl' in log.user_agent %}
+                    <i class="bi bi-terminal" title="curl"></i>
+                    {% else %}
+                    <i class="bi bi-globe" title="Browser/Other"></i>
+                    {% endif %}
+                  </div>
+                </div>
+                {% endfor %}
+              </div>
+              {% else %}
+              <div class="text-center text-muted mt-4">
+                <i class="bi bi-hourglass-split display-6 opacity-25"></i>
+                <div class="small mt-2">Esperando tráfico...</div>
+              </div>
+              {% endif %}
+            </div>
+
+            <!-- Footer: Link to full logs (Future) -->
+            <div class="mt-auto pt-2 border-top d-flex justify-content-center">
+              <small class="text-muted fst-italic">Logs de acceso al feed</small>
+            </div>
+          </div>
+        </div>
+      </div>
+
+      <div class="col-12 col-md-6 col-lg-6 col-xl-6">
         <div class="card metric-card h-100 border-0">
           <div class="card-body d-flex flex-column">
             <h6 class="text-uppercase mb-3">Backups</h6>
