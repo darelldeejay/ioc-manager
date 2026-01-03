@@ -2955,14 +2955,36 @@ def _create_feed_response(ips_list):
     Genera una respuesta Flask con ETag (MD5) para la lista de IPs.
     Si el cliente ya tiene esa versión (If-None-Match), devuelve 304.
     """
+    # --- DEBUG FORTIGATE (FILE) ---
+    # Guardamos logs en archivo para no depender de la consola/journalctl
+    try:
+        debug_msg = f"\n[{datetime.now()}] Request from {request.remote_addr}\n"
+        debug_msg += f"User-Agent: {request.headers.get('User-Agent')}\n"
+        debug_msg += f"Headers: {dict(request.headers)}\n"
+        
+        with open("debug-feed.log", "a", encoding="utf-8") as df:
+            df.write(debug_msg)
+    except Exception:
+        pass
+    # -----------------------
+
     body = "\n".join(ips_list) + "\n"
     # Calcular ETag
     content_hash = hashlib.md5(body.encode("utf-8")).hexdigest()
     
     # Check conditional request
     if request.if_none_match and request.if_none_match.contains(content_hash):
+        try:
+            with open("debug-feed.log", "a", encoding="utf-8") as df:
+                df.write(f"-> Response: 304 Not Modified. Client ETag: {request.if_none_match}\n")
+        except: pass
         return Response(status=304)
-        
+    
+    try:
+        with open("debug-feed.log", "a", encoding="utf-8") as df:
+            df.write(f"-> Response: 200 OK. Body: {len(body)} bytes. ETag: {content_hash}\n")
+    except: pass
+    
     resp = make_response(body, 200)
     resp.headers["Content-Type"] = "text/plain"
     resp.headers["ETag"] = content_hash
