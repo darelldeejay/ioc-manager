@@ -318,28 +318,28 @@
               {% if latest_sync_logs %}
               <div class="d-flex flex-column gap-2">
                 {% for log in latest_sync_logs %}
-                <div class="d-flex align-items-center justify-content-between border-bottom pb-1">
+                <div class="d-flex align-items-center justify-content-between border-bottom pb-2">
                   <!-- Time & Status -->
-                  <div class="d-flex align-items-center gap-2">
+                  <div class="d-flex align-items-center gap-3">
                     {% if log.status_code == 200 or log.status_code == 304 %}
-                    <i class="bi bi-check-circle-fill text-success"></i>
+                    <i class="bi bi-check-circle-fill text-success fs-5"></i>
                     {% else %}
-                    <i class="bi bi-x-circle-fill text-danger"></i>
+                    <i class="bi bi-x-circle-fill text-danger fs-5"></i>
                     {% endif %}
 
                     <div class="d-flex flex-column">
                       <!-- Truncate IP if IPv6 is too long -->
-                      <span class="fw-bold text-dark d-flex align-items-center gap-2" style="font-family: monospace;"
-                        title="{{ log.remote_ip }}">
-                        {{ log.remote_ip|truncate(15, True, '..') }}
+                      <span class="fw-bold text-dark d-flex align-items-center gap-2"
+                        style="font-family: 'Inter', monospace; font-size: 0.95rem;" title="{{ log.remote_ip }}">
+                        {{ log.remote_ip|truncate(20, True, '..') }}
                         {% if log.details and log.details.ip_count %}
-                        <span class="badge bg-secondary-subtle text-secondary border border-secondary-subtle"
-                          style="font-size: 0.6rem;">
+                        <span class="badge bg-primary-subtle text-primary border border-primary-subtle px-2"
+                          style="font-size: 0.75rem;">
                           {{ log.details.ip_count }} IPs
                         </span>
                         {% endif %}
                       </span>
-                      <span class="text-muted" style="font-size: 0.7rem;">
+                      <span class="text-muted" style="font-size: 0.75rem;">
                         {{ log.ts[11:19] }} <!-- HH:MM:SS from ISO string -->
                       </span>
                     </div>
