@@ -712,8 +712,8 @@ def ip_block_reason(ip_str):
     except ValueError:
         return "IP inválida"
 
-    if isinstance(obj, ipaddress.IPv6Address):
-        return "IPv6 no soportado"
+    # IPv6 enabled
+
     if obj.is_unspecified:
         return "bloqueo de absolutamente todo"
     if obj.is_private:
@@ -1125,13 +1125,8 @@ def add_ips_validated(lines, existentes, iterable_ips, ttl_val, origin=None, con
         if not is_allowed_ip(ip_str):
             rechazadas += 1
             continue
-        try:
-            if isinstance(ipaddress.ip_address(ip_str), ipaddress.IPv6Address):
-                rechazadas += 1
-                continue
-        except Exception:
-            rechazadas += 1
-            continue
+        # IPv6 restriction removed
+
 
         # Logic for DB Upsert
         is_update = ip_str in existentes
@@ -2434,12 +2429,8 @@ def index():
                          if not is_allowed_ip(ip_str):
                              rejected_total += 1
                              continue
-                         # Ignore IPv6 for now (as requested by user)
-                         try:
-                            if isinstance(ipaddress.ip_address(ip_str), ipaddress.IPv6Address):
-                                continue
-                         except: 
-                            pass
+                         # IPv6 restriction removed
+                         pass
 
                          # Prepare Validation/Logic similar to add_ips_validated but simplified for bulk
                          
@@ -2660,6 +2651,27 @@ def index():
 
     # --- DB BASED INDEX LOGIC ---
     all_ips_rows = db.get_all_ips()
+
+    # --- IPv4 vs IPv6 Breakdown ---
+    ipv4_count = 0
+    ipv6_count = 0
+    for r in all_ips_rows:
+        try:
+            ver = ipaddress.ip_address(r['ip']).version
+            if ver == 4:
+                ipv4_count += 1
+            elif ver == 6:
+                ipv6_count += 1
+        except ValueError:
+            pass
+    # ------------------------------
+    total_for_calc = ipv4_count + ipv6_count
+    if total_for_calc > 0:
+        v4_percent = (ipv4_count / total_for_calc) * 100
+        v6_percent = (ipv6_count / total_for_calc) * 100
+    else:
+        v4_percent = 0
+        v6_percent = 0
     
     # Pre-calcular contadores totales
     # (Ya se calculan en compute_source_and_tag_counters_union, pero aquí validamos si se usa para algo más)
@@ -2675,8 +2687,23 @@ def index():
     live_manual = src_union.get("manual", 0)
     live_csv = src_union.get("csv", 0)
     live_api = src_union.get("api", 0)
+    
+    # Calculate Source Percentages
+    total_src_calc = live_manual + live_csv + live_api
+    if total_src_calc > 0:
+        man_percent = (live_manual / total_src_calc) * 100
+        csv_percent = (live_csv / total_src_calc) * 100
+        api_percent = (live_api / total_src_calc) * 100
+    else:
+        man_percent = 0
+        csv_percent = 0
+        api_percent = 0
+    
     tag_totals = tag_union
     
+    # Sort tags by count descending for the UI
+    sorted_tags = sorted(tag_totals.items(), key=lambda item: item[1], reverse=True)
+
     # Mapa ip -> details
     ip_details = {}
     ip_tags_map = {}
@@ -2740,6 +2767,20 @@ def index():
             if row_src != source_param:
                 # print(f"DEBUG: Skipping {ip} - source {row_src} != {source_param}")
                 continue
+
+        # 4. IP Version Filter
+        ip_ver_param = request.args.get("ip_version", "all")
+        if ip_ver_param != "all":
+            try:
+                # ip string comes from r["ip"]
+                obj = ipaddress.ip_address(ip)
+                if ip_ver_param == "v4" and obj.version != 4:
+                    continue
+                if ip_ver_param == "v6" and obj.version != 6:
+                    continue
+            except ValueError:
+                pass
+
 
         # 4. Tag Filter (Specific)
         tag_param = request.args.get("tag", "all")
@@ -2826,6 +2867,17 @@ def index():
     end = start + page_size
     paged_items = filtered[start:end]
     
+    # NEW: Get Latest Backup Info
+    last_backup_ts = None
+    try:
+        if os.path.exists(BACKUP_DIR):
+            backups = [os.path.join(BACKUP_DIR, f) for f in os.listdir(BACKUP_DIR) if f.endswith('.zip')]
+            if backups:
+                latest = max(backups, key=os.path.getmtime)
+                last_backup_ts = datetime.fromtimestamp(os.path.getmtime(latest)).strftime('%Y-%m-%d %H:%M')
+    except:
+        pass
+
     # Generate 'lines' for Template (Legacy string format)
     lines = []
     for it in paged_items:
@@ -2873,12 +2925,17 @@ def index():
                            contador_manual=live_manual,
                            contador_csv=live_csv,
                            contador_api=live_api,
-                           contador_tags=tag_totals,
+                           man_percent=man_percent,
+                           csv_percent=csv_percent,
+                           api_percent=api_percent,
+                           contador_tags=tag_totals, # Kept for dictionary access if needed
+                           sorted_tags=sorted_tags,  # Sorted list for UI
                            union_total=total_union,
                            union_by_source=src_union,
                            union_by_tag=tag_union,
                            union_by_source_tag=src_tag_union,
                            messages=messages,
+                           last_backup_ts=last_backup_ts, # Nueva variable
                            user_role=user_data.get("role", "editor"),
                            request_actions=request_actions,
                            ip_tags=ip_tags,
@@ -2886,6 +2943,10 @@ def index():
                            ip_ticket_ids=ip_alert_ids,
                            known_tags=known_tags,
                            days_remaining=days_remaining,
+                           ipv4_count=ipv4_count,
+                           ipv6_count=ipv6_count,
+                           v4_percent=v4_percent,
+                           v6_percent=v6_percent,
                            maintenance_mode=g.get("maintenance_mode", False))
 
 

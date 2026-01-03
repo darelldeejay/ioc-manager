@@ -91,7 +91,8 @@ var tableState = {
     date_from: '',
     date_to: '',
     tag: 'all',
-    origin: 'all'
+    origin: 'all',
+    ip_version: 'all'
 };
 var serverMode = true; // intentamos server JSON; si falla, fallback local
 
@@ -435,6 +436,7 @@ console.log("DEBUG: Pre-InstantValidate (Now integrated in index.js)");
 
     const OCTET = '(25[0-5]|2[0-4]\\d|1?\\d?\\d)';
     const ipv4Re = new RegExp(`^${OCTET}(\\.${OCTET}){3}$`);
+    const ipv6Re = /^[0-9a-fA-F:]+$/; // Basic check for IPv6
     const cidrRe = new RegExp(`^${OCTET}(\\.${OCTET}){3}\\/(?:[0-9]|[12][0-9]|3[0-2])$`);
     const rangeRe = new RegExp(`^${OCTET}(\\.${OCTET}){3}\\s*-\\s*${OCTET}(\\.${OCTET}){3}$`);
     const ipMaskRe = new RegExp(`^${OCTET}(\\.${OCTET}){3}\\s+${OCTET}(\\.${OCTET}){3}$`);
@@ -467,6 +469,7 @@ console.log("DEBUG: Pre-InstantValidate (Now integrated in index.js)");
             return { ok: false, msg: 'Acción no permitida: bloqueo de absolutamente todo (0.0.0.0).' };
         }
         if (ipv4Re.test(val)) return { ok: true };
+        if (ipv6Re.test(val) && val.includes(':')) return { ok: true }; // Allow IPv6
         if (cidrRe.test(val)) return { ok: true };
         if (rangeRe.test(val)) return { ok: true };
         if (ipMaskRe.test(val)) {
@@ -474,7 +477,7 @@ console.log("DEBUG: Pre-InstantValidate (Now integrated in index.js)");
             if (validMasks.has(mask)) return { ok: true };
             return { ok: false, msg: 'Máscara inválida. Usa máscara de red contigua (p.ej. 255.255.255.0).' };
         }
-        return { ok: false, msg: 'Formato inválido. Ejemplos: 1.2.3.4 · 1.2.3.0/24 · 1.2.3.4-1.2.3.20 · 1.2.3.0 255.255.255.0' };
+        return { ok: false, msg: 'Formato inválido (IPv4/IPv6). Ejemplos: 1.2.3.4 · 2001:db8::1' };
     }
 
     function setState(state) {
@@ -613,6 +616,7 @@ document.addEventListener('DOMContentLoaded', () => {
     // NEW Filters
     const tagSelect = document.getElementById('tagSelect');
     const originSelect = document.getElementById('originSelect');
+    const ipVersionSelect = document.getElementById('ipVersionSelect');
 
     if (orderDesc) orderDesc.addEventListener('click', () => { tableState.order = 'desc'; orderDesc.classList.add('active'); orderAsc.classList.remove('active'); reloadTable(true); });
     if (orderAsc) orderAsc.addEventListener('click', () => { tableState.order = 'asc'; orderAsc.classList.add('active'); orderDesc.classList.remove('active'); reloadTable(true); });
@@ -630,6 +634,13 @@ document.addEventListener('DOMContentLoaded', () => {
     if (originSelect) {
         originSelect.addEventListener('change', () => {
             tableState.origin = originSelect.value;
+            tableState.page = 1;
+            reloadTable(true);
+        });
+    }
+    if (ipVersionSelect) {
+        ipVersionSelect.addEventListener('change', () => {
+            tableState.ip_version = ipVersionSelect.value;
             tableState.page = 1;
             reloadTable(true);
         });
@@ -670,6 +681,7 @@ document.addEventListener('DOMContentLoaded', () => {
             // Capture Filters
             if (tagSelect) tableState.tag = tagSelect.value;
             if (originSelect) tableState.origin = originSelect.value;
+            if (ipVersionSelect) tableState.ip_version = ipVersionSelect.value;
 
             tableState.page = 1;
             reloadTable(true);
@@ -686,8 +698,10 @@ document.addEventListener('DOMContentLoaded', () => {
             // Clear Filters
             if (tagSelect) tagSelect.value = 'all';
             if (originSelect) originSelect.value = 'all';
+            if (ipVersionSelect) ipVersionSelect.value = 'all';
             tableState.tag = 'all';
             tableState.origin = 'all';
+            tableState.ip_version = 'all';
 
             tableState.sort = 'fecha';
             tableState.order = 'desc';
@@ -719,6 +733,7 @@ async function reloadTable(resetIfEmpty) {
         // Include new filters
         if (tableState.tag && tableState.tag !== 'all') params.set('tag', tableState.tag);
         if (tableState.origin && tableState.origin !== 'all') params.set('origin', tableState.origin);
+        if (tableState.ip_version && tableState.ip_version !== 'all') params.set('ip_version', tableState.ip_version);
 
         const hasRange = (tableState.date_from || tableState.date_to);
         if (hasRange) {

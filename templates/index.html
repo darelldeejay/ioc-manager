@@ -187,13 +187,38 @@
       <!-- Tarjeta total IPs activas -->
       <div class="col-12 col-md-6 col-xl-3">
         <div class="card metric-card h-100 border-0">
-          <div class="card-body">
-            <h6 class="text-uppercase mb-1">IPs activas</h6>
-            <div class="display-6">{{ total_ips or 0 }}</div>
-            <div class="d-flex justify-content-between align-items-center mt-2">
-              <small class="text-muted">En todos los feeds</small>
-              <button type="button" class="btn btn-outline-primary btn-sm" id="btnShowGraphs" title="Ver Gráficas">
-                <i class="bi bi-graph-up me-1"></i> Gráficas
+          <div class="card-body d-flex flex-column">
+            <h6 class="text-uppercase mb-3">IPs activas</h6>
+
+            <div class="d-flex align-items-end justify-content-between">
+              <div class="display-5 fw-bold text-dark">{{ total_ips or 0 }}</div>
+              <div class="text-end">
+                <!-- v4 -->
+                <div class="d-flex align-items-center justify-content-end text-primary mb-1">
+                  <i class="bi bi-hdd-network me-2"></i>
+                  <span class="fw-bold">{{ ipv4_count }}</span>
+                  <span class="small ms-1 opacity-75">v4</span>
+                </div>
+                <!-- v6 -->
+                <div class="d-flex align-items-center justify-content-end text-info">
+                  <i class="bi bi-globe me-2"></i>
+                  <span class="fw-bold">{{ ipv6_count }}</span>
+                  <span class="small ms-1 opacity-75">v6</span>
+                </div>
+              </div>
+            </div>
+
+            <!-- Progress Bar -->
+            <div class="progress my-3" style="height: 6px;">
+              <div class="progress-bar bg-primary" role="progressbar" style="width: {{ v4_percent }}%"></div>
+              <div class="progress-bar bg-info" role="progressbar" style="width: {{ v6_percent }}%"></div>
+            </div>
+
+            <!-- Footer: Gráficas -->
+            <div class="mt-auto pt-2 border-top d-flex justify-content-between align-items-center">
+              <small class="text-muted">Análisis detallado</small>
+              <button type="button" class="btn btn-sm btn-link text-decoration-none p-0 fw-bold" id="btnShowGraphs">
+                Ver Gráficas <i class="bi bi-arrow-right-short"></i>
               </button>
             </div>
           </div>
@@ -205,21 +230,52 @@
       <!-- Tarjeta IPs por origen -->
       <div class="col-12 col-md-6 col-xl-3">
         <div class="card metric-card h-100 border-0">
-          <div class="card-body">
-            <h6 class="text-uppercase mb-1">Por origen</h6>
-            <div class="d-flex justify-content-between mt-2">
-              <div>
-                <span class="badge bg-primary">Manual</span>
-                <div class="fs-4">{{ contador_manual or 0 }}</div>
+          <div class="card-body d-flex flex-column">
+            <h6 class="text-uppercase mb-3">Por origen</h6>
+
+            <div class="flex-grow-1">
+              <!-- Manual -->
+              <div class="d-flex justify-content-between align-items-center mb-2">
+                <div class="d-flex align-items-center text-primary">
+                  <i class="bi bi-keyboard me-2"></i>
+                  <span class="small fw-bold">Manual</span>
+                </div>
+                <div class="fw-bold">{{ contador_manual or 0 }}</div>
               </div>
-              <div>
-                <span class="badge bg-info text-dark">CSV</span>
-                <div class="fs-4">{{ contador_csv or 0 }}</div>
+
+              <!-- CSV -->
+              <div class="d-flex justify-content-between align-items-center mb-2">
+                <div class="d-flex align-items-center text-info">
+                  <i class="bi bi-file-earmark-spreadsheet me-2"></i>
+                  <span class="small fw-bold">CSV</span>
+                </div>
+                <div class="fw-bold">{{ contador_csv or 0 }}</div>
               </div>
-              <div>
-                <span class="badge bg-warning text-dark">API</span>
-                <div class="fs-4">{{ contador_api or 0 }}</div>
+
+              <!-- API -->
+              <div class="d-flex justify-content-between align-items-center">
+                <div class="d-flex align-items-center text-warning">
+                  <i class="bi bi-hdd-rack me-2"></i>
+                  <span class="small fw-bold">API</span>
+                </div>
+                <div class="fw-bold">{{ contador_api or 0 }}</div>
               </div>
+            </div>
+
+            <!-- Progress Bar -->
+            <div class="progress mt-3" style="height: 6px;">
+              <div class="progress-bar bg-primary" role="progressbar" style="width: {{ man_percent }}%" title="Manual">
+              </div>
+              <div class="progress-bar bg-info" role="progressbar" style="width: {{ csv_percent }}%" title="CSV"></div>
+              <div class="progress-bar bg-warning" role="progressbar" style="width: {{ api_percent }}%" title="API">
+              </div>
+            </div>
+
+            <!-- Spacer to match height of neighbor card footer -->
+            <div class="mt-auto pt-2 border-top d-flex justify-content-between align-items-center invisible"
+              style="height: 31px;">
+              <!-- Invisible filler to ensure same height as Active IPs card footer -->
+              <small>Placeholder</small>
             </div>
           </div>
         </div>
@@ -227,48 +283,73 @@
       <!-- Tarjeta IPs por tag -->
       <div class="col-12 col-md-6 col-xl-3">
         <div class="card metric-card h-100 border-0">
-          <div class="card-body">
-            <h6 class="text-uppercase mb-1">Por tag</h6>
-            <div class="d-flex flex-column gap-1 mt-2 pe-1" style="max-height: 150px; overflow-y: auto;">
-              {% for tname, tcount in contador_tags.items() %}
-              <div class="d-flex justify-content-between align-items-center">
-                <span class="badge rounded-pill {{ tag_color(tname) }}">{{ tname }}</span>
-                <span class="fs-5">{{ tcount }}</span>
+          <div class="card-body d-flex flex-column">
+            <h6 class="text-uppercase mb-3">Por tag</h6>
+            <div class="flex-grow-1">
+              {% if sorted_tags %}
+              {% for tname, tcount in sorted_tags[:5] %}
+              <div class="d-flex justify-content-between align-items-center mb-2">
+                <span class="badge rounded-pill {{ tag_color(tname) }} px-3">{{ tname }}</span>
+                <span class="fw-bold">{{ tcount }}</span>
               </div>
+              {% endfor %}
+
+              {% set remaining = sorted_tags|length - 5 %}
+              {% if remaining > 0 %}
+              <div class="text-center mt-2 border-top pt-2">
+                <small class="text-muted fw-bold">+ {{ remaining }} etiquetas más...</small>
+              </div>
+              {% endif %}
               {% else %}
               <div class="text-muted small">Sin tags registrados</div>
-              {% endfor %}
+              {% endif %}
             </div>
+
           </div>
         </div>
       </div>
       <!-- Tarjeta backups -->
       <div class="col-12 col-md-6 col-xl-3">
         <div class="card metric-card h-100 border-0">
-          <div class="card-body">
-            <h6 class="text-uppercase mb-1">Backups</h6>
-            <p class="mb-2">
-              <small class="text-muted">
-                Backup diario automático si hay cambios.
-              </small>
-            </p>
-            <form method="POST" action="{{ url_for('backup_now') }}" class="mb-2 w-100">
-              <button class="btn btn-success btn-sm w-100 text-start" type="submit">
-                <i class="bi bi-cloud-plus"></i> Generar Nuevo
+          <div class="card-body d-flex flex-column">
+            <h6 class="text-uppercase mb-3">Backups</h6>
+
+            <div class="flex-grow-1 d-flex flex-column justify-content-center align-items-center text-center">
+              {% if last_backup_ts %}
+              <i class="bi bi-cloud-check text-success display-4 mb-2"></i>
+              <small class="text-muted d-block">Último backup:</small>
+              <span class="fw-bold text-dark">{{ last_backup_ts }}</span>
+              {% else %}
+              <i class="bi bi-cloud-slash text-secondary display-4 mb-2"></i>
+              <small class="text-muted">No hay backups recientes.</small>
+              {% endif %}
+            </div>
+
+            <!-- Footer: Actions -->
+            <div class="mt-3">
+              <!-- Generate Button -->
+              <form method="POST" action="{{ url_for('backup_now') }}" class="mb-2 w-100">
+                <button class="btn btn-success btn-sm w-100 fw-bold" type="submit">
+                  <i class="bi bi-cloud-plus-fill me-1"></i> Generar Nuevo
+                </button>
+              </form>
+
+              <div class="d-flex gap-2 mb-2">
+                <a href="/backup/latest.zip" class="btn btn-outline-secondary btn-sm flex-fill"
+                  title="Descargar último">
+                  <i class="bi bi-download"></i> Descargar
+                </a>
+                <a href="{{ url_for('backup_list') }}" class="btn btn-outline-secondary btn-sm flex-fill"
+                  title="Historial">
+                  <i class="bi bi-clock-history"></i> Historial
+                </a>
+              </div>
+
+              <button class="btn btn-sm btn-link text-decoration-none w-100 p-0 text-muted" style="font-size: 0.85rem;"
+                data-bs-toggle="modal" data-bs-target="#modalRestore">
+                <i class="bi bi-arrow-counterclockwise"></i> Restaurar copia
               </button>
-            </form>
-            <a href="/backup/latest.zip" class="btn btn-outline-success btn-sm mb-2 w-100 text-start">
-              <i class="bi bi-download"></i> Descargar Último
-            </a>
-            <a href="{{ url_for('backup_list') }}" class="btn btn-outline-secondary btn-sm mb-2 w-100 text-start">
-              <i class="bi bi-clock-history"></i> Ver backups
-            </a>
-
-            <button class="btn btn-outline-primary btn-sm mb-2 w-100 text-start" data-bs-toggle="modal"
-              data-bs-target="#modalRestore">
-              <i class="bi bi-upload"></i> Restaurar
-            </button>
-
+            </div>
 
             {% if user_role == 'admin' %}
             <div class="form-check form-switch small mt-2">
@@ -315,7 +396,7 @@
       </li>
     </ul>
 
-    <div class="tab-content card card-body shadow-sm mb-4 border-primary" id="actionsTabContent">
+    <div class="tab-content card card-body shadow-sm mb-1 border-primary" id="actionsTabContent">
 
       <!-- === PESTAÑA MANUAL === -->
       <div class="tab-pane fade show active" id="pane-manual" role="tabpanel" aria-labelledby="tab-manual">
@@ -325,9 +406,9 @@
           <div class="row g-3 mb-1 align-items-end">
             <!-- IP -->
             <div class="col-lg-4">
-              <label for="ipInput" class="form-label small mb-1">IP / Red / Rango / IP+Máscara</label>
+              <label for="ipInput" class="form-label small mb-1">IP (v4/v6) / Red / Rango</label>
               <input id="ipInput" type="text" class="form-control" name="ip" autocomplete="off"
-                placeholder="Ej: 1.2.3.4 · 1.2.3.0/24">
+                placeholder="Ej: 1.2.3.4 · 2001:db8::1 · 1.2.3.0/24">
               <div id="ipFeedback" class="invalid-feedback"></div>
             </div>
 
@@ -407,9 +488,7 @@
           <!-- Ayuda de formatos -->
           <div class="row mb-3">
             <div class="col-12">
-              <div class="form-text small">
-                Formatos admitidos: IP individual · CIDR · rango · IP + máscara (p. ej. 1.2.3.0 255.255.255.0)
-              </div>
+              Formatos admitidos: IP (v4/v6) · CIDR · rango · IP + máscara (p. ej. 1.2.3.0 255.255.255.0)
             </div>
           </div>
         </form>
@@ -464,7 +543,7 @@
           <!-- Nota de ayuda -->
           <div class="row mb-3">
             <div class="col-12">
-              <div class="form-text small">Solo archivos .csv o .txt con una IP por línea.</div>
+              <div class="form-text small">Solo archivos .csv o .txt con una IP (v4 o v6) por línea.</div>
             </div>
           </div>
         </form>
@@ -472,8 +551,7 @@
 
       <!-- === PESTAÑA DELETE === -->
       <div class="tab-pane fade" id="pane-delete" role="tabpanel" aria-labelledby="tab-delete">
-        <!-- Acciones avanzadas (Botones que abren modales, no necesitan form aquí salvo que tengan inputs directos) -->
-        <!-- Los modales ya tienen sus propios forms. Aquí solo botones trigger. -->
+        <!-- Acciones avanzadas (Botones que abren modales) -->
         <div class="row g-3 mb-4">
           <div class="col-lg-6">
             <button type="button" class="btn btn-outline-warning w-100" data-bs-toggle="modal"
@@ -485,10 +563,10 @@
             <div class="hint-box">
               <strong>Ejemplos válidos:</strong>
               <ul class="mb-0">
-                <li><code>203.0.113.0/24</code> (CIDR)</li>
-                <li><code>203.0.113.10-203.0.113.50</code> (rango)</li>
+                <li><code>203.0.113.0/24</code> o <code>2001:db8::/32</code> (CIDR)</li>
+                <li><code>1.2.3.4-1.2.3.50</code> (rango)</li>
                 <li><code>203.0.113.0 255.255.255.0</code> (IP + máscara)</li>
-                <li><code>203.0.113.5</code> (IP suelta)</li>
+                <li><code>2001:db8::1</code> (IP suelta)</li>
               </ul>
             </div>
           </div>
@@ -540,10 +618,9 @@
             <button type="button" class="btn-close" data-bs-dismiss="modal" aria-label="Cerrar"></button>
           </div>
           <div class="modal-body">
-            <label for="delete_net_input" class="form-label">Introduce un patrón:</label>
+            <label for="delete_net_input" class="form-label">Introduce un patrón (IPv4/IPv6):</label>
             <input type="text" class="form-control" id="delete_net_input" name="delete_net_input"
-              placeholder="Ej: 203.0.113.0/24 · 203.0.113.10-203.0.113.50 · 203.0.113.0 255.255.255.0 · 203.0.113.5"
-              required>
+              placeholder="Ej: 203.0.113.0/24 · 2001:db8::/32 · 1.2.3.4-1.2.3.50" required>
 
             <!-- Resultado de previsualización -->
             <div id="previewResult" class="mt-2 small text-muted">
@@ -553,10 +630,9 @@
             <div class="hint-box mt-3">
               <strong>Se eliminarán todas las IPs que coincidan.</strong>
               <ul class="mb-0">
-                <li>CIDR: <code>203.0.113.0/24</code></li>
-                <li>Rango: <code>203.0.113.10-203.0.113.50</code></li>
-                <li>IP + máscara: <code>203.0.113.0 255.255.255.0</code></li>
-                <li>IP suelta: <code>203.0.113.5</code></li>
+                <li>CIDR: <code>203.0.113.0/24</code> o <code>2001:db8::/32</code></li>
+                <li>Rango: <code>1.2.3.4-1.2.3.50</code></li>
+                <li>IP: <code>1.2.3.4</code> o <code>2001:db8::1</code></li>
               </ul>
             </div>
           </div>
@@ -668,9 +744,7 @@
       </div>
     </div>
 
-    <hr>
-
-    <div class="constrained-section">
+    <div class="constrained-section mt-2">
       <h4 class="section-title">IPs bloqueadas</h4>
 
       <!-- Controles server-side (progresivo; si falla JSON, queda fallback local) -->
@@ -678,6 +752,14 @@
         <div>
           <label class="form-label small mb-1">Buscar IP</label>
           <input type="text" id="qInput" class="form-control" placeholder="Ej: 203.0.113.5">
+        </div>
+        <div>
+          <label class="form-label small mb-1">Versión IP</label>
+          <select id="ipVersionSelect" class="form-select">
+            <option value="all" selected>Todas</option>
+            <option value="v4">IPv4</option>
+            <option value="v6">IPv6</option>
+          </select>
         </div>
         <div>
           <label class="form-label small mb-1">Origen</label>
@@ -1322,6 +1404,7 @@
 
         const OCTET = '(25[0-5]|2[0-4]\\d|1?\\d?\\d)';
         const ipv4Re = new RegExp(`^${OCTET}(\\.${OCTET}){3}$`);
+        const ipv6Re = /^[0-9a-fA-F:]+$/; // Basic check, backend validates strictly
         const cidrRe = new RegExp(`^${OCTET}(\\.${OCTET}){3}\\/(?:[0-9]|[12][0-9]|3[0-2])$`);
         const rangeRe = new RegExp(`^${OCTET}(\\.${OCTET}){3}\\s*-\\s*${OCTET}(\\.${OCTET}){3}$`);
         const ipMaskRe = new RegExp(`^${OCTET}(\\.${OCTET}){3}\\s+${OCTET}(\\.${OCTET}){3}$`);
@@ -1347,6 +1430,7 @@
         }
 
         function validate(val) {
+          console.log("Validating:", val);
           if (!val || !val.trim()) {
             return { ok: false, msg: 'Introduce una IP, CIDR, rango o IP con máscara.' };
           }
@@ -1354,6 +1438,10 @@
             return { ok: false, msg: 'Acción no permitida: bloqueo de absolutamente todo (0.0.0.0).' };
           }
           if (ipv4Re.test(val)) { return { ok: true }; }
+          if (ipv6Re.test(val) && val.includes(':')) {
+            console.log("IPv6 Match!");
+            return { ok: true };
+          }
           if (cidrRe.test(val)) { return { ok: true }; }
           if (rangeRe.test(val)) { return { ok: true }; }
           if (ipMaskRe.test(val)) {
@@ -1362,7 +1450,7 @@
             return { ok: false, msg: 'Máscara inválida. Usa máscara de red contigua (p.ej. 255.255.255.0).' };
           }
           return {
-            ok: false, msg: 'Formato inválido. Ejemplos: 1.2.3.4 · 1.2.3.0/24 · 1.2.3.4-1.2.3.20 · 1.2.3.0 255.255.255.0'
+            ok: false, msg: 'Formato inválido (IPv4/IPv6). Ejemplos: 1.2.3.4 · 2001:db8::1'
           };
         }
 
