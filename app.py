@@ -4358,4 +4358,6 @@ def maintenance_toggle():
 if __name__ == "__main__":
     # Ensure DB tables exist
     db.init_db()
+    # Ensure Feed files exist (since they are no longer in Git)
+    regenerate_feeds_from_db()
     app.run(debug=True, host="0.0.0.0", port=5000)
