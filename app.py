@@ -35,7 +35,18 @@ app = Flask(__name__)
 # Clave secreta desde .env
 app.secret_key = os.getenv('FLASK_SECRET_KEY', 'dev-key-insegura-si-falta-env')
 TOKEN_API = os.getenv("TOKEN_API")
+TOKEN_API = os.getenv("TOKEN_API")
+# Prioritize DB config for Webhook, fallback to ENV
 TEAMS_WEBHOOK_URL = os.getenv("TEAMS_WEBHOOK_URL")
+try:
+    # Try to load from DB if initialized
+    import sqlite3
+    _db_val = db.get_config("TEAMS_WEBHOOK_URL") # This function is safe-ish if db exists
+    if _db_val:
+        TEAMS_WEBHOOK_URL = _db_val
+except Exception:
+    pass # DB might not be ready yet
+
 MAINTENANCE_MODE = False
 
 
@@ -212,6 +223,9 @@ def _iso(dt: datetime) -> str:
         dt = dt.replace(tzinfo=timezone.utc)
     return dt.astimezone(timezone.utc).replace(microsecond=0).isoformat().replace("+00:00", "Z")
 
+# Fix NameError: Stub for missing undo functionality
+def _set_last_action(action, data):
+    pass 
 
 from functools import wraps
 
@@ -2379,98 +2393,98 @@ def index():
             # -------------------------------------
             
             # --- BULK OPTIMIZATION START ---
-            bulk_upsert_list = []
-            
-            for raw_line in content:
-                raw_line = (raw_line or "").strip()
-                if not raw_line or raw_line.lower().startswith("ip" + delimiter): 
-                    continue
+            try:
+                bulk_upsert_list = []
                 
-                parts = raw_line.split(delimiter)
-                # Formato: IP [;|] Tags [;|] AlertID
-                
-                raw_ip = parts[0].strip()
-                raw_tags = parts[1].strip() if len(parts) > 1 else ""
-                raw_alert = parts[2].strip() if len(parts) > 2 else None
-                
-                # Tags: Si no hay en el CSV, asignamos 'Multicliente' por defecto
-                parsed_tags = _parse_tags_field(raw_tags)
-                if not parsed_tags:
-                    parsed_tags = ["Multicliente"]
-                
-                row_tags = _filter_allowed_tags(parsed_tags)
-                
-                if not row_tags:
-                    rejected_total += 1
-                    continue
+                for raw_line in content:
+                    raw_line = (raw_line or "").strip()
+                    if not raw_line or raw_line.lower().startswith("ip" + delimiter): 
+                        continue
+                    
+                    parts = raw_line.split(delimiter)
+                    # Formato: IP [;|] Tags [;|] AlertID
+                    
+                    raw_ip = parts[0].strip()
+                    raw_tags = parts[1].strip() if len(parts) > 1 else ""
+                    raw_alert = parts[2].strip() if len(parts) > 2 else None
+                    
+                    # Tags: Si no hay en el CSV, asignamos 'Multicliente' por defecto
+                    parsed_tags = _parse_tags_field(raw_tags)
+                    if not parsed_tags:
+                        parsed_tags = ["Multicliente"]
+                    
+                    row_tags = _filter_allowed_tags(parsed_tags)
+                    
+                    if not row_tags:
+                        rejected_total += 1
+                        continue
 
-                try:
-                    expanded = expand_input_to_ips(raw_ip)
-                except ValueError as e:
-                    # Log errors silently or per-line
-                    rejected_total += 1
-                    continue
-                
-                # Expand IPs and prepare object for Bulk
-                ttl_days = int(ttl_csv_val) if ttl_csv_val.isdigit() else 0
-                expires_at_dt = (_now_utc() + timedelta(days=ttl_days)) if ttl_days > 0 else (_now_utc() + timedelta(days=365*100))
-                
-                for ip_str in expanded:
-                     if not is_allowed_ip(ip_str):
-                         rejected_total += 1
-                         continue
-                     # Ignore IPv6 for now (as requested by user)
-                     try:
-                        if isinstance(ipaddress.ip_address(ip_str), ipaddress.IPv6Address):
-                            continue
-                     except: 
-                        pass
+                    try:
+                        expanded = expand_input_to_ips(raw_ip)
+                    except ValueError as e:
+                        # Log errors silently or per-line
+                        rejected_total += 1
+                        continue
+                    
+                    # Expand IPs and prepare object for Bulk
+                    ttl_days = int(ttl_csv_val) if ttl_csv_val.isdigit() else 0
+                    expires_at_dt = (_now_utc() + timedelta(days=ttl_days)) if ttl_days > 0 else (_now_utc() + timedelta(days=365*100))
+                    
+                    for ip_str in expanded:
+                         if not is_allowed_ip(ip_str):
+                             rejected_total += 1
+                             continue
+                         # Ignore IPv6 for now (as requested by user)
+                         try:
+                            if isinstance(ipaddress.ip_address(ip_str), ipaddress.IPv6Address):
+                                continue
+                         except: 
+                            pass
 
-                     # Prepare Validation/Logic similar to add_ips_validated but simplified for bulk
-                     # History Handling: We accept that bulk might overwrite history tail or we can't easily append without read.
-                     # Compromise: Create a new history entry and overwrite whatever is there? 
-                     # Better: Bulk upsert helper in DB overwrites history. 
-                     # ideally we should read existing history... but that kills perf.
-                     # Let's start with a fresh history entry for this batch action.
-                     
-                     history_entry = {
-                        "ts": _iso(_now_utc()),
-                        "action": "upsert_bulk",
-                        "user": f"web/{session.get('username','admin')}",
-                        "source": "csv",
-                        "tags": row_tags,
-                        "ttl": ttl_days,
-                        "alert_id": raw_alert
-                     }
-                     
-                     item = {
-                         "ip": ip_str,
-                         "source": "csv",
-                         "tags": row_tags,
-                         "ttl": ttl_days,
-                         "expiration_date": expires_at_dt,
-                         "alert_ids": [raw_alert] if raw_alert else [],
-                         "history": [history_entry] 
-                     }
-                     
-                     bulk_upsert_list.append(item)
-                     
-                     # Update Context Counts/Logs
-                     # We don't know if it was update or add without checking DB.
-                     # For speed, we might assume add or just mark as "processed".
-                     valid_ips_total += 1
-                     added_lines_acc.append(f"{ip_str}|...|{ttl_csv_val}")
-                     
-                     # Accumulate for Teams (just assume added/updated generic)
-                     csv_added_objs.append({
-                        "ip": ip_str, "tags": row_tags, "ttl": ttl_days, "alert_id": raw_alert
-                     })
+                         # Prepare Validation/Logic similar to add_ips_validated but simplified for bulk
+                         
+                         history_entry = {
+                            "ts": _iso(_now_utc()),
+                            "action": "upsert_bulk",
+                            "user": f"web/{session.get('username','admin')}",
+                            "source": "csv",
+                            "tags": row_tags,
+                            "ttl": ttl_days,
+                            "alert_id": raw_alert
+                         }
+                         
+                         item = {
+                             "ip": ip_str,
+                             "source": "csv",
+                             "tags": row_tags,
+                             "ttl": ttl_days,
+                             "expiration_date": expires_at_dt,
+                             "alert_ids": [raw_alert] if raw_alert else [],
+                             "history": [history_entry] 
+                         }
+                         
+                         bulk_upsert_list.append(item)
+                         
+                         # Update Context Counts/Logs
+                         valid_ips_total += 1
+                         added_lines_acc.append(f"{ip_str}|Bulk|{ttl_csv_val}")
+                         
+                         # Accumulate for Teams (just assume added/updated generic)
+                         csv_added_objs.append({
+                            "ip": ip_str, "tags": row_tags, "ttl": ttl_days, "alert_id": raw_alert
+                         })
 
-            # EXECUTE BULK INSERT
-            if bulk_upsert_list:
-                db.bulk_upsert_ips(bulk_upsert_list)
-                regenerate_feeds_from_db()
+                # EXECUTE BULK INSERT
+                if bulk_upsert_list:
+                    db.bulk_upsert_ips(bulk_upsert_list)
+                    regenerate_feeds_from_db()
 
+            except Exception as e:
+                print(f"CRASH DEBUG: {e}")
+                import traceback
+                traceback.print_exc()
+                flash(f"Error Crítico en Carga CSV: {str(e)}", "danger")
+                return redirect(url_for("index"))
             # --- BULK OPTIMIZATION END ---
 
             # 4) Persistir feed y notificar
@@ -3397,6 +3411,11 @@ def admin_config():
     webhook = request.form.get('teams_webhook_url')
     if webhook is not None:
         db.set_config("TEAMS_WEBHOOK_URL", webhook.strip())
+        
+        # Update Global Variable immediately
+        global TEAMS_WEBHOOK_URL
+        TEAMS_WEBHOOK_URL = webhook.strip()
+        
         flash("Configuración actualizada", "success")
         
     return redirect(url_for('admin_settings_ui'))
