@@ -1,13 +1,13 @@
-
 import sqlite3
 import os
 import json
 from datetime import datetime, timezone
 
 def _iso(dt: datetime) -> str:
+    """Formatea una fecha a ISO 8601 con sufijo Z (UTC)."""
     if dt is None: return None
     if isinstance(dt, str): return dt
-    # Ensure UTC
+    # Asegurar que tenga timezone, si no, asumir UTC
     if dt.tzinfo is None:
         dt = dt.replace(tzinfo=timezone.utc)
     return dt.astimezone(timezone.utc).replace(microsecond=0).isoformat().replace("+00:00", "Z")
@@ -35,20 +35,17 @@ def init_db():
     )
     ''')
     
-    # Tabla: Metadata IPv4 (Estado actual)
-    # Stores tags, source, ttl, and misc details.
-    # The actual "feed" is still generated from this state + flat files, or we move to full DB?
-    # Requirement: "Pasar ip_details + audit a SQLite".
+    # Tabla: Metadata IPv4
     c.execute('''
     CREATE TABLE IF NOT EXISTS ip_metadata (
         ip TEXT PRIMARY KEY,
-        source TEXT DEFAULT 'manual', -- manual, csv, api
-        tags TEXT, -- JSON list ["Multicliente", "BPE"]
+        source TEXT DEFAULT 'manual',
+        tags TEXT, 
         added_at TEXT,
-        ttl TEXT DEFAULT '0', -- 0=permanent, or days
+        ttl TEXT DEFAULT '0',
         expiration_date TEXT,
-        alert_ids TEXT, -- JSON list of tickets
-        history TEXT -- JSON list of changes
+        alert_ids TEXT, 
+        history TEXT 
     )
     ''')
 
@@ -64,7 +61,7 @@ def init_db():
     )
     ''')
 
-    # Tabla: Configuración (Llave-Valor)
+    # Tabla: Configuración
     c.execute('''
     CREATE TABLE IF NOT EXISTS config (
         key TEXT PRIMARY KEY,
@@ -72,26 +69,25 @@ def init_db():
     )
     ''')
 
-    # Tabla: Métricas Históricas (Dashboard)
+    # Tabla: Métricas Históricas
     c.execute('''
     CREATE TABLE IF NOT EXISTS history_metrics (
-        date TEXT PRIMARY KEY,  -- YYYY-MM-DD
+        date TEXT PRIMARY KEY,
         total INTEGER DEFAULT 0,
         manual INTEGER DEFAULT 0,
         csv INTEGER DEFAULT 0,
         api INTEGER DEFAULT 0,
-        tags_json TEXT          -- JSON con desglose de tags
+        tags_json TEXT
     )
     ''')
 
-
-    # Tabla: API Keys (Nombre, Token, Scopes)
+    # Tabla: API Keys
     c.execute('''
     CREATE TABLE IF NOT EXISTS api_keys (
         id INTEGER PRIMARY KEY AUTOINCREMENT,
         name TEXT NOT NULL,
         token TEXT UNIQUE NOT NULL,
-        scopes TEXT NOT NULL, -- "READ,WRITE,ALL"
+        scopes TEXT NOT NULL,
         created_at TEXT
     )
     ''')
@@ -101,18 +97,13 @@ def init_db():
     CREATE TABLE IF NOT EXISTS test_runs (
         id INTEGER PRIMARY KEY AUTOINCREMENT,
         ts TEXT NOT NULL,
-        success INTEGER, -- 1=OK, 0=Fail
+        success INTEGER,
         output TEXT,
         actor TEXT
     )
     ''')
 
-    # Tabla: Indices
-    c.execute('CREATE INDEX IF NOT EXISTS idx_audit_ts ON audit_log(ts)')
-    c.execute('CREATE INDEX IF NOT EXISTS idx_audit_event ON audit_log(event)')
-    c.execute('CREATE INDEX IF NOT EXISTS idx_meta_source ON ip_metadata(source)')
-
-    # Tabla: Logs de Acceso al Feed (Audit)
+    # Tabla: Logs de Acceso al Feed
     c.execute('''
     CREATE TABLE IF NOT EXISTS feed_access_log (
         id INTEGER PRIMARY KEY AUTOINCREMENT,
@@ -120,16 +111,20 @@ def init_db():
         remote_ip TEXT,
         user_agent TEXT,
         status_code INTEGER,
-        details TEXT -- JSON or string
+        details TEXT -- JSON
     )
     ''')
+
+    # Índices
+    c.execute('CREATE INDEX IF NOT EXISTS idx_audit_ts ON audit_log(ts)')
+    c.execute('CREATE INDEX IF NOT EXISTS idx_audit_event ON audit_log(event)')
+    c.execute('CREATE INDEX IF NOT EXISTS idx_meta_source ON ip_metadata(source)')
     c.execute('CREATE INDEX IF NOT EXISTS idx_feed_ts ON feed_access_log(ts)')
 
     conn.commit()
     conn.close()
 
 # --- Config Helpers ---
-
 def get_config(key, default=None):
     try:
         conn = get_db()
@@ -151,7 +146,6 @@ def set_config(key, value):
         return False
 
 # --- API Key Helpers ---
-
 def create_api_key(name, token, scopes):
     try:
         conn = get_db()
@@ -195,12 +189,7 @@ def get_api_key(token):
     except Exception:
         return None
 
-def _iso(dt: datetime) -> str:
-    if dt is None: return None
-    return dt.astimezone(timezone.utc).replace(microsecond=0).isoformat().replace("+00:00", "Z")
-
-# --- Helpers de acceso (CRUD basico) ---
-
+# --- User Helpers ---
 def get_user_count():
     try:
         conn = get_db()
@@ -215,9 +204,7 @@ def get_user_by_username(username):
         conn = get_db()
         row = conn.execute("SELECT * FROM users WHERE username = ?", (username,)).fetchone()
         conn.close()
-        if row:
-            return dict(row)
-        return None
+        return dict(row) if row else None
     except Exception:
         return None
 
@@ -226,13 +213,7 @@ def create_user(username, password_hash, role="editor", allowed_feeds=None):
         conn = get_db()
         conn.execute(
             "INSERT INTO users (username, password_hash, role, created_at, allowed_feeds) VALUES (?, ?, ?, ?, ?)",
-            (
-                username, 
-                password_hash, 
-                role, 
-                _iso(datetime.now(timezone.utc)),
-                json.dumps(allowed_feeds or [], ensure_ascii=False)
-            )
+            (username, password_hash, role, _iso(datetime.now(timezone.utc)), json.dumps(allowed_feeds or []))
         )
         conn.commit()
         conn.close()
@@ -244,26 +225,16 @@ def create_user(username, password_hash, role="editor", allowed_feeds=None):
 def update_user(username, role=None, allowed_feeds=None, password_hash=None):
     try:
         conn = get_db()
-        # Build dynamic update
-        fields = []
-        params = []
+        fields, params = [], []
         if role is not None:
-            fields.append("role = ?")
-            params.append(role)
+            fields.append("role = ?"); params.append(role)
         if allowed_feeds is not None:
-            fields.append("allowed_feeds = ?")
-            params.append(json.dumps(allowed_feeds, ensure_ascii=False))
+            fields.append("allowed_feeds = ?"); params.append(json.dumps(allowed_feeds))
         if password_hash is not None:
-            fields.append("password_hash = ?")
-            params.append(password_hash)
-            
-        if not fields:
-            return True # Nothing to update
-            
+            fields.append("password_hash = ?"); params.append(password_hash)
+        if not fields: return True
         params.append(username)
-        query = f"UPDATE users SET {', '.join(fields)} WHERE username = ?"
-        
-        conn.execute(query, tuple(params))
+        conn.execute(f"UPDATE users SET {', '.join(fields)} WHERE username = ?", tuple(params))
         conn.commit()
         conn.close()
         return True
@@ -278,76 +249,45 @@ def delete_user(username):
         conn.commit()
         conn.close()
         return True
-    except Exception as e:
-        print(f"DB Delete User Error: {e}")
+    except Exception:
         return False
 
+# --- Audit & Feed Logs ---
 def db_audit(event, actor, scope, details=None):
     try:
         conn = get_db()
         conn.execute(
             "INSERT INTO audit_log (ts, event, actor, scope, details) VALUES (?, ?, ?, ?, ?)",
-            (
-                _iso(datetime.now(timezone.utc)), 
-                str(event), 
-                str(actor), 
-                str(scope), # Ensure scope is string, even if dict passed by mistake
-                json.dumps(details or {}, ensure_ascii=False)
-            )
+            (_iso(datetime.now(timezone.utc)), str(event), str(actor), str(scope), json.dumps(details or {}))
         )
         conn.commit()
         conn.close()
     except Exception as e:
-        print(f"DB Log Error: {e}")
+        print(f"DB Audit Error: {e}")
 
 def get_audit_log(limit=500):
-    """
-    Recupera los últimos registros de auditoría de la base de datos.
-    """
     try:
         conn = get_db()
-        # Orden descendente por ID o TS para ver lo más reciente arriba
-        rows = conn.execute(
-            "SELECT ts, event, actor, scope, details FROM audit_log ORDER BY id DESC LIMIT ?",
-            (limit,)
-        ).fetchall()
+        rows = conn.execute("SELECT * FROM audit_log ORDER BY id DESC LIMIT ?", (limit,)).fetchall()
         conn.close()
-        
         result = []
         for r in rows:
             d = dict(r)
-            try:
-                d['details'] = json.loads(d['details']) if d['details'] else {}
-            except:
-                d['details'] = {}
+            try: d['details'] = json.loads(d['details']) if d['details'] else {}
+            except: d['details'] = {}
             result.append(d)
         return result
-    except Exception as e:
-        print(f"Error fetching audit log: {e}")
+    except Exception:
         return []
 
 def log_feed_access(remote_ip, user_agent, status_code, details=None):
-    """
-    Registra un acceso al feed y mantiene solo los ultimos 1000 registros.
-    """
     try:
         conn = get_db()
         conn.execute(
             "INSERT INTO feed_access_log (ts, remote_ip, user_agent, status_code, details) VALUES (?, ?, ?, ?, ?)",
-            (
-                _iso(datetime.now(timezone.utc)), 
-                remote_ip, 
-                user_agent, 
-                status_code, 
-                json.dumps(details or {}, ensure_ascii=False) if isinstance(details, dict) else str(details)
-            )
+            (_iso(datetime.now(timezone.utc)), remote_ip, user_agent, status_code, json.dumps(details or {}))
         )
-        
-        # Auto-cleanup: Borrar los viejos si hay mas de 1000
-        # "DELETE FROM feed_access_log WHERE id NOT IN (SELECT id FROM feed_access_log ORDER BY id DESC LIMIT 1000)"
-        # Esta query es estandar y segura en SQLite.
         conn.execute("DELETE FROM feed_access_log WHERE id NOT IN (SELECT id FROM feed_access_log ORDER BY id DESC LIMIT 1000)")
-        
         conn.commit()
         conn.close()
     except Exception as e:
@@ -358,28 +298,17 @@ def get_feed_access_logs(limit=10):
         conn = get_db()
         rows = conn.execute("SELECT * FROM feed_access_log ORDER BY id DESC LIMIT ?", (limit,)).fetchall()
         conn.close()
-        
         result = []
         for r in rows:
             d = dict(r)
-            try:
-                if d.get('details'):
-                    d['details'] = json.loads(d['details'])
-                else:
-                    d['details'] = {}
-            except:
-                d['details'] = {}
+            try: d['details'] = json.loads(d['details']) if d['details'] else {}
+            except: d['details'] = {}
             result.append(d)
         return result
     except Exception:
         return []
 
-# --- Helpers de acceso (CRUD basico) ---
-
-# ... User Helpers ...
-
-# --- IP Metadata Helpers ---
-
+# --- IP Management ---
 def get_ip(ip):
     try:
         conn = get_db()
@@ -394,40 +323,22 @@ def get_all_ips():
         conn = get_db()
         rows = conn.execute("SELECT * FROM ip_metadata").fetchall()
         conn.close()
-
         return [dict(r) for r in rows]
     except Exception:
         return []
 
 def upsert_ip(ip, source, tags, ttl, expiration_date, alert_ids, history):
-    """
-    Inserta o actualiza una IP completa.
-    tags, alert_ids, history deben ser listas/dicts pasados como objetos Python (se convierten a JSON aquí).
-    """
     try:
         conn = get_db()
         conn.execute("""
             INSERT INTO ip_metadata (ip, source, tags, added_at, ttl, expiration_date, alert_ids, history)
             VALUES (?, ?, ?, ?, ?, ?, ?, ?)
             ON CONFLICT(ip) DO UPDATE SET
-                source=excluded.source,
-                tags=excluded.tags,
-                ttl=excluded.ttl,
-                expiration_date=excluded.expiration_date,
-                alert_ids=excluded.alert_ids,
-                history=excluded.history
-        """, (
-            ip, 
-            source, 
-            json.dumps(tags, ensure_ascii=False), 
-            _iso(datetime.now(timezone.utc)), # updated/added at
-            str(ttl), 
-            _iso(expiration_date) if isinstance(expiration_date, datetime) else expiration_date,
-            json.dumps(alert_ids or [], ensure_ascii=False),
-            json.dumps(history or [], ensure_ascii=False)
-        ))
-
-
+                source=excluded.source, tags=excluded.tags, ttl=excluded.ttl,
+                expiration_date=excluded.expiration_date, alert_ids=excluded.alert_ids, history=excluded.history
+        """, (ip, source, json.dumps(tags), _iso(datetime.now(timezone.utc)), str(ttl), 
+              _iso(expiration_date) if isinstance(expiration_date, datetime) else expiration_date,
+              json.dumps(alert_ids or []), json.dumps(history or [])))
         conn.commit()
         conn.close()
         return True
@@ -436,42 +347,21 @@ def upsert_ip(ip, source, tags, ttl, expiration_date, alert_ids, history):
         return False
 
 def bulk_upsert_ips(ip_list):
-    """
-    Inserta o actualiza multiples IPs en una sola transaccion.
-    ip_list: Lista de diccionarios con keys: ip, source, tags, ttl, expiration_date, alert_ids, history
-    """
-    if not ip_list:
-        return True
-        
+    if not ip_list: return True
     try:
         conn = get_db()
-        # Usamos executemany para maxima velocidad
-        # Preparamos los datos
         params = []
-        for item in ip_list:
-            params.append((
-                item['ip'],
-                item['source'],
-                json.dumps(item.get('tags', []), ensure_ascii=False),
-                _iso(datetime.now(timezone.utc)), # added_at (always update?)
-                str(item.get('ttl', 0)),
-                _iso(item['expiration_date']) if isinstance(item.get('expiration_date'), datetime) else item.get('expiration_date'),
-                json.dumps(item.get('alert_ids', []), ensure_ascii=False),
-                json.dumps(item.get('history', []), ensure_ascii=False)
-            ))
-
+        for it in ip_list:
+            params.append((it['ip'], it['source'], json.dumps(it.get('tags', [])), _iso(datetime.now(timezone.utc)),
+                           str(it.get('ttl', 0)), _iso(it.get('expiration_date')) if isinstance(it.get('expiration_date'), datetime) else it.get('expiration_date'),
+                           json.dumps(it.get('alert_ids', [])), json.dumps(it.get('history', []))))
         conn.executemany("""
             INSERT INTO ip_metadata (ip, source, tags, added_at, ttl, expiration_date, alert_ids, history)
             VALUES (?, ?, ?, ?, ?, ?, ?, ?)
             ON CONFLICT(ip) DO UPDATE SET
-                source=excluded.source,
-                tags=excluded.tags,
-                ttl=excluded.ttl,
-                expiration_date=excluded.expiration_date,
-                alert_ids=excluded.alert_ids,
-                history=excluded.history
+                source=excluded.source, tags=excluded.tags, ttl=excluded.ttl,
+                expiration_date=excluded.expiration_date, alert_ids=excluded.alert_ids, history=excluded.history
         """, params)
-        
         conn.commit()
         conn.close()
         return True
@@ -486,8 +376,7 @@ def delete_ip(ip):
         conn.commit()
         conn.close()
         return True
-    except Exception:
-        return False
+    except Exception: return False
 
 def delete_all_ips():
     try:
@@ -496,208 +385,115 @@ def delete_all_ips():
         conn.commit()
         conn.close()
         return True
-    except Exception:
-        return False
-
-def remove_tag(ip, tag):
-    """
-    Elimina un tag específico de una IP.
-    """
-    try:
-        ip_data = get_ip(ip)
-        if not ip_data:
-            return False
-            
-        tags = []
-        if ip_data['tags']:
-            try:
-                tags = json.loads(ip_data['tags'])
-            except:
-                pass
-                
-        if tag in tags:
-            tags.remove(tag)
-            # Update DB (partial update of tags)
-            conn = get_db()
-            conn.execute("UPDATE ip_metadata SET tags = ? WHERE ip = ?", (json.dumps(tags, ensure_ascii=False), ip))
-            conn.commit()
-            conn.close()
-            return True
-        return True # Tag no estaba, éxito
-
-    except Exception as e:
-        print(f"DB Remove Tag Error: {e}")
-        return False
+    except Exception: return False
 
 def update_ip_ttl(ip, new_ttl):
-    """
-    Actualiza solo el TTL de una IP.
-    """
     try:
         conn = get_db()
         conn.execute("UPDATE ip_metadata SET ttl = ? WHERE ip = ?", (str(new_ttl), ip))
         conn.commit()
         conn.close()
         return True
-    except Exception as e:
-        print(f"DB Update TTL Error: {e}")
-        return False
+    except Exception: return False
 
-
-# --- Tag Management Helpers ---
+# --- Tags ---
 def add_tag(ip, tag):
-    """
-    Añade un tag específico a una IP si no lo tiene ya.
-    """
     try:
-        ip_data = get_ip(ip)
-        if not ip_data:
-            return False
-            
-        tags = []
-        if ip_data['tags']:
-            try:
-                tags = json.loads(ip_data['tags'])
-            except:
-                pass
-                
+        data = get_ip(ip)
+        if not data: return False
+        tags = json.loads(data['tags']) if data['tags'] else []
         if tag not in tags:
             tags.append(tag)
             conn = get_db()
-            conn.execute("UPDATE ip_metadata SET tags = ? WHERE ip = ?", (json.dumps(tags, ensure_ascii=False), ip))
+            conn.execute("UPDATE ip_metadata SET tags = ? WHERE ip = ?", (json.dumps(tags), ip))
             conn.commit()
             conn.close()
             return True
-        return False # Tag ya existía
-    except Exception as e:
-        print(f"DB Add Tag Error: {e}")
         return False
+    except Exception: return False
+
+def remove_tag(ip, tag):
+    try:
+        data = get_ip(ip)
+        if not data: return False
+        tags = json.loads(data['tags']) if data['tags'] else []
+        if tag in tags:
+            tags.remove(tag)
+            conn = get_db()
+            conn.execute("UPDATE ip_metadata SET tags = ? WHERE ip = ?", (json.dumps(tags), ip))
+            conn.commit()
+            conn.close()
+            return True
+        return True
+    except Exception: return False
 
 def bulk_add_tag(ip_list, tag):
-    """
-    Añade el tag a todas las IPs de la lista.
-    Retorna True si al menos una IP fue modificada.
-    """
     modified = False
     try:
         conn = get_db()
         for ip in ip_list:
-            # Check existing tags
             row = conn.execute("SELECT tags FROM ip_metadata WHERE ip = ?", (ip,)).fetchone()
             if not row: continue
-            
-            curr_tags = []
-            if row['tags']:
-                try: curr_tags = json.loads(row['tags'])
-                except: pass
-            
-            if tag not in curr_tags:
-                curr_tags.append(tag)
-                conn.execute("UPDATE ip_metadata SET tags = ? WHERE ip = ?", (json.dumps(curr_tags, ensure_ascii=False), ip))
+            tags = json.loads(row['tags']) if row['tags'] else []
+            if tag not in tags:
+                tags.append(tag)
+                conn.execute("UPDATE ip_metadata SET tags = ? WHERE ip = ?", (json.dumps(tags), ip))
                 modified = True
-        
         conn.commit()
         conn.close()
-    except Exception as e:
-        print(f"DB Bulk Add Error: {e}")
+    except Exception: pass
     return modified
 
 def bulk_remove_tag(ip_list, tag):
-    """
-    Elimina el tag de todas las IPs de la lista.
-    Retorna True si al menos una IP fue modificada.
-    """
     modified = False
     try:
         conn = get_db()
         for ip in ip_list:
             row = conn.execute("SELECT tags FROM ip_metadata WHERE ip = ?", (ip,)).fetchone()
             if not row: continue
-            
-            curr_tags = []
-            if row['tags']:
-                try: curr_tags = json.loads(row['tags'])
-                except: pass
-            
-            if tag in curr_tags:
-                curr_tags.remove(tag)
-                conn.execute("UPDATE ip_metadata SET tags = ? WHERE ip = ?", (json.dumps(curr_tags, ensure_ascii=False), ip))
+            tags = json.loads(row['tags']) if row['tags'] else []
+            if tag in tags:
+                tags.remove(tag)
+                conn.execute("UPDATE ip_metadata SET tags = ? WHERE ip = ?", (json.dumps(tags), ip))
                 modified = True
-        
         conn.commit()
         conn.close()
-    except Exception as e:
-        print(f"DB Bulk Remove Error: {e}")
+    except Exception: pass
     return modified
 
-
+# --- Metrics ---
 def save_daily_snapshot(counters):
-    """
-    Guarda o actualiza la foto de contadores para el día de hoy.
-    counters: dict con {total, manual, csv, api, tags: dict}
-    """
     try:
         today = datetime.now().strftime('%Y-%m-%d')
         conn = get_db()
-        
-        tags_json = json.dumps(counters.get('tags', {}))
-        
-        # INSERT OR REPLACE para mantener actualizado el día actual
         conn.execute('''
             INSERT OR REPLACE INTO history_metrics (date, total, manual, csv, api, tags_json)
             VALUES (?, ?, ?, ?, ?, ?)
-        ''', (
-            today, 
-            counters.get('total', 0), 
-            counters.get('manual', 0), 
-            counters.get('csv', 0), 
-            counters.get('api', 0), 
-            tags_json
-        ))
-        
+        ''', (today, counters.get('total', 0), counters.get('manual', 0), counters.get('csv', 0), counters.get('api', 0), json.dumps(counters.get('tags', {}))))
         conn.commit()
         conn.close()
     except Exception as e:
-        print(f"⚠️ Error saving daily snapshot: {e}")
+        print(f"DB Metrics Error: {e}")
 
 def get_metrics_history(limit=30):
-    """
-    Devuelve lista de objetos históricos ordenados por fecha asc.
-    """
     try:
         conn = get_db()
         rows = conn.execute('SELECT * FROM history_metrics ORDER BY date DESC LIMIT ?', (limit,)).fetchall()
         conn.close()
-        
-        # Convertir a lista y ordenar cronológicamente para Chart.js
         history = []
         for r in rows:
-            history.append({
-                'date': r['date'],
-                'total': r['total'],
-                'sources': {
-                    'manual': r['manual'],
-                    'csv': r['csv'],
-                    'api': r['api']
-                },
-                'tags': json.loads(r['tags_json']) if r['tags_json'] else {}
-            })
-        
-        return sorted(history, key=lambda x: x['date']) # Retornar ASC para la gráfica
-    except Exception as e:
-        print(f"⚠️ Error fetching history: {e}")
-        return []
+            history.append({'date': r['date'], 'total': r['total'], 'sources': {'manual': r['manual'], 'csv': r['csv'], 'api': r['api']}, 'tags': json.loads(r['tags_json']) if r['tags_json'] else {}})
+        return sorted(history, key=lambda x: x['date'])
+    except Exception: return []
 
-# --- Test History Helpers ---
+# --- Test History ---
 def save_test_run(success, output, actor="system"):
     try:
         conn = get_db()
-        conn.execute('INSERT INTO test_runs (ts, success, output, actor) VALUES (?, ?, ?, ?)',
-                     (datetime.now().isoformat(), 1 if success else 0, output, actor))
+        conn.execute('INSERT INTO test_runs (ts, success, output, actor) VALUES (?, ?, ?, ?)', (datetime.now().isoformat(), 1 if success else 0, output, actor))
         conn.commit()
         conn.close()
-    except Exception as e:
-        print(f"⚠️ Error saving test run: {e}")
+    except Exception: pass
 
 def get_test_history(limit=10):
     try:
@@ -705,27 +501,4 @@ def get_test_history(limit=10):
         rows = conn.execute('SELECT * FROM test_runs ORDER BY ts DESC LIMIT ?', (limit,)).fetchall()
         conn.close()
         return [dict(r) for r in rows]
-    except Exception as e:
-        print(f"⚠️ Error fetching test history: {e}")
-        return []
-
-# --- Config Helpers ---
-def get_config(key, default=None):
-    try:
-        conn = get_db()
-        row = conn.execute("SELECT value FROM config WHERE key = ?", (key,)).fetchone()
-        conn.close()
-        return row['value'] if row else default
-    except Exception:
-        return default
-
-def set_config(key, value):
-    try:
-        conn = get_db()
-        conn.execute("INSERT INTO config (key, value) VALUES (?, ?) ON CONFLICT(key) DO UPDATE SET value=excluded.value", (key, str(value)))
-        conn.commit()
-        conn.close()
-        return True
-    except Exception as e:
-        print(f"Error setting config {key}: {e}")
-        return False
+    except Exception: return []
