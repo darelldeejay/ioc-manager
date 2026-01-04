@@ -1122,3 +1122,40 @@ window.submitManageTags = async function (action) {
     }
 };
 
+
+/* ========================================================
+   Conversión de Tiempos (UTC -> Local)
+   ======================================================== */
+function convertAllSyncTimes() {
+    document.querySelectorAll('.sync-time').forEach(el => {
+        const utcStr = el.getAttribute('data-utc');
+        if (!utcStr) return;
+
+        try {
+            // Aseguramos que el string ISO sea válido para el constructor Date
+            const date = new Date(utcStr);
+            if (!isNaN(date.getTime())) {
+                // Formateamos a la hora local del usuario (HH:MM:SS)
+                el.textContent = date.toLocaleTimeString([], {
+                    hour: '2-digit',
+                    minute: '2-digit',
+                    second: '2-digit'
+                });
+                // Añadimos un tooltip con la fecha completa local por si acaso
+                el.title = `Hora Local: ${date.toLocaleString()}`;
+            }
+        } catch (e) {
+            console.error("Error converting time:", e);
+        }
+    });
+}
+
+document.addEventListener('DOMContentLoaded', convertAllSyncTimes);
+// También lo ejecutamos si la tabla se recarga dinámicamente
+const originalReloadTable = window.reloadTable;
+if (typeof originalReloadTable === 'function') {
+    window.reloadTable = async function (...args) {
+        await originalReloadTable(...args);
+        convertAllSyncTimes();
+    };
+}

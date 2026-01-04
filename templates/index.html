@@ -339,8 +339,8 @@
                         </span>
                         {% endif %}
                       </span>
-                      <span class="text-muted" style="font-size: 0.75rem;">
-                        {{ log.ts[11:19] }} (UTC) <!-- HH:MM:SS from ISO string -->
+                      <span class="text-muted sync-time" style="font-size: 0.75rem;" data-utc="{{ log.ts }}">
+                        {{ log.ts[11:19] }} <!-- Fallback to UTC if JS fails -->
                       </span>
                     </div>
                   </div>
