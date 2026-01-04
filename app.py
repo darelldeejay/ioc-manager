@@ -2973,16 +2973,16 @@ def _create_feed_response(ips_list):
     # Check if client already has this version
     client_etag = request.if_none_match.to_header() if request.if_none_match else None
     status_code = 200
-    if request.if_none_match and content_hash in request.if_none_match and not is_fortigate:
+    if request.if_none_match and content_hash in request.if_none_match:
         status_code = 304
 
     try:
         details = {
-            "size_bytes": len(body),
+            "size_bytes": len(body) if status_code == 200 else 0,
             "ip_count": len(ips_list),
             "etag": content_hash,
             "client_etag": client_etag,
-            "forced_200": is_fortigate and client_etag == content_hash
+            "is_304": status_code == 304
         }
         db.log_feed_access(request.remote_addr, user_agent, status_code, details)
     except Exception as e:
@@ -2998,13 +2998,11 @@ def _create_feed_response(ips_list):
     resp.set_etag(content_hash)
     
     if is_fortigate:
-        # Anti-Cache Headers agresivos para FortiGate
-        resp.headers["Cache-Control"] = "no-store, no-cache, must-revalidate, max-age=0"
+        # Permitimos el uso de ETag para validar (304), pero pedimos que valide siempre.
+        resp.headers["Cache-Control"] = "no-cache, must-revalidate, max-age=0"
         resp.headers["Pragma"] = "no-cache"
         resp.headers["Expires"] = "0"
-        # Quitamos ETag para FortiGate si prefieres seguir con la política de no-etag para ellos
-        if 'ETag' in resp.headers:
-            del resp.headers['ETag']
+        # NO borramos el ETag para que el FortiGate pueda enviarlo en el próximo If-None-Match
         
     return resp
 
