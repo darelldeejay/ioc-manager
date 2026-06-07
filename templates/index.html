@@ -588,7 +588,7 @@
               <div class="alert alert-light border small mb-0 p-2 lh-sm">
                 <i class="bi bi-info-circle me-1"></i>
                 Formato: <strong>IP;Tags;AlertID</strong>
-                <br>Tags: <em>Multicliente, BPE, Test</em>
+                <br>Tags: <em>Multicliente, Cliente, Test</em>
               </div>
             </div>
 
@@ -839,7 +839,7 @@
           <label class="form-label small mb-1">Tag</label>
           <select id="tagSelect" class="form-select">
             <option value="all">Todos</option>
-            {% set pinned = ['Multicliente', 'BPE', 'Test'] %}
+            {% set pinned = ['Multicliente', feed2_tag, 'Test'] %}
             <!-- Pinned tags first -->
             {% for p in pinned %}
             <option value="{{ p }}">{{ p }}</option>
@@ -1021,15 +1021,15 @@
                           <button type="button" class="btn-close" data-bs-dismiss="modal" aria-label="Cerrar"></button>
                         </div>
                         <div class="modal-body">
-                          {% if 'BPE' in tags or 'bpe' in tags %}
+                          {% if feed2_tag in tags or 'BPE' in tags or 'bpe' in tags %}
                           <div class="alert alert-warning border-warning">
                             <div class="d-flex">
                               <i class="bi bi-exclamation-triangle-fill fs-4 me-3"></i>
                               <div>
-                                <strong>¡Atención: IP Crítica (BPE)!</strong><br>
-                                Esta IP pertenece a la lista BPE. Se eliminará de <strong>ambas</strong> listas
+                                <strong>¡Atención: IP Crítica ({{ feed2_tag }})!</strong><br>
+                                Esta IP pertenece a la lista {{ feed2_tag }}. Se eliminará de <strong>ambas</strong> listas
                                 (Principal
-                                y BPE).
+                                y {{ feed2_tag }}).
                               </div>
                             </div>
                           </div>
@@ -1339,7 +1339,7 @@
         // Mapeo de claves de feed (app.py) a valores del select (HTML)
         const map = {
           'multicliente': 'Multicliente',
-          'bpe': 'BPE',
+          'bpe': '{{ feed2_tag }}',
           'test': 'Test',
           'global': 'all'
         };
@@ -1963,9 +1963,9 @@
 
         window.confirmDeleteJS = function (ip, tags) {
           let msg = `¿Eliminar ${ip}?`;
-          if (tags && (tags.includes('BPE') || tags.includes('bpe'))) {
-            msg = `⚠️ ATENCIÓN: La IP ${ip} es CRÍTICA (BPE).\n\nSe eliminará de TODAS las listas (Principal y
-          BPE).\n\n¿Estás seguro de continuar?`;
+          if (tags && (tags.includes('{{ feed2_tag }}') || tags.includes('BPE') || tags.includes('bpe'))) {
+            msg = `⚠️ ATENCIÓN: La IP ${ip} es CRÍTICA ({{ feed2_tag }}).\n\nSe eliminará de TODAS las listas (Principal y
+          {{ feed2_tag }}).\n\n¿Estás seguro de continuar?`;
           }
 
           if (confirm(msg)) {

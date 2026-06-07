@@ -111,7 +111,7 @@ Obtiene los detalles completos de una IP (tags, expiración, origen).
     {
       "status": "ok",
       "data": {
-        "tags": ["BPE", "Malware"],
+        "tags": ["Cliente", "Malware"],
         "ttl": 2592000,
         "expires_at": "2025-01-30T12:00:00",
         "source": "api",
@@ -134,7 +134,7 @@ Obtiene contadores en tiempo real (ideal para monitorización tipo Zabbix/Grafan
       "total_ips": 150,
       "tags": {
         "Multicliente": 100,
-        "BPE": 50
+        "Cliente": 50
       },
       "sources": {
         "manual": 10,
@@ -161,4 +161,4 @@ Descarga directa de los ficheros de texto plano para integración en Firewalls.
 *   **GET** `/lista/<TAG>`
     *   Retorna lista JSON detallada de IPs en ese tag.
 *   **GET** `/feed/ioc-feed-bpe.txt`
-    *   Retorna texto plano (una IP por línea) del feed BPE.
+    *   Retorna texto plano (una IP por línea) del feed Cliente.
