@@ -1,86 +1,85 @@
-# 🛡️ IOC Manager – Guía de Instalación y Configuración
+﻿# 🛡️ IOC Manager – Guía de Instalación y Configuración
 
-**IOC Manager** es una aplicación web ligera en **Flask** diseñada para gestionar listas dinámicas de IPs maliciosas (Indicators of Compromise).
-Permite integrarse con **Fortinet FortiGate** (y otros sistemas) mediante conectores externos y APIs, manteniendo feeds actualizados de forma simple y segura.
-
----
-
-## ⚙️ Tecnologías y Requisitos
-
-| Componente | Descripción |
-|-------------|-------------|
-| **Python 3.10+** | Lenguaje principal (Recomendado 3.11) |
-| **Flask 3.x** | Framework web |
-| **SQLite 3** | Base de datos principal (Persistencia avanzada) |
-| **Gunicorn** | Servidor WSGI para producción (Linux) |
-| **Bootstrap 5** | Interfaz de usuario responsive |
+Guía para desplegar IOC Manager en un servidor Linux con Gunicorn + Systemd (recomendado para producción) o con Docker.
 
 ---
 
-## 🚀 Instalación en Linux (Producción)
+## ⚙️ Requisitos previos
 
-### 1️⃣ Instalar dependencias del sistema
+| Componente | Versión mínima |
+|---|---|
+| Python | 3.10 (recomendado 3.11) |
+| pip | 22+ |
+| SQLite | 3.x (incluido en Python) |
+| Gunicorn | 20+ |
+| Git | cualquiera |
+
+---
+
+## 🐧 Instalación en Linux (Gunicorn + Systemd)
+
+### 1. Instalar dependencias del sistema
 
 ```bash
-sudo apt update && sudo apt install -y python3 python3-venv python3-pip gunicorn sqlite3
+sudo apt update && sudo apt install -y python3 python3-venv python3-pip sqlite3 git
 ```
 
-### 2️⃣ Clonar el proyecto y crear entorno virtual
+### 2. Clonar el proyecto
 
 ```bash
 cd /opt
 sudo git clone https://github.com/darelldeejay/ioc-manager.git
 sudo chown -R $USER:$USER ioc-manager
 cd ioc-manager
+```
 
-# Crear entorno virtual
+### 3. Crear entorno virtual e instalar dependencias
+
+```bash
 python3 -m venv .venv
 source .venv/bin/activate
-
-# Instalar librerías
 pip install --upgrade pip
 pip install -r requirements.txt
 ```
 
-### 3️⃣ Configuración del Entorno (.env)
-
-El proyecto utiliza un archivo `.env` para la configuración sensible. Copia el ejemplo y edítalo:
+### 4. Configurar el entorno (.env)
 
 ```bash
 cp .env.example .env
 nano .env
 ```
 
-Variables clave a configurar en `.env`:
-*   `FLASK_SECRET_KEY`: Una cadena larga y aleatoria para seguridad de sesiones.
-*   `ADMIN_USER` / `ADMIN_PASSWORD`: Credenciales iniciales (aunque se recomienda usar el flujo de `/setup` en el primer arranque).
-*   `TEAMS_WEBHOOK_URL`: (Opcional) URL para notificaciones a Microsoft Teams.
+Variables clave a configurar:
 
-### 4️⃣ Inicialización (Primer Arranque)
+| Variable | Descripción |
+|---|---|
+| `FLASK_SECRET_KEY` | Clave larga aleatoria para sesiones Flask. Generar con: `python3 -c 'import secrets; print(secrets.token_hex(32))'` |
+| `FEED2_TAG` | Nombre visible del segundo feed en la UI. Cambiar por el nombre real de tu cliente (ej: `BPE`, `ClienteA`). El archivo en disco siempre es `ioc-feed-bpe.txt`. |
+| `TEAMS_WEBHOOK_URL` | (Opcional) URL de webhook de Microsoft Teams para notificaciones. |
+| `TOKEN_API` | (Opcional) Token legacy para la API. Recomendado usar API Keys desde el panel de admin. |
 
-La aplicación inicializará automáticamente la base de datos `ioc_manager.db` en el primer inicio.
-Puedes verificar que todo funcione ejecutando manualmente antes de crear el servicio:
+### 5. Primer arranque y creación del administrador
+
+Al iniciar por primera vez la app detecta que no hay usuarios y redirige a `/setup`.
+Puedes verificar que funciona antes de configurar systemd:
 
 ```bash
-# Prueba manual
 ./.venv/bin/gunicorn --bind 0.0.0.0:5000 app:app
 ```
-Accede a `http://<IP_SERVIDOR>:5000`. Deberías ver la pantalla de Login o Setup.
 
-### 5️⃣ Configurar Servicio Systemd (Persistencia)
+Abre `http://<IP>:5000` → pantalla `/setup` → crea usuario administrador → login.
 
-Para que la aplicación arranque automáticamente, **debes crear manualmente** el archivo de configuración del servicio.
+Detén gunicorn con `Ctrl+C` y continúa con el servicio systemd.
 
-Ejecuta el siguiente comando para crear y abrir el archivo en el editor:
+### 6. Configurar servicio Systemd
+
+Crea el archivo del servicio:
 
 ```bash
 sudo nano /etc/systemd/system/ioc-manager.service
 ```
 
-**Contenido del archivo (`ioc-manager.service`):**
-
-> ⚠️ **IMPORTANTE:** Debes cambiar `tu_usuario` por el usuario real de tu sistema (ej: `ubuntu`, `debian`, o tu nombre de usuario).
-> Verifica también que la ruta `WorkingDirectory` coincida con donde clonaste el repo.
+Contenido (ajusta `tu_usuario` y las rutas si instalaste en otro directorio):
 
 ```ini
 [Unit]
@@ -88,70 +87,91 @@ Description=IOC Manager Service
 After=network.target
 
 [Service]
-# 1. USUARIO: Cambia 'tu_usuario' por el usuario Linux que ejecutará la app
 User=tu_usuario
 Group=tu_usuario
-
-# 2. RUTAS: Si instalaste en /opt/ioc-manager, deja esto así.
-# Si instalaste en /home/tu_usuario/ioc-manager, ajusta estas dos líneas:
 WorkingDirectory=/opt/ioc-manager
 Environment="PATH=/opt/ioc-manager/.venv/bin"
-
-# 3. EJECUCIÓN: Comando de arranque
-ExecStart=/opt/ioc-manager/.venv/bin/gunicorn --workers 3 --bind 0.0.0.0:5000 app:app
-
-# Reinicio automático en caso de fallo
+ExecStart=/opt/ioc-manager/.venv/bin/gunicorn --config gunicorn_config.py app:app
 Restart=always
+RestartSec=3
+StandardOutput=journal
+StandardError=journal
 
 [Install]
 WantedBy=multi-user.target
 ```
 
-**Activar servicio:**
+Activar el servicio:
 
 ```bash
 sudo systemctl daemon-reload
-sudo systemctl enable ioc-manager
-sudo systemctl start ioc-manager
-sudo systemctl status ioc-manager
+sudo systemctl enable ioc-manager.service
+sudo systemctl start ioc-manager.service
+sudo systemctl status ioc-manager.service --no-pager -l
+```
+
+### 7. Verificar que está corriendo
+
+```bash
+sudo ss -lntp | grep 5000
+```
+
+Accede en el navegador: `http://<IP_SERVIDOR>:5000`
+
+---
+
+## 🔧 Gestión del servicio
+
+```bash
+# Ver logs en tiempo real
+sudo journalctl -fu ioc-manager.service
+
+# Reiniciar
+sudo systemctl restart ioc-manager.service
+
+# Ver últimos logs
+sudo journalctl -u ioc-manager.service -n 50 --no-pager
 ```
 
 ---
 
-## 🔧 Gestión y Mantenimiento
+## 🐳 Instalación con Docker (alternativa)
 
-### Ver Logs
 ```bash
-sudo journalctl -u ioc-manager -f
+git clone https://github.com/darelldeejay/ioc-manager.git
+cd ioc-manager
+cp .env.example .env   # Editar variables
+docker compose up -d --build
 ```
 
-### Copias de Seguridad
-La aplicación realiza snapshots automáticos de la base de datos en la carpeta `backups/`.
-Para restaurar, simplemente detén el servicio y reemplaza `ioc_manager.db` con una copia válida.
+La aplicación quedará disponible en el puerto definido en `docker-compose.yml` (por defecto 5050).
 
-### Tests y Diagnóstico de Salud
-El sistema incluye un botón de "Salud" (Diagnóstico) en la interfaz. También puedes ejecutar los tests manualmente desde consola:
+```bash
+docker compose logs -f   # Ver logs
+docker compose down      # Detener
+```
+
+---
+
+## 🔬 Tests
 
 ```bash
 source .venv/bin/activate
-# Ejecutar suite completa
-python run_tests.py
-# O con pytest verboles
-pytest -v
+pytest tests/              # Suite completa
+pytest tests/test_api.py -v   # Solo API
 ```
 
 ---
 
-## � Docker (Instalación Alternativa)
+## 💾 Backups y Restauración
 
-```bash
-# Construir y levantar
-docker compose up -d --build
-```
-La aplicación estará disponible en el puerto definido en `docker-compose.yml` (por defecto 5050).
+- Los backups automáticos diarios se guardan en `backups/` (ZIP, rotación 14 días).
+- Los backups manuales se generan desde el panel de admin (rotación últimos 5).
+- Para restaurar: sube el ZIP desde el panel Admin → Backups → Restaurar.
 
 ---
 
 ## 👤 Autor
 
-Proyecto desarrollado por **Darell Pérez (darelldeejay)**.
+Proyecto desarrollado por **Darell Pérez**.
+Licencia: MIT

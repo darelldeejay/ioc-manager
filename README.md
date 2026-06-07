@@ -1,228 +1,84 @@
-# 🛡️ IOC Manager – Guía de Instalación
+﻿# 🛡️ IOC Manager
 
-**IOC Manager** es una aplicación web ligera en **Flask** para gestionar listas dinámicas de IPs maliciosas (Indicators of Compromise).  
-Pensada para integrarse con **Fortinet FortiGate** mediante conectores externos, permite mantener feeds de IPs actualizados de forma simple y segura.
-
----
-
-## ⚙️ Tecnologías principales
-
-| Componente | Descripción |
-|-------------|-------------|
-| **Python 3.11** | Lenguaje principal |
-| **Flask 3.x** | Framework web |
-| **Bootstrap 5** | Interfaz y diseño |
-| **Gunicorn** | Servidor WSGI para producción |
-| **Systemd** | Gestión de servicio en Linux |
-| **Archivos planos** | Almacenamiento ligero (`.txt`, `.json`) |
+**IOC Manager** es una aplicación web en **Flask** para gestionar listas dinámicas de IPs maliciosas (Indicators of Compromise).
+Su objetivo principal es generar y mantener **feeds de texto plano** que Fortinet FortiGate (u otros sistemas) consume vía conectores externos para bloquear IPs en tiempo real.
 
 ---
 
-## 🚀 Instalación con Gunicorn + Systemd (Recomendada)
+## ✨ Características principales
 
-### 1️⃣ Instalar dependencias del sistema
+- Gestión de IPs: añadir, eliminar, filtrar, paginar
+- Importación masiva vía CSV
+- Sistema de **tags** por categoría (Multicliente, Cliente, Test, Malware, Phishing, etc.)
+- **Feeds de texto plano** para FortiGate con soporte ETag/304
+- TTL configurable por IP con expiración automática diaria
+- **API REST** con autenticación por token y scopes (READ/WRITE)
+- RBAC: roles admin/editor/view_only con feeds permitidos por usuario
+- Backups automáticos diarios (ZIP, rotación 14 días)
+- Notificaciones a Microsoft Teams
+- Panel de auditoría con historial de acciones
+- Soporte IPv4: IPs sueltas, rangos (A-B), CIDR, máscara punteada
+
+---
+
+## 🗂️ Stack tecnológico
+
+| Componente | Versión | Uso |
+|---|---|---|
+| Python | 3.10+ | Lenguaje principal |
+| Flask | 3.x | Framework web |
+| SQLite | — | Base de datos |
+| Bootstrap 5 | CDN jsDelivr | UI responsive |
+| Gunicorn | 20+ | WSGI en producción |
+| Systemd | — | Gestión del servicio en Linux |
+
+---
+
+## 🚀 Inicio rápido (desarrollo)
 
 ```bash
-sudo apt update && sudo apt install -y python3 python3-venv python3-pip gunicorn
-sudo apt install git
-```
-
----
-
-### 2️⃣ Clonar el proyecto y crear entorno virtual
-
-```bash
-cd /home/admin
 git clone https://github.com/darelldeejay/ioc-manager.git
 cd ioc-manager
 python3 -m venv .venv
-source .venv/bin/activate
-pip install --upgrade pip
+source .venv/bin/activate        # Linux/Mac
+# .venv\Scripts\activate         # Windows
 pip install -r requirements.txt
+cp .env.example .env             # Editar al menos FLASK_SECRET_KEY
+python app.py
 ```
 
-> 💡 Si no existe `requirements.txt`, crea uno mínimo con:
-> ```
-> Flask
-> gunicorn
-> ```
+Abre `http://localhost:5000` — la app redirige a `/setup` para crear el usuario administrador en el primer arranque.
 
 ---
 
-### 3️⃣ Crear archivos iniciales y permisos
+## 📖 Instalación en producción
 
-```bash
-chmod +x install
-echo 0 > contador_manual.txt
-echo 0 > contador_csv.txt
-touch ioc-feed.txt ioc-log.txt
-```
+Consulta **[INSTALL.md](INSTALL.md)** para la guía completa con Gunicorn + Systemd y Docker.
 
 ---
 
-### 4️⃣ Crear servicio systemd
+## 📡 API REST
 
-Crea el archivo `/etc/systemd/system/ioc-manager.service` con el siguiente contenido:
+Consulta **[API.md](API.md)** para la documentación completa de endpoints, autenticación y ejemplos.
 
-```ini
-[Unit]
-Description=IOC Manager - Flask on 5000
-After=network.target
-
-[Service]
-User=admin
-Group=admin
-WorkingDirectory=/home/admin/ioc-manager
-ExecStart=/home/admin/ioc-manager/.venv/bin/gunicorn --chdir /home/admin/ioc-manager --config gunicorn_config.py app:app
-Restart=always
-RestartSec=3
-Environment="PATH=/home/admin/ioc-manager/.venv/bin:/usr/local/bin:/usr/bin"
-Environment="PYTHONUNBUFFERED=1"
-StandardOutput=journal
-StandardError=journal
-
-[Install]
-WantedBy=multi-user.target
-```
+Swagger UI disponible en `/swagger` una vez levantada la app.
 
 ---
 
-### 5️⃣ Activar el servicio
+## 🔑 Variables de entorno (.env)
 
-```bash
-sudo systemctl daemon-reload
-sudo systemctl enable ioc-manager.service
-sudo systemctl start ioc-manager.service
-sudo systemctl status ioc-manager.service --no-pager -l
-```
-
----
-
-### 6️⃣ Verificar que Gunicorn está corriendo
-
-```bash
-sudo ss -lntp | grep 5000
-```
-
-Deberías ver algo como:
-
-```
-LISTEN 0 128 0.0.0.0:5000 ... gunicorn
-```
-
-Ahora accede a la aplicación desde tu navegador:
-```
-http://<IP_DEL_SERVIDOR>:5000
-```
-
----
-
-### 7️⃣ Logs y mantenimiento
-
-Ver últimos logs:
-```bash
-sudo journalctl -u ioc-manager.service -n 50 --no-pager
-```
-
-Ver en tiempo real:
-```bash
-sudo journalctl -fu ioc-manager.service
-```
-
-Reiniciar el servicio:
-```bash
-sudo systemctl restart ioc-manager.service
-```
-
----
-
-### 8️⃣ Alias útiles (opcional)
-
-Para administración rápida:
-```bash
-echo "alias ioc-status='sudo systemctl status ioc-manager.service --no-pager -l'" >> ~/.bashrc
-echo "alias ioc-restart='sudo systemctl restart ioc-manager.service && sudo systemctl status ioc-manager.service --no-pager -l'" >> ~/.bashrc
-source ~/.bashrc
-```
-
----
-
-## 🐳 Instalación alternativa con Docker
-
-### 1️⃣ Preparar entorno
-
-Clona el repo y asegúrate de tener los archivos:
-
-```
-ioc-feed.txt
-notif-log.json
-ioc-meta.json
-ioc-log.txt
-```
-
-(Si no existen, se crean automáticamente al iniciar.)
-
----
-
-### 2️⃣ Construir y levantar contenedor
-
-```bash
-docker compose build
-docker compose up -d
-# Accede a http://localhost:5050
-```
-
----
-
-### 3️⃣ Logs y mantenimiento
-
-```bash
-docker compose logs -f
-docker compose down
-```
-
----
-
-### 4️⃣ Persistencia
-
-| Archivo | Descripción |
-|----------|--------------|
-| `ioc-feed.txt` | Base principal (IP \| fecha \| TTL) |
-| `notif-log.json` | Historial de notificaciones |
-| `ioc-meta.json` | Meta por IP (origen manual/CSV) |
-| `ioc-log.txt` | Log de acciones |
-
----
-
-## 🔧 Modo desarrollo
-
-```bash
-make venv        # Crea entorno virtual
-make dev         # Ejecuta Flask en modo desarrollo
-make gunicorn    # Ejecuta con Gunicorn local
-```
-
----
-
-## 🛠️ Makefile
-
-Tareas disponibles:
-
-| Comando | Descripción |
-|----------|-------------|
-| `make venv` | Crea entorno virtual |
-| `make dev` | Ejecuta Flask en desarrollo |
-| `make gunicorn` | Ejecuta con Gunicorn |
-| `make build` | Construye imagen Docker |
-| `make up` | Levanta contenedor |
-| `make down` | Detiene contenedor |
-| `make logs` | Muestra logs |
-| `make backup` | Copia de seguridad de archivos |
-| `make restore DIR=./backup_YYYYmmdd_HHMMSS` | Restaura desde backup |
+| Variable | Requerida | Descripción |
+|---|---|---|
+| `FLASK_SECRET_KEY` | ✅ | Clave de sesión Flask |
+| `FEED2_TAG` | ✅ prod | Nombre del segundo feed en la UI (default: `Cliente`) |
+| `TOKEN_API` | Opcional | Token legacy para la API |
+| `TEAMS_WEBHOOK_URL` | Opcional | Webhook de notificaciones a MS Teams |
+| `RATE_LIMIT_PER_MIN` | Opcional | Límite req/min por token API (default: 60) |
+| `EXPANSION_LIMIT` | Opcional | Máx. IPs a expandir de un CIDR (default: 2048) |
 
 ---
 
 ## 👤 Autor
 
-Proyecto desarrollado por **Darell Pérez**.  
-Todos los derechos reservados.
+Proyecto desarrollado por **Darell Pérez**.
+Licencia: MIT
