@@ -64,6 +64,8 @@ TAGS_DIR = os.path.join(DATA_DIR, "tags")
 FEED_FILE = os.path.join(BASE_DIR, 'ioc-feed.txt')
 # === Feed secundario (nombre configurable via FEED2_TAG en .env) ===
 FEED_FILE_BPE = os.path.join(BASE_DIR, 'ioc-feed-bpe.txt')
+# === Feed CCP ===
+FEED_FILE_CCP = os.path.join(BASE_DIR, 'ioc-feed-CCP.txt')
 # === Nuevo feed de pruebas ===
 FEED_FILE_TEST = os.path.join(BASE_DIR, "ioc-feed-test.txt")
 
@@ -84,6 +86,7 @@ AUDIT_LOG_FILE = os.path.join(BASE_DIR, "audit-log.jsonl")
 # === LOCK FILES ===
 FEED_LOCK = FileLock(FEED_FILE + ".lock")
 FEED_BPE_LOCK = FileLock(FEED_FILE_BPE + ".lock")
+FEED_CCP_LOCK = FileLock(FEED_FILE_CCP + ".lock")
 FEED_TEST_LOCK = FileLock(FEED_FILE_TEST + ".lock")
 META_LOCK = FileLock(META_FILE + ".lock")
 # Dado que tags son archivos separados, podemos hacer FileLock(path + ".lock") al vuelo.
@@ -117,13 +120,14 @@ IDEM_TTL_SECONDS = 600
 FEED2_TAG = os.getenv("FEED2_TAG", "Cliente")
 
 # Tags válidos
-ALLOWED_TAGS = {"Multicliente", FEED2_TAG, "Test"}
+ALLOWED_TAGS = {"Multicliente", FEED2_TAG, "CCP", "Test"}
 
 # Etiquetas Canónicas permitidas y su normalización
 CANONICAL_TAGS = {
     "multicliente": "Multicliente",
     "bpe": FEED2_TAG,             # clave legacy siempre apunta al tag activo
     FEED2_TAG.lower(): FEED2_TAG, # clave por el nombre actual
+    "ccp": "CCP",
     "test": "Test",
     "phishing": "Phishing",
     "malware": "Malware",
@@ -635,9 +639,9 @@ def compute_tag_totals():
     try:
         all_ips = db.get_all_ips()
     except Exception:
-        return {"Multicliente": 0, FEED2_TAG: 0, "Test": 0}
+        return {"Multicliente": 0, FEED2_TAG: 0, "CCP": 0, "Test": 0}
 
-    multi = bpe = test = 0
+    multi = bpe = ccp = test = 0
     for row in all_ips:
         try:
             tags = json.loads(row['tags'] or '[]')
@@ -645,9 +649,10 @@ def compute_tag_totals():
             tags = []
         
         if "Multicliente" in tags: multi += 1
-        if FEED2_TAG in tags or "BPE" in tags: bpe   += 1
-        if "Test" in tags:         test  += 1
-    return {"Multicliente": multi, FEED2_TAG: bpe, "Test": test}
+        if FEED2_TAG in tags or "BPE" in tags: bpe  += 1
+        if "CCP" in tags:                      ccp  += 1
+        if "Test" in tags:                     test += 1
+    return {"Multicliente": multi, FEED2_TAG: bpe, "CCP": ccp, "Test": test}
 
 # === NUEVOS: unión feeds y matriz fuente×tag (DB Version) ===
 def _active_ip_union():
@@ -670,7 +675,7 @@ def compute_source_and_tag_counters_union():
     total_union = len(rows)
     
     src_counts = {"manual": 0, "csv": 0, "api": 0}
-    tag_counts = {"Multicliente": 0, FEED2_TAG: 0, "Test": 0} 
+    tag_counts = {"Multicliente": 0, FEED2_TAG: 0, "CCP": 0, "Test": 0} 
     
     src_tag_counts = {
         "manual": {}, "csv": {}, "api": {}
@@ -1110,12 +1115,11 @@ def add_ips_validated(lines, existentes, iterable_ips, ttl_val, origin=None, con
     # For text compatibility (though db is primary)
     ttl_seconds = ttl_days * 86400 if ttl_days > 0 else 0
 
-    allow_multi = "Multicliente" in tags
-    allow_bpe = FEED2_TAG in tags or "BPE" in tags
-    allow_test = "Test" in tags
+    # Verifica que al menos un tag pertenezca a ALLOWED_TAGS (incluye compat BPE legacy)
+    allow_any = bool(set(tags) & (ALLOWED_TAGS | {"BPE"}))
 
     for ip_str in iterable_ips:
-        if not (allow_multi or allow_bpe or allow_test):
+        if not allow_any:
             rechazadas += 1
             print(f"[DEBUG VALIDATE] REJECTED {ip_str}: No allowed tags")
             continue
@@ -1145,6 +1149,11 @@ def add_ips_validated(lines, existentes, iterable_ips, ttl_val, origin=None, con
         
         # Determine fecha for status
         fecha = datetime.now().strftime("%Y-%m-%d")
+
+        # Derivar flags de los tags procesados
+        allow_multi = "Multicliente" in tags
+        allow_bpe   = FEED2_TAG in tags or "BPE" in tags
+        allow_test  = "Test" in tags
 
         # FEED BPE si corresponde
         if allow_bpe:
@@ -1566,6 +1575,8 @@ def _tag_color_hsl(tag: str) -> str:
         return "text-bg-primary"
     elif "bpe" in t_lower or t_lower == FEED2_TAG.lower():
         return "text-bg-warning text-dark" # Orange needs dark text
+    elif "ccp" in t_lower:
+        return "text-bg-success"
     elif "test" in t_lower:
         return "text-bg-secondary"
     else:
@@ -1661,7 +1672,7 @@ def _collect_known_tags():
         return tags
     except Exception as e:
         print(f"Error collecting tags: {e}")
-        return ["Multicliente", FEED2_TAG, "Test"]
+        return ["Multicliente", FEED2_TAG, "CCP", "Test"]
 
 # ... (Hook before_request is fine) ...
 
@@ -1671,6 +1682,8 @@ def _get_feed_filename(tag):
         return FEED_FILE
     elif t_lower in ("bpe", FEED2_TAG.lower()):
         return FEED_FILE_BPE
+    elif t_lower == "ccp":
+        return FEED_FILE_CCP
     elif t_lower == "test":
         return FEED_FILE_TEST
     else:
@@ -1695,6 +1708,7 @@ def regenerate_feeds_from_db():
         # Inicializamos los standard para asegurar que se creen (vacios si hace falta)
         active_feeds[FEED_FILE] = []
         active_feeds[FEED_FILE_BPE] = []
+        active_feeds[FEED_FILE_CCP] = []
         active_feeds[FEED_FILE_TEST] = []
         
         # Para saber qué tags existen y limpiar viejos (opcional, por ahora solo crear/sobrescribir)
@@ -1740,6 +1754,7 @@ def regenerate_feeds_from_db():
             # Si es standard, usar lock global definido
             if fpath == FEED_FILE: lock = FEED_LOCK
             elif fpath == FEED_FILE_BPE: lock = FEED_BPE_LOCK
+            elif fpath == FEED_FILE_CCP: lock = FEED_CCP_LOCK
             elif fpath == FEED_FILE_TEST: lock = FEED_TEST_LOCK
             else: lock = FileLock(fpath + ".lock")
             
@@ -2017,6 +2032,7 @@ FEEDS_CONFIG = {
     "global":       {"label": "Global / Todos", "icon": "bi-globe", "virtual": True},
     "multicliente": {"file": FEED_FILE, "label": "Multicliente", "icon": "bi-hdd-network"},
     "bpe":          {"file": FEED_FILE_BPE, "label": f"Feed {FEED2_TAG}", "icon": "bi-bank"},
+    "ccp":          {"file": FEED_FILE_CCP, "label": "Feed CCP", "icon": "bi-person-badge"},
     "test":         {"file": FEED_FILE_TEST, "label": "Feed Test", "icon": "bi-cone-striped"},
 }
 
@@ -2116,11 +2132,14 @@ def index():
     if feed_param == "global":
         if "multicliente" in visible_feeds: target_tags.add("Multicliente")
         if "bpe" in visible_feeds: target_tags.update({FEED2_TAG, "BPE"})  # BPE: compat datos anteriores
+        if "ccp" in visible_feeds: target_tags.add("CCP")
         if "test" in visible_feeds: target_tags.add("Test")
     elif feed_param == "multicliente":
         target_tags.add("Multicliente")
     elif feed_param == "bpe":
         target_tags.update({FEED2_TAG, "BPE"})  # BPE: compat datos anteriores
+    elif feed_param == "ccp":
+        target_tags.add("CCP")
     elif feed_param == "test":
         target_tags.add("Test")
         
