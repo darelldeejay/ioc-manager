@@ -3504,21 +3504,49 @@ def update_ttl_route():
     data = request.get_json(silent=True) or {}
     ip = data.get("ip")
     ttl = data.get("ttl")
-    
+
     if not ip:
         return jsonify({"error": "IP missing"}), 400
-        
+
     # Validar IP existente
     curr = db.get_ip(ip)
     if not curr:
         return jsonify({"error": "IP no encontrada"}), 404
-        
-    # Update logic
-    if db.update_ip_ttl(ip, ttl):
-        _audit("ttl_update", f"web/{session.get('username','admin')}", ip, {"new_ttl": ttl})
-        return jsonify({"success": True})
-    else:
-        return jsonify({"error": "Error de base de datos"}), 500
+
+    try:
+        ttl_days = int(ttl)
+    except (TypeError, ValueError):
+        ttl_days = 0
+
+    # Recalcular expiration_date a partir del added_at original
+    try:
+        added_at_str = curr.get("added_at") or datetime.now().strftime("%Y-%m-%d")
+        added_dt = datetime.strptime(str(added_at_str).split("T")[0], "%Y-%m-%d")
+        if ttl_days > 0:
+            expiration_date = (added_dt + timedelta(days=ttl_days)).strftime("%Y-%m-%d")
+        else:
+            expiration_date = None
+    except Exception:
+        expiration_date = None
+
+    # Actualizar ttl y expiration_date en DB
+    try:
+        conn = db.get_db()
+        conn.execute(
+            "UPDATE ip_metadata SET ttl = ?, expiration_date = ? WHERE ip = ?",
+            (str(ttl_days), expiration_date, ip)
+        )
+        conn.commit()
+        conn.close()
+    except Exception as e:
+        return jsonify({"error": f"Error de base de datos: {e}"}), 500
+
+    # Regenerar feeds para reflejar el nuevo TTL
+    regenerate_feeds_from_db()
+
+    _audit("ttl_update", f"web/{session.get('username','admin')}", ip,
+           {"new_ttl": ttl_days, "expiration_date": expiration_date})
+    return jsonify({"success": True})
 
 @app.route('/admin/config', methods=['POST'])
 @login_required
