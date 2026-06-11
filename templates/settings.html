@@ -154,6 +154,12 @@
                     <i class="bi bi-activity me-2"></i>Auditoría
                 </button>
             </li>
+            <li class="nav-item" role="presentation">
+                <button class="nav-link" id="license-tab" data-bs-toggle="tab" data-bs-target="#license-pane" type="button"
+                    role="tab" aria-controls="license-pane" aria-selected="false">
+                    <i class="bi bi-shield-check me-2"></i>Licencia
+                </button>
+            </li>
         </ul>
 
         <div class="tab-content" id="configTabsContent">
@@ -417,6 +423,24 @@
                     </div>
                     <div class="card-footer text-muted small">
                         Mostrando los últimos {{ audit_logs|length }} eventos.
+                    </div>
+                </div>
+            </div>
+
+            <!-- LICENSE TAB (New) -->
+            <div class="tab-pane fade" id="license-pane" role="tabpanel" aria-labelledby="license-tab">
+                <div class="card shadow-sm">
+                    <div class="card-header">
+                        <h5 class="mb-0"><i class="bi bi-shield-check me-2"></i>Gestión de Licencia</h5>
+                    </div>
+                    <div class="card-body">
+                        <div id="licenseStatusContainer">
+                            <div class="text-center">
+                                <div class="spinner-border" role="status">
+                                    <span class="visually-hidden">Cargando...</span>
+                                </div>
+                            </div>
+                        </div>
                     </div>
                 </div>
             </div>
@@ -714,6 +738,169 @@
                 alert("Error: " + err.message);
             }
         }
+
+        // ===== LICENCIA =====
+        async function loadLicenseStatus() {
+            try {
+                const res = await fetch('/admin/license/status');
+                const data = await res.json();
+                
+                const container = document.getElementById('licenseStatusContainer');
+                let html = '';
+
+                if (!data.enforced) {
+                    html = `
+                        <div class="alert alert-info">
+                            <i class="bi bi-info-circle me-2"></i>
+                            <strong>Licenciamiento Desactivado</strong>
+                            <p class="small mt-2 mb-0">El sistema no está forzando validación de licencias actualmente.</p>
+                        </div>
+                    `;
+                } else if (!data.license) {
+                    html = `
+                        <div class="alert alert-danger">
+                            <strong><i class="bi bi-shield-exclamation me-2"></i>Sin Licencia</strong>
+                            <p class="small mt-2">No hay licencia activa. El sistema puede estar bloqueando operaciones de escritura.</p>
+                        </div>
+                        <div class="row g-3">
+                            <div class="col-12">
+                                ${data.is_admin ? `
+                                <button class="btn btn-danger" onclick="showLicenseActivationForm()">
+                                    <i class="bi bi-currency-dollar me-1"></i> Activar Licencia
+                                </button>
+                                ` : ''}
+                                <a href="https://www.paypal.com/ncp/payment/X4UTTWJ88LS8N" target="_blank" class="btn btn-primary">
+                                    <i class="bi bi-paypal me-1"></i> Comprar en PayPal
+                                </a>
+                            </div>
+                        </div>
+                    `;
+                } else {
+                    const lic = data.license;
+                    const expiresAt = new Date(lic.expires_at).toLocaleDateString();
+                    const statusBadge = {
+                        'active': '<span class="badge bg-success">Activa</span>',
+                        'grace': '<span class="badge bg-warning text-dark">Período de Gracia</span>',
+                        'suspended': '<span class="badge bg-danger">Suspendida</span>',
+                        'expired': '<span class="badge bg-danger">Expirada</span>'
+                    };
+
+                    html = `
+                        <div class="row g-3 mb-4">
+                            <div class="col-md-6">
+                                <div class="card bg-light border-0">
+                                    <div class="card-body">
+                                        <h6 class="text-muted mb-2">Estado</h6>
+                                        <div>${statusBadge[lic.status] || '<span class="badge bg-secondary">Desconocido</span>'}</div>
+                                    </div>
+                                </div>
+                            </div>
+                            <div class="col-md-6">
+                                <div class="card bg-light border-0">
+                                    <div class="card-body">
+                                        <h6 class="text-muted mb-2">Plan</h6>
+                                        <div><strong>${lic.plan_code}</strong></div>
+                                    </div>
+                                </div>
+                            </div>
+                            <div class="col-md-6">
+                                <div class="card bg-light border-0">
+                                    <div class="card-body">
+                                        <h6 class="text-muted mb-2">Vence</h6>
+                                        <div><strong>${expiresAt}</strong></div>
+                                    </div>
+                                </div>
+                            </div>
+                            <div class="col-md-6">
+                                <div class="card bg-light border-0">
+                                    <div class="card-body">
+                                        <h6 class="text-muted mb-2">Cliente</h6>
+                                        <div><strong>${lic.customer_name || 'N/A'}</strong></div>
+                                        <div class="small text-muted">${lic.customer_email || ''}</div>
+                                    </div>
+                                </div>
+                            </div>
+                        </div>
+                        <div class="row g-2">
+                            ${data.is_admin ? `
+                            <div class="col-auto">
+                                <button class="btn btn-primary" onclick="showLicenseRenewalForm()">
+                                    <i class="bi bi-arrow-clockwise me-1"></i> Renovar Licencia
+                                </button>
+                            </div>
+                            ` : ''}
+                            <div class="col-auto">
+                                <a href="https://www.paypal.com/ncp/payment/X4UTTWJ88LS8N" target="_blank" class="btn btn-outline-primary">
+                                    <i class="bi bi-paypal me-1"></i> Comprar Plan
+                                </a>
+                            </div>
+                        </div>
+                    `;
+                }
+
+                container.innerHTML = html;
+            } catch (err) {
+                document.getElementById('licenseStatusContainer').innerHTML = 
+                    `<div class="alert alert-danger">Error al cargar estado de licencia: ${err.message}</div>`;
+            }
+        }
+
+        function showLicenseActivationForm() {
+            const days = prompt('Número de días para la licencia:', '30');
+            if (!days) return;
+            const planCode = prompt('Código de plan (trial_30d, company_90d_manual, paid_monthly_paypal):', 'trial_30d');
+            if (!planCode) return;
+
+            fetch('/admin/license/activate', {
+                method: 'POST',
+                headers: { 'Content-Type': 'application/json' },
+                body: JSON.stringify({
+                    plan_code: planCode,
+                    days: parseInt(days),
+                    customer_name: prompt('Nombre del cliente:', 'Test') || 'Test',
+                    customer_email: prompt('Email del cliente:', 'test@example.com') || 'test@example.com'
+                })
+            })
+            .then(r => r.json())
+            .then(d => {
+                if (d.success) {
+                    alert('Licencia activada exitosamente');
+                    loadLicenseStatus();
+                } else {
+                    alert('Error: ' + (d.message || 'Unknown error'));
+                }
+            })
+            .catch(err => alert('Error: ' + err.message));
+        }
+
+        function showLicenseRenewalForm() {
+            const days = prompt('Número de días a extender:', '30');
+            if (!days) return;
+
+            fetch('/admin/license/renew', {
+                method: 'POST',
+                headers: { 'Content-Type': 'application/json' },
+                body: JSON.stringify({ days: parseInt(days) })
+            })
+            .then(r => r.json())
+            .then(d => {
+                if (d.success) {
+                    alert('Licencia renovada exitosamente');
+                    loadLicenseStatus();
+                } else {
+                    alert('Error: ' + (d.message || 'Unknown error'));
+                }
+            })
+            .catch(err => alert('Error: ' + err.message));
+        }
+
+        // Cargar status al hacer click en el tab
+        document.getElementById('license-tab')?.addEventListener('click', loadLicenseStatus);
+
+        // Cargar status al documento listo (auto-load cuando abre settings)
+        document.addEventListener('DOMContentLoaded', function() {
+            loadLicenseStatus();
+        });
     </script>
 </body>
 

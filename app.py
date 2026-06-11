@@ -108,6 +108,14 @@ API_ALLOWLIST = os.getenv("API_ALLOWLIST", "").strip()  # "1.2.3.0/24,10.0.0.0/8
 EXPANSION_LIMIT = int(os.getenv("EXPANSION_LIMIT", "2048"))
 RATE_LIMIT_PER_MIN = int(os.getenv("RATE_LIMIT_PER_MIN", "60"))
 
+# === Licenciamiento / Billing ===
+ENFORCE_LICENSE = os.getenv("ENFORCE_LICENSE", "0").strip() == "1"
+LICENSE_GRACE_DAYS = int(os.getenv("LICENSE_GRACE_DAYS", "7"))
+PAYPAL_MODE = os.getenv("PAYPAL_MODE", "live").strip().lower()  # live|sandbox
+PAYPAL_CLIENT_ID = os.getenv("PAYPAL_CLIENT_ID", "").strip()
+PAYPAL_CLIENT_SECRET = os.getenv("PAYPAL_CLIENT_SECRET", "").strip()
+PAYPAL_WEBHOOK_ID = os.getenv("PAYPAL_WEBHOOK_ID", "").strip()
+
 # Memorias en proceso (rate-limit, idempotencia)
 _rate_lock = threading.Lock()
 _rate_hist = {}  # {auth_header: [timestamps]}
@@ -302,6 +310,169 @@ def require_api_token(required_scope=None):
         return decorator(f)
         
     return decorator
+
+# =========================
+#  Licenciamiento / Billing
+# =========================
+def _paypal_base_url():
+    return "https://api-m.sandbox.paypal.com" if PAYPAL_MODE == "sandbox" else "https://api-m.paypal.com"
+
+
+def _parse_iso_or_none(value):
+    if not value:
+        return None
+    try:
+        return datetime.fromisoformat(str(value).replace("Z", "+00:00"))
+    except Exception:
+        return None
+
+
+def _license_write_exempt_path(path):
+    allowed = [
+        "/static",
+        "/login",
+        "/logout",
+        "/setup",
+        "/feed",
+        "/healthz",
+        "/maintenance/toggle",
+        "/api/license/paypal/webhook",
+        "/admin/license",
+    ]
+    return any(path.startswith(prefix) for prefix in allowed)
+
+
+def _get_license_state():
+    # Leer ENFORCE_LICENSE de DB primero (para cambios en runtime), luego del env
+    enforce_db = db.get_config("ENFORCE_LICENSE")
+    enforce = enforce_db is not None and str(enforce_db).strip() == "1"
+    
+    # SIEMPRE obtener la licencia actual (aunque no esté enforced)
+    lic = db.get_latest_license()
+    
+    state = {
+        "enforced": enforce,
+        "allow_write": True,
+        "status": "unlicensed",
+        "reason": "No hay licencia activa en la instancia",
+        "license": lic,
+    }
+
+    if not enforce:
+        # Si enforcement está desactivado pero hay licencia, mostrar su estado informativo
+        if lic:
+            state["status"] = "info"
+            state["reason"] = f"Licencia {lic.get('plan_code', 'N/A')} (enforcement desactivado)"
+        else:
+            state["status"] = "unlicensed"
+            state["reason"] = "No hay licencia (enforcement desactivado)"
+        return state
+
+    # Si enforcement está activado (enforce=True)
+    if not lic:
+        state.update({
+            "allow_write": False,
+            "status": "unlicensed",
+            "reason": "No hay licencia activa en la instancia",
+        })
+        return state
+
+    now = datetime.now(timezone.utc)
+    status = str(lic.get("status") or "").lower().strip()
+    expires_at = _parse_iso_or_none(lic.get("expires_at"))
+    grace_until = _parse_iso_or_none(lic.get("grace_until"))
+
+    if status in ("suspended", "canceled", "cancelled", "expired"):
+        state.update({
+            "allow_write": False,
+            "status": status,
+            "reason": f"Licencia en estado '{status}'",
+        })
+        return state
+
+    if expires_at and now > expires_at:
+        if grace_until and now <= grace_until:
+            state.update({
+                "allow_write": False,
+                "status": "grace",
+                "reason": "Licencia expirada en periodo de gracia",
+            })
+            return state
+
+        state.update({
+            "allow_write": False,
+            "status": "expired",
+            "reason": "Licencia expirada",
+        })
+        return state
+
+    state.update({
+        "allow_write": True,
+        "status": "active",
+        "reason": "Licencia válida",
+    })
+    return state
+
+
+def _paypal_get_access_token():
+    if not PAYPAL_CLIENT_ID or not PAYPAL_CLIENT_SECRET:
+        return None
+    try:
+        resp = requests.post(
+            f"{_paypal_base_url()}/v1/oauth2/token",
+            auth=(PAYPAL_CLIENT_ID, PAYPAL_CLIENT_SECRET),
+            data={"grant_type": "client_credentials"},
+            timeout=15,
+        )
+        if resp.status_code >= 400:
+            return None
+        data = resp.json()
+        return data.get("access_token")
+    except Exception:
+        return None
+
+
+def _verify_paypal_webhook_signature(event_payload):
+    if not PAYPAL_WEBHOOK_ID:
+        return False
+
+    tx_id = request.headers.get("PayPal-Transmission-Id")
+    tx_time = request.headers.get("PayPal-Transmission-Time")
+    tx_sig = request.headers.get("PayPal-Transmission-Sig")
+    cert_url = request.headers.get("PayPal-Cert-Url")
+    auth_algo = request.headers.get("PayPal-Auth-Algo")
+
+    if not all([tx_id, tx_time, tx_sig, cert_url, auth_algo]):
+        return False
+
+    access_token = _paypal_get_access_token()
+    if not access_token:
+        return False
+
+    body = {
+        "transmission_id": tx_id,
+        "transmission_time": tx_time,
+        "cert_url": cert_url,
+        "auth_algo": auth_algo,
+        "transmission_sig": tx_sig,
+        "webhook_id": PAYPAL_WEBHOOK_ID,
+        "webhook_event": event_payload,
+    }
+
+    try:
+        resp = requests.post(
+            f"{_paypal_base_url()}/v1/notifications/verify-webhook-signature",
+            headers={"Authorization": f"Bearer {access_token}", "Content-Type": "application/json"},
+            json=body,
+            timeout=20,
+        )
+        if resp.status_code >= 400:
+            return False
+        data = resp.json()
+        return str(data.get("verification_status", "")).upper() == "SUCCESS"
+    except Exception:
+        return False
+
 
 # =========================
 #  Utilidades auxiliares
@@ -972,6 +1143,33 @@ def check_maintenance_mode():
     flash("Modo Mantenimiento Activo. Las modificaciones están deshabilitadas.", "warning")
     return redirect(url_for('index'))
 
+
+@app.before_request
+def check_license_enforcement():
+    # Solo aplica a escrituras cuando el licenciamiento está activado.
+    if request.method in ("GET", "HEAD", "OPTIONS"):
+        return
+
+    if _license_write_exempt_path(request.path):
+        return
+
+    state = _get_license_state()
+    if state.get("allow_write", True):
+        return
+
+    reason = state.get("reason") or "Licencia inválida"
+    payload = {
+        "ok": False,
+        "error": "LICENSE_BLOCKED",
+        "status": state.get("status"),
+        "message": reason,
+    }
+
+    if request.path.startswith("/api"):
+        return jsonify(payload), 402
+
+    flash(f"Licencia: {reason}", "warning")
+    return redirect(url_for("index"))
 
 
 def save_lines(lines, feed_path=FEED_FILE):
@@ -2974,7 +3172,8 @@ def index():
                            v4_percent=v4_percent,
                            v6_percent=v6_percent,
                            latest_sync_logs=latest_sync_logs,
-                           maintenance_mode=g.get("maintenance_mode", False))
+                           maintenance_mode=g.get("maintenance_mode", False),
+                           license_state=_get_license_state())
 
 
 def _create_feed_response(ips_list):
@@ -4144,6 +4343,228 @@ def api_openapi_json():
 def api_docs():
     # Swagger UI
     return render_template("swagger.html")
+
+
+def _subscription_next_billing_iso(resource):
+    try:
+        billing_info = resource.get("billing_info") or {}
+        next_time = billing_info.get("next_billing_time")
+        if next_time:
+            return next_time
+    except Exception:
+        pass
+    return _iso(datetime.now(timezone.utc) + timedelta(days=30))
+
+
+def _upsert_paypal_subscription_license(subscription_id, event_type, resource):
+    if not subscription_id:
+        return None
+
+    now_iso = _iso(datetime.now(timezone.utc))
+    expires_iso = _subscription_next_billing_iso(resource)
+    expires_dt = _parse_iso_or_none(expires_iso) or (datetime.now(timezone.utc) + timedelta(days=30))
+    grace_iso = _iso(expires_dt + timedelta(days=LICENSE_GRACE_DAYS))
+
+    subscriber = resource.get("subscriber") or {}
+    payer_id = subscriber.get("payer_id") or resource.get("payer_id")
+    email = subscriber.get("email_address") or resource.get("payer_email")
+    name_obj = subscriber.get("name") or {}
+    customer_name = " ".join([str(name_obj.get("given_name") or "").strip(), str(name_obj.get("surname") or "").strip()]).strip() or None
+
+    existing = db.get_license_by_subscription(subscription_id)
+    if existing:
+        db.update_license(
+            existing["id"],
+            plan_code="paid_monthly_paypal",
+            status="active",
+            expires_at=expires_iso,
+            grace_until=grace_iso,
+            customer_name=customer_name or existing.get("customer_name"),
+            customer_email=email or existing.get("customer_email"),
+            paypal_payer_id=payer_id or existing.get("paypal_payer_id"),
+            last_payment_at=now_iso,
+            metadata={"last_paypal_event": event_type},
+        )
+        db.add_license_event("paypal_subscription_updated", "paypal_webhook", existing["id"], {
+            "event_type": event_type,
+            "subscription_id": subscription_id,
+        })
+        return existing["id"]
+
+    license_id = db.create_license(
+        plan_code="paid_monthly_paypal",
+        status="active",
+        starts_at=now_iso,
+        expires_at=expires_iso,
+        grace_until=grace_iso,
+        customer_name=customer_name,
+        customer_email=email,
+        paypal_subscription_id=subscription_id,
+        paypal_payer_id=payer_id,
+        last_payment_at=now_iso,
+        metadata={"source": "paypal_webhook", "last_paypal_event": event_type},
+        license_key=f"pp-{subscription_id}",
+    )
+    if license_id:
+        db.add_license_event("paypal_subscription_created", "paypal_webhook", license_id, {
+            "event_type": event_type,
+            "subscription_id": subscription_id,
+        })
+    return license_id
+
+
+def _process_paypal_webhook_event(event_payload):
+    event_type = str(event_payload.get("event_type") or "").upper().strip()
+    resource = event_payload.get("resource") or {}
+
+    subscription_id = resource.get("id")
+    if not subscription_id and event_type == "PAYMENT.SALE.COMPLETED":
+        subscription_id = resource.get("billing_agreement_id")
+
+    if not subscription_id:
+        return False, "subscription_id_missing"
+
+    active_events = {
+        "BILLING.SUBSCRIPTION.ACTIVATED",
+        "BILLING.SUBSCRIPTION.RE-ACTIVATED",
+        "BILLING.SUBSCRIPTION.RENEWED",
+        "BILLING.SUBSCRIPTION.UPDATED",
+        "PAYMENT.SALE.COMPLETED",
+    }
+
+    suspend_events = {
+        "BILLING.SUBSCRIPTION.SUSPENDED",
+        "BILLING.SUBSCRIPTION.CANCELLED",
+        "BILLING.SUBSCRIPTION.EXPIRED",
+    }
+
+    if event_type in active_events:
+        license_id = _upsert_paypal_subscription_license(subscription_id, event_type, resource)
+        return bool(license_id), "activated"
+
+    if event_type in suspend_events:
+        existing = db.get_license_by_subscription(subscription_id)
+        if existing:
+            db.update_license(existing["id"], status="suspended", metadata={"last_paypal_event": event_type})
+            db.add_license_event("paypal_subscription_suspended", "paypal_webhook", existing["id"], {
+                "event_type": event_type,
+                "subscription_id": subscription_id,
+            })
+            return True, "suspended"
+        return False, "license_not_found"
+
+    return True, "ignored"
+
+
+@app.route("/api/license/paypal/webhook", methods=["POST"])
+def paypal_webhook():
+    payload = request.get_json(silent=True) or {}
+    event_id = payload.get("id") or hashlib.sha256(request.get_data() or b"").hexdigest()
+    event_type = payload.get("event_type") or "UNKNOWN"
+
+    if not db.save_billing_webhook_event(event_id, event_type, payload):
+        return jsonify({"ok": True, "duplicate": True}), 200
+
+    if not _verify_paypal_webhook_signature(payload):
+        _audit("paypal_webhook_invalid_signature", "paypal", "/api/license/paypal/webhook", {"event_id": event_id})
+        return jsonify({"ok": False, "error": "invalid_signature"}), 400
+
+    ok, result = _process_paypal_webhook_event(payload)
+    db.mark_billing_webhook_processed(event_id)
+    _audit("paypal_webhook_processed", "paypal", "/api/license/paypal/webhook", {
+        "event_id": event_id,
+        "event_type": event_type,
+        "result": result,
+        "ok": ok,
+    })
+    return jsonify({"ok": ok, "result": result}), (200 if ok else 202)
+
+
+@app.route("/admin/license/status", methods=["GET"])
+@login_required
+def admin_license_status():
+    is_admin = session.get("role") == "admin"
+    state = _get_license_state()
+    return jsonify({
+        "ok": True,
+        "is_admin": is_admin,
+        "enforced": state.get("enforced"),
+        "allow_write": state.get("allow_write"),
+        "status": state.get("status"),
+        "reason": state.get("reason"),
+        "license": state.get("license")
+    })
+
+
+@app.route("/admin/license/activate", methods=["POST"])
+@login_required
+def admin_license_activate():
+    if session.get("role") != "admin":
+        return jsonify({"ok": False, "error": "Solo admin"}), 403
+
+    data = request.get_json(silent=True) or {}
+    plan = str(data.get("plan_code") or "trial_30d").strip()
+    days = int(data.get("days") or 30)
+    customer_name = str(data.get("customer_name") or "").strip() or None
+    customer_email = str(data.get("customer_email") or "").strip() or None
+
+    now = datetime.now(timezone.utc)
+    starts_iso = _iso(now)
+    expires_iso = _iso(now + timedelta(days=max(1, days)))
+    grace_iso = _iso((now + timedelta(days=max(1, days))) + timedelta(days=LICENSE_GRACE_DAYS))
+
+    license_id = db.create_license(
+        plan_code=plan,
+        status="active",
+        starts_at=starts_iso,
+        expires_at=expires_iso,
+        grace_until=grace_iso,
+        customer_name=customer_name,
+        customer_email=customer_email,
+        metadata={"source": "admin_manual_activate", "days": days},
+        license_key=f"manual-{int(time.time())}",
+    )
+    if not license_id:
+        return jsonify({"ok": False, "error": "No se pudo crear la licencia"}), 500
+
+    db.add_license_event("manual_activate", f"web/{session.get('username')}", license_id, {"plan": plan, "days": days})
+    _audit("license_manual_activate", f"web/{session.get('username')}", plan, {"days": days, "license_id": license_id})
+    return jsonify({"ok": True, "license_id": license_id, "expires_at": expires_iso})
+
+
+@app.route("/admin/license/renew", methods=["POST"])
+@login_required
+def admin_license_renew():
+    if session.get("role") != "admin":
+        return jsonify({"ok": False, "error": "Solo admin"}), 403
+
+    data = request.get_json(silent=True) or {}
+    days = int(data.get("days") or 30)
+    lic = db.get_latest_license()
+    if not lic:
+        return jsonify({"ok": False, "error": "No existe licencia para renovar"}), 404
+
+    now = datetime.now(timezone.utc)
+    base_dt = _parse_iso_or_none(lic.get("expires_at")) or now
+    if base_dt < now:
+        base_dt = now
+
+    new_exp_dt = base_dt + timedelta(days=max(1, days))
+    new_grace_dt = new_exp_dt + timedelta(days=LICENSE_GRACE_DAYS)
+
+    ok = db.update_license(
+        lic["id"],
+        status="active",
+        expires_at=_iso(new_exp_dt),
+        grace_until=_iso(new_grace_dt),
+        metadata={"source": "admin_manual_renew", "days": days},
+    )
+    if not ok:
+        return jsonify({"ok": False, "error": "No se pudo renovar la licencia"}), 500
+
+    db.add_license_event("manual_renew", f"web/{session.get('username')}", lic["id"], {"days": days})
+    _audit("license_manual_renew", f"web/{session.get('username')}", lic.get("plan_code"), {"days": days, "license_id": lic["id"]})
+    return jsonify({"ok": True, "license_id": lic["id"], "expires_at": _iso(new_exp_dt)})
 
 
 # Registrar blueprint

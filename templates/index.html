@@ -180,6 +180,78 @@
     </div>
     {% endif %}
 
+    <!-- ======= LICENSE BANNER ======= -->
+    {% if license_state and license_state.license %}
+      {% if license_state.status == 'active' or license_state.status == 'approved' %}
+          <!-- Licencia activa - Verde -->
+          <div class="alert alert-success border-success d-flex align-items-center mb-4 shadow-sm">
+            <i class="bi bi-shield-check fs-3 me-3 text-success"></i>
+            <div>
+              <strong class="text-dark">Licencia Activa</strong>
+              <div class="small text-muted">
+                {% if license_state.license.expires_at %}
+                  Válida hasta: <strong>{{ license_state.license.expires_at[:10] }}</strong> (Plan: {{ license_state.license.plan_code }})
+                {% else %}
+                  Plan: {{ license_state.license.plan_code if license_state.license else 'N/A' }}
+                {% endif %}
+              </div>
+            </div>
+          </div>
+      {% elif license_state.status == 'grace' %}
+          <!-- Período de gracia - Naranja -->
+          <div class="alert alert-danger border-danger d-flex align-items-center mb-4 shadow-sm">
+            <i class="bi bi-exclamation-triangle fs-3 me-3 text-danger"></i>
+            <div>
+              <strong class="text-dark">⏰ Licencia Expirada (Período de Gracia)</strong>
+              <div class="small text-muted">
+                Acceso temporal disponible. Por favor, renova tu licencia cuanto antes.
+                {% if license_state.license.grace_until %}
+                  Gracia hasta: <strong>{{ license_state.license.grace_until[:10] }}</strong>
+                {% endif %}
+              </div>
+            </div>
+            <div class="ms-auto">
+              <a href="https://www.paypal.com/ncp/payment/X4UTTWJ88LS8N" target="_blank" class="btn btn-danger btn-sm fw-bold" title="Renovar licencia en PayPal">
+                Renovar Ahora
+              </a>
+            </div>
+          </div>
+      {% elif license_state.status == 'info' %}
+          <!-- Licencia presente pero enforcement desactivado - Azul informativo -->
+          <div class="alert alert-info border-info d-flex align-items-center mb-4 shadow-sm">
+            <i class="bi bi-info-circle fs-3 me-3 text-info"></i>
+            <div>
+              <strong class="text-dark">ℹ️ Licencia {{ license_state.license.plan_code }}</strong>
+              <div class="small text-muted">
+                {{ license_state.reason }}
+                {% if license_state.license.expires_at %}
+                  (Válida hasta: <strong>{{ license_state.license.expires_at[:10] }}</strong>)
+                {% endif %}
+              </div>
+            </div>
+            <div class="ms-auto d-flex gap-2">
+              <a href="https://www.paypal.com/ncp/payment/X4UTTWJ88LS8N" target="_blank" class="btn btn-info btn-sm fw-bold text-white">
+                <i class="bi bi-paypal me-1"></i> Renovar / Pagar
+              </a>
+            </div>
+          </div>
+      {% else %}
+          <!-- Sin licencia o expirada - Rojo -->
+          <div class="alert alert-danger border-danger d-flex align-items-center mb-4 shadow-sm">
+            <i class="bi bi-shield-exclamation fs-3 me-3 text-danger"></i>
+            <div>
+              <strong class="text-dark">🚫 Licencia {{ license_state.status | upper }}</strong>
+              <div class="small text-muted">{{ license_state.reason }}</div>
+            </div>
+            <div class="ms-auto d-flex gap-2">
+              <a href="https://www.paypal.com/ncp/payment/X4UTTWJ88LS8N" target="_blank" class="btn btn-danger btn-sm fw-bold">
+                <i class="bi bi-currency-dollar me-1"></i> Comprar Licencia
+              </a>
+            </div>
+          </div>
+        {% endif %}
+    {% endif %}
+
     <!-- ======= RESUMEN AMPLIADO ======= -->
 
     <!-- NUEVAS TARJETAS DE RESUMEN -->
