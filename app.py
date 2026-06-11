@@ -3518,12 +3518,10 @@ def update_ttl_route():
     except (TypeError, ValueError):
         ttl_days = 0
 
-    # Recalcular expiration_date a partir del added_at original
+    # Recalcular expiration_date desde HOY (no desde added_at, para evitar expiración inmediata)
     try:
-        added_at_str = curr.get("added_at") or datetime.now().strftime("%Y-%m-%d")
-        added_dt = datetime.strptime(str(added_at_str).split("T")[0], "%Y-%m-%d")
         if ttl_days > 0:
-            expiration_date = (added_dt + timedelta(days=ttl_days)).strftime("%Y-%m-%d")
+            expiration_date = (datetime.now() + timedelta(days=ttl_days)).strftime("%Y-%m-%d")
         else:
             expiration_date = None
     except Exception:
