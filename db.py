@@ -115,11 +115,59 @@ def init_db():
     )
     ''')
 
+    # Tabla: Licencias
+    c.execute('''
+    CREATE TABLE IF NOT EXISTS licenses (
+        id INTEGER PRIMARY KEY AUTOINCREMENT,
+        license_key TEXT UNIQUE,
+        plan_code TEXT NOT NULL,
+        status TEXT NOT NULL,
+        starts_at TEXT,
+        expires_at TEXT,
+        grace_until TEXT,
+        customer_name TEXT,
+        customer_email TEXT,
+        paypal_subscription_id TEXT,
+        paypal_payer_id TEXT,
+        last_payment_at TEXT,
+        metadata TEXT,
+        created_at TEXT,
+        updated_at TEXT
+    )
+    ''')
+
+    # Tabla: Eventos de Webhook de PayPal (idempotencia)
+    c.execute('''
+    CREATE TABLE IF NOT EXISTS billing_webhook_events (
+        id INTEGER PRIMARY KEY AUTOINCREMENT,
+        event_id TEXT UNIQUE NOT NULL,
+        event_type TEXT,
+        received_at TEXT,
+        processed INTEGER DEFAULT 0,
+        payload TEXT
+    )
+    ''')
+
+    # Tabla: Historial de cambios de licencia
+    c.execute('''
+    CREATE TABLE IF NOT EXISTS license_events (
+        id INTEGER PRIMARY KEY AUTOINCREMENT,
+        ts TEXT NOT NULL,
+        event_type TEXT NOT NULL,
+        actor TEXT,
+        license_id INTEGER,
+        payload TEXT
+    )
+    ''')
+
     # Índices
     c.execute('CREATE INDEX IF NOT EXISTS idx_audit_ts ON audit_log(ts)')
     c.execute('CREATE INDEX IF NOT EXISTS idx_audit_event ON audit_log(event)')
     c.execute('CREATE INDEX IF NOT EXISTS idx_meta_source ON ip_metadata(source)')
     c.execute('CREATE INDEX IF NOT EXISTS idx_feed_ts ON feed_access_log(ts)')
+    c.execute('CREATE INDEX IF NOT EXISTS idx_licenses_status ON licenses(status)')
+    c.execute('CREATE INDEX IF NOT EXISTS idx_licenses_expires_at ON licenses(expires_at)')
+    c.execute('CREATE INDEX IF NOT EXISTS idx_licenses_subscription ON licenses(paypal_subscription_id)')
 
     conn.commit()
     conn.close()
@@ -502,3 +550,152 @@ def get_test_history(limit=10):
         conn.close()
         return [dict(r) for r in rows]
     except Exception: return []
+
+# --- Licensing & Billing ---
+def _json_load(value, default=None):
+    if default is None:
+        default = {}
+    if not value:
+        return default
+    try:
+        return json.loads(value)
+    except Exception:
+        return default
+
+def _row_to_license(row):
+    if not row:
+        return None
+    data = dict(row)
+    data['metadata'] = _json_load(data.get('metadata'), {})
+    return data
+
+def create_license(plan_code, status, starts_at=None, expires_at=None, grace_until=None,
+                   customer_name=None, customer_email=None, paypal_subscription_id=None,
+                   paypal_payer_id=None, last_payment_at=None, metadata=None, license_key=None):
+    try:
+        now = _iso(datetime.now(timezone.utc))
+        conn = get_db()
+        cur = conn.cursor()
+        cur.execute('''
+            INSERT INTO licenses (
+                license_key, plan_code, status, starts_at, expires_at, grace_until,
+                customer_name, customer_email, paypal_subscription_id, paypal_payer_id,
+                last_payment_at, metadata, created_at, updated_at
+            ) VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)
+        ''', (
+            license_key, plan_code, status, starts_at, expires_at, grace_until,
+            customer_name, customer_email, paypal_subscription_id, paypal_payer_id,
+            last_payment_at, json.dumps(metadata or {}), now, now
+        ))
+        conn.commit()
+        new_id = cur.lastrowid
+        conn.close()
+        return new_id
+    except Exception as e:
+        print(f"DB Create License Error: {e}")
+        return None
+
+def update_license(license_id, **fields):
+    if not fields:
+        return False
+    try:
+        allowed = {
+            'license_key', 'plan_code', 'status', 'starts_at', 'expires_at', 'grace_until',
+            'customer_name', 'customer_email', 'paypal_subscription_id', 'paypal_payer_id',
+            'last_payment_at', 'metadata'
+        }
+        sets = []
+        params = []
+        for key, value in fields.items():
+            if key not in allowed:
+                continue
+            if key == 'metadata':
+                value = json.dumps(value or {})
+            sets.append(f"{key} = ?")
+            params.append(value)
+
+        if not sets:
+            return False
+
+        sets.append('updated_at = ?')
+        params.append(_iso(datetime.now(timezone.utc)))
+        params.append(license_id)
+
+        conn = get_db()
+        conn.execute(f"UPDATE licenses SET {', '.join(sets)} WHERE id = ?", tuple(params))
+        conn.commit()
+        conn.close()
+        return True
+    except Exception as e:
+        print(f"DB Update License Error: {e}")
+        return False
+
+def get_license_by_id(license_id):
+    try:
+        conn = get_db()
+        row = conn.execute('SELECT * FROM licenses WHERE id = ?', (license_id,)).fetchone()
+        conn.close()
+        return _row_to_license(row)
+    except Exception:
+        return None
+
+def get_license_by_subscription(subscription_id):
+    try:
+        conn = get_db()
+        row = conn.execute(
+            'SELECT * FROM licenses WHERE paypal_subscription_id = ? ORDER BY id DESC LIMIT 1',
+            (subscription_id,)
+        ).fetchone()
+        conn.close()
+        return _row_to_license(row)
+    except Exception:
+        return None
+
+def get_latest_license():
+    try:
+        conn = get_db()
+        row = conn.execute('SELECT * FROM licenses ORDER BY id DESC LIMIT 1').fetchone()
+        conn.close()
+        return _row_to_license(row)
+    except Exception:
+        return None
+
+def add_license_event(event_type, actor='system', license_id=None, payload=None):
+    try:
+        conn = get_db()
+        conn.execute('''
+            INSERT INTO license_events (ts, event_type, actor, license_id, payload)
+            VALUES (?, ?, ?, ?, ?)
+        ''', (_iso(datetime.now(timezone.utc)), str(event_type), str(actor), license_id, json.dumps(payload or {})))
+        conn.commit()
+        conn.close()
+        return True
+    except Exception as e:
+        print(f"DB License Event Error: {e}")
+        return False
+
+def save_billing_webhook_event(event_id, event_type, payload):
+    try:
+        conn = get_db()
+        conn.execute('''
+            INSERT INTO billing_webhook_events (event_id, event_type, received_at, processed, payload)
+            VALUES (?, ?, ?, 0, ?)
+        ''', (str(event_id), str(event_type or ''), _iso(datetime.now(timezone.utc)), json.dumps(payload or {})))
+        conn.commit()
+        conn.close()
+        return True
+    except sqlite3.IntegrityError:
+        return False
+    except Exception as e:
+        print(f"DB Save Webhook Error: {e}")
+        return False
+
+def mark_billing_webhook_processed(event_id):
+    try:
+        conn = get_db()
+        conn.execute('UPDATE billing_webhook_events SET processed = 1 WHERE event_id = ?', (str(event_id),))
+        conn.commit()
+        conn.close()
+        return True
+    except Exception:
+        return False
