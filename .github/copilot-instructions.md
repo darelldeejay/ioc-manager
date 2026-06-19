@@ -2,6 +2,20 @@
 
 > **IMPORTANTE**: Este archivo es la fuente de verdad del proyecto. Contiene el contexto técnico completo para que GitHub Copilot nunca pierda el hilo. Actualizar tras cambios significativos.
 
+---
+
+## 🔴 REGLA CRÍTICA: Añadir / modificar clientes
+
+**Cuando el usuario pida añadir un nuevo cliente o feed de cliente:**
+
+1. **ANTES de tocar código**, leer el documento completo: `docs/ADDING_CLIENTS.md`
+2. Seguir exactamente el checklist de 6 pasos indicado en ese documento.
+3. **NUNCA subir nombres de clientes reales a GitHub** — `git add app.py` está prohibido cuando contiene clientes reales.
+4. Desplegar primero en **preprod** (`ssh ioc-preprod`), esperar validación, luego **prod** (`ssh ioc-prod`).
+5. Actualizar la tabla "Clientes activos actualmente" en `docs/ADDING_CLIENTS.md` (solo local, no a GitHub).
+
+---
+
 ## Qué es este proyecto
 
 **IOC Manager** es una aplicación web Flask para gestionar listas dinámicas de IPs maliciosas (Indicators of Compromise).  
